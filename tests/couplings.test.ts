@@ -30,8 +30,10 @@ test("tall cargo stacks do not turn into long rigid levers or acquire a large la
   const distance = hill.start + hill.length / 2 + wagon.offset;
   for (let i = 0; i < 120 && !c.spilled; i++) c.update(1 / 120, distance, 35);
   assert.equal(c.parcels.length, 30);
-  const pose = c.frame(wagon, distance);
-  const carrierVelocity = pose.tangent.clone().multiplyScalar(35).add(wagon.relativeVelocity);
+  const carrierVelocity = wagon.velocity;
+  assert.ok(carrierVelocity.distanceTo(track.sample(distance - wagon.offset).tangent.clone()
+    .multiplyScalar(35).add(wagon.relativeVelocity)) < 1e-8,
+    "A wagon's visual lean must not redirect its cargo's inherited velocity");
   for (const parcel of c.parcels) {
     assert.ok(parcel.velocity.length() <= carrierVelocity.length() * 1.040001);
     assert.ok(parcel.velocity.distanceTo(carrierVelocity) < 1.51);

@@ -3,13 +3,14 @@ import { MiniTrack } from "./mini-track";
 import { MiniPhysics } from "./mini-physics";
 import { MiniView } from "./mini-view";
 import { MiniReadouts } from "./mini-readouts";
+import { jumpApproach, type JumpApproach } from "./mini-guide";
 import { MiniCarriages } from "./mini-carriages";
 import { numberPad } from "./input";
 import { multiplication } from "../math";
 import { gradient, line, roundRect, circle } from "../draw";
 import { record } from "../storage";
 import {
-  isParcelWagon,
+  isParcelWagon, parcelPresentation,
 } from "./mini-config";
 import type { Host } from "../types";
 import { Vector3 } from "three";
@@ -29,6 +30,8 @@ export class Mini extends BaseGame {
   private hudAt = 0;
   private recordedAt = 0;
   private jumpBonusUntil = 0;
+  private jumpWasRecord = false;
+  private approach?: JumpApproach;
   private readouts?: MiniReadouts;
   constructor(host: Host, seed?: number) {
     super(host);
@@ -65,6 +68,7 @@ export class Mini extends BaseGame {
     );
   }
   hud() {
+    this.approach = this.ended ? undefined : jumpApproach(this.track, this.physics);
     this.host.stats([
       { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
       { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
@@ -130,6 +134,7 @@ export class Mini extends BaseGame {
     const previousImpacts = this.carriages.impacts;
     const previousArrivals = this.carriages.arrived;
     const previousJumps = this.physics.jumps;
+    const previousBestJump = this.physics.bestJump;
     this.physics.update(dt, (step) => {
       shed = this.carriages.update(step, this.physics.distance, this.physics.velocity) || shed;
       if (this.physics.crashed || this.physics.held) {
@@ -143,6 +148,7 @@ export class Mini extends BaseGame {
       const bonus = Math.round(distance * 10);
       this.score += bonus;
       this.jumpBonusUntil = this.elapsed + 4;
+      this.jumpWasRecord = distance > previousBestJump + 0.05;
       this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
       this.host.sound("win");
     } else if (shed) {
@@ -177,14 +183,18 @@ export class Mini extends BaseGame {
         this.elapsed,
       );
     } else this.fallback(ctx);
+    const reloading = this.carriages.coaches.filter(coach => coach.refill > 0);
     this.readouts?.render({
       held: this.ended,
       incoming: !!this.carriages.incoming,
       jump: this.physics.flight && !this.ended
-        ? { distance: this.physics.flight.position.x - this.physics.flight.startX, landed: false }
-        : this.elapsed < this.jumpBonusUntil ? { distance: this.physics.lastJumpDistance, landed: true } : undefined,
+        ? { distance: this.physics.flight.position.x - this.physics.flight.startX, landed: false, record: false }
+        : this.elapsed < this.jumpBonusUntil ? { distance: this.physics.lastJumpDistance, landed: true, record: this.jumpWasRecord } : undefined,
       correct: this.correct,
-      bestRun: this.physics.bestRun,
+      approach: this.approach,
+      cargo: this.carriages.coaches.reduce((sum, coach) => sum + coach.cargo, 0),
+      refillIn: reloading.length ? Math.min(...reloading.map(coach => coach.refill)) : undefined,
+      stress: Math.max(0, ...this.carriages.coaches.map(coach => coach.stress)),
       feature: this.track.sectionAt(this.physics.distance).kind,
       boost: this.flash > 0 ? Math.round(this.lastImpulse * 3.6) : null,
     });
@@ -199,9 +209,7 @@ export class Mini extends BaseGame {
     let centerY = Math.max(0, frame.position.y - 10) + 65 / scale;
     const subjects = [
       ...this.carriages.poses(this.physics.distance).filter(p => p.frame.airborne || p.coach === this.carriages.incoming).map(p => p.frame.position),
-      ...this.carriages.flights.map(c => c.position),
-      ...this.carriages.parcels.map(p => p.position),
-      ...this.carriages.explosions.flatMap(e => e.particles.map(p => p.position)),
+      ...this.carriages.cameraSubjects(),
     ];
     if (subjects.length) {
       const left = Math.min(centerX - 500 / scale, ...subjects.map(p => p.x - 3));
@@ -229,7 +237,7 @@ export class Mini extends BaseGame {
       drawRail();
     }
     for (const link of this.carriages.links(this.physics.distance))
-      line(ctx, [project(link.start.x, link.start.y), project(link.end.x, link.end.y)], "#56786f", Math.max(2, scale * 0.16));
+      line(ctx, [project(link.start.x, link.start.y), project(link.end.x, link.end.y)], link.stress > 0.75 ? "#e67657" : link.stress > 0.4 ? "#efb750" : "#56786f", Math.max(2, scale * 0.16));
     const palette = ["#d7e99b", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987"];
     for (const { coach, frame: cart } of this.carriages.poses(this.physics.distance).reverse()) {
       const index = coach.id;
@@ -249,10 +257,13 @@ export class Mini extends BaseGame {
         palette[index % palette.length],
         "#779486",
       );
-      for (let i = 0; i < coach.cargo; i++) {
-        const x = i % 2 ? 2 : -15, y = -27 - Math.floor(i / 2) * 14;
-        roundRect(ctx, x, y, 13, 13, 1, "#c89560");
-        roundRect(ctx, x + 5, y, 3, 13, 0, "#f9e8b9");
+      for (const parcel of parcelPresentation(coach.cargo, coach.cargoAge)) {
+        if (parcel.scale <= 0) continue;
+        const x = parcel.z > 0 ? 2 : -15, y = -27 - (parcel.y - 1) * 20;
+        ctx.save(); ctx.translate(x + 6.5, y + 6.5); ctx.scale(parcel.scale, parcel.scale);
+        roundRect(ctx, -6.5, -6.5, 13, 13, 1, "#c89560");
+        roundRect(ctx, -1.5, -6.5, 3, 13, 0, "#f9e8b9");
+        ctx.restore();
       }
       circle(ctx, -10, 0, 4, "#738779");
       circle(ctx, 10, 0, 4, "#738779");

@@ -316,9 +316,17 @@ h2 {
   line-height: 20px;
   text-align: center;
 }
-.mini-feature.boosting {
-  background: #edffb9;
-}
+.mini-feature[data-tone="ready"] { background: #edffb9; color: #547b51; }
+.mini-feature[data-tone="warning"] { background: #fff3d8; color: #98602f; border-color: #e7c78a; }
+.mini-feature-kicker, .mini-feature-value, .mini-feature-detail { display: block; }
+.mini-feature-kicker:empty, .mini-feature-detail:empty { display: none; }
+.mini-feature-value { font: inherit; font-variant-numeric: tabular-nums; }
+.mini-feature.has-detail { min-width: 210px; padding: 13px 18px; text-align: left; }
+.mini-feature-kicker { font-size: 10px; letter-spacing: 1px; line-height: 1.4; }
+.mini-feature.has-detail .mini-feature-value { margin-top: 5px; font-size: 20px; line-height: 1.15; }
+.mini-feature.jump-metric .mini-feature-value { font-size: 38px; letter-spacing: -1.1px; }
+.mini-feature-detail { font: 500 11px/1.5 "DM Sans", sans-serif; margin-top: 5px; }
+.mini-run.under-strain { background: #fff3d8; color: #98602f; border-color: #e7c78a; }
 .game-feedback {
   position: absolute;
   bottom: 106px;
@@ -892,3 +900,12 @@ kbd {
 .overlay-card > p { color: #6c8178; line-height: 1.6; margin: 12px 0 20px; }
 .result-score { color: #4e7564; font: 700 32px "Outfit", sans-serif; margin-bottom: 24px; }
 .result-score span { display: block; font: 500 14px "DM Sans", sans-serif; margin-top: 4px; }
+
+@media (max-width: 600px) {
+  .mini-feature.has-detail { min-width: 0; max-width: 190px; padding: 8px 10px; }
+  .mini-feature-kicker { font-size: 8px; letter-spacing: 0.5px; }
+  .mini-feature.has-detail .mini-feature-value { margin-top: 3px; font-size: 16px; }
+  .mini-feature.jump-metric .mini-feature-value { font-size: 26px; }
+  .mini-feature-detail { font-size: 9px; line-height: 1.35; margin-top: 3px; }
+  .mini-feature.has-detail:not(.jump-metric) .mini-feature-detail { display: none; }
+}

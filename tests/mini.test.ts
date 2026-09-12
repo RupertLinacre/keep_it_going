@@ -358,19 +358,21 @@ test("replacement coaches visibly close the gap from behind, sooner at higher sp
   const run = (speed: number) => {
     const track = new MiniTrack(42), c = new MiniCarriages(track);
     c.coaches.splice(4); c.lost = 2;
-    let firstSeen = -1, arrival = -1, previousOffset = Infinity;
+    let firstSeen = -1, arrival = -1, previousOffset = Infinity, finalClosingSpeed = Infinity;
     for (let t = 0; t < 30; t += 1 / 120) {
       c.update(1 / 120, 8, speed);
       if (c.incoming) {
         if (firstSeen < 0) firstSeen = t;
         assert.ok(c.incoming.offset < previousOffset);
         assert.ok(c.incoming.offset > c.coaches.at(-1)!.offset);
+        finalClosingSpeed = (previousOffset - c.incoming.offset) * 120;
         previousOffset = c.incoming.offset;
         assert.equal(c.coaches.length, 4, "Not counted until it couples");
       }
       if (c.arrived) { arrival = t; break; }
     }
     assert.ok(firstSeen >= 0 && arrival > firstSeen + 0.5);
+    assert.ok(finalClosingSpeed < 0.2, "An arriving coach matches the train's speed before coupling");
     assert.equal(c.coaches.length, 5);
     assert.equal(c.coaches.at(-1)!.offset, 4 * MINI_CART_SPACING);
     return arrival;

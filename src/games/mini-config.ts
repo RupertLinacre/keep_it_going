@@ -13,6 +13,14 @@ export const MINI_COUPLING_STRENGTH = 180;
 export const parcelOffsets = (count: number) => Array.from({ length: count }, (_, i) => ({
   x: 0, y: 1 + Math.floor(i / 2) * 0.7, z: i % 2 ? 0.47 : -0.47,
 }));
+/** A short staggered drop as fresh parcels settle into their wagon. */
+export const parcelPresentation = (count: number, age: number) => parcelOffsets(count).map((offset, i) => {
+  const delay = count > 1 ? i / (count - 1) * 0.14 : 0;
+  const t = Math.min(1, Math.max(0, (age - delay) / 0.38));
+  const scale = Math.min(1, t * 4);
+  return { ...offset, y: offset.y + 0.85 * (1 - t) ** 2 + 0.06 * Math.sin(t * Math.PI * 2) * (1 - t),
+    scale: scale * scale * (3 - 2 * scale) };
+});
 export const MINI_TRAIL_DISTANCE = 180;
 export const MINI_VISIBLE_CARTS =
   Math.ceil(MINI_TRAIL_DISTANCE / MINI_CART_SPACING) + 1;

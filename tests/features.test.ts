@@ -93,6 +93,7 @@ test("spilled parcels follow gravity, then respawn quickly with one extra parcel
     assert.equal(coach.cargo, 0);
     assert.equal(c.lost, 0);
     const parcel = c.parcels.at(-1)!;
+    assert.ok(c.cameraSubjects().includes(parcel.position), "The camera follows airborne cargo");
     const before = parcel.position.clone();
     const launchSpeed = parcel.velocity.length();
     for (let i = 0; i < 60; i++) c.update(1 / 120, 8, 0);
@@ -100,6 +101,7 @@ test("spilled parcels follow gravity, then respawn quickly with one extra parcel
     assert.ok(parcel.velocity.length() < launchSpeed, "Drag slows a loose parcel");
     for (let i = 0; i < 245; i++) c.update(1 / 120, 8, 0);
     assert.equal(coach.cargo, expectedCount + 1);
+    if (parcel.bounces) assert.ok(!c.cameraSubjects().includes(parcel.position), "Landed cargo no longer pulls the camera back");
   }
   assert.equal(c.refills, 3);
   for (let i = 0; i < 1500; i++) c.update(1 / 120, 8, 0);
@@ -120,12 +122,15 @@ test("a carriage explodes once on impact and the debris follows gravity then exp
   assert.equal(carriages.impacts, 1);
   assert.equal(carriages.explosions.length, 1);
   const explosion = carriages.explosions[0];
+  assert.ok(carriages.cameraSubjects().includes(explosion.position), "Frame the impact when it happens");
   assert.equal(explosion.particles.length, MINI_EXPLOSION_PARTICLES);
   const particle = explosion.particles[0];
   const expected = particle.position.clone().addScaledVector(particle.velocity, 0.1);
   expected.y -= 0.5 * 9.81 * 0.1 ** 2;
   carriages.update(0.1, front, 0, false);
   assert.ok(particle.position.distanceTo(expected) < 1e-8);
+  for (let i = 0; i < 72; i++) carriages.update(1 / 120, front, 0, false);
+  assert.equal(carriages.cameraSubjects().length, 0, "Fading debris no longer holds the camera away from the train");
   for (let i = 0; i < 360; i++) carriages.update(1 / 120, front, 0, false);
   assert.equal(carriages.impacts, 1);
   assert.equal(carriages.explosions.length, 0);

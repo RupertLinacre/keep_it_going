@@ -6,7 +6,7 @@ import {
   MINI_STARTING_CARTS,
   MINI_MAX_FLYING_CARTS,
   MINI_MAX_FLYING_PARCELS, MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES,
-  parcelOffsets, isParcelWagon,
+  parcelPresentation, isParcelWagon,
 } from "./mini-config";
 import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
@@ -84,7 +84,7 @@ export class MiniView {
     this.wagonParts = this.instanceModel(this.car("#ffffff", true), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.parcelParts = this.instanceModel(this.parcel(), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
     this.train.push(...[...this.trainParts, ...this.wagonParts].map(part => part.mesh));
-    this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#56786f", MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
+    this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#ffffff", MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.debris = this.instances(new THREE.BoxGeometry(1, 1, 1), "#ffffff", MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
     this.impactFlashes = this.instances(new THREE.IcosahedronGeometry(1, 1), "#ffe6a6", MINI_MAX_EXPLOSIONS);
     this.impactRings = this.instances(new THREE.TorusGeometry(1, 0.035, 6, 40), "#f6ad62", MINI_MAX_EXPLOSIONS);
@@ -420,8 +420,7 @@ export class MiniView {
     const subjects = [
       ...(poses?.filter(p => p.coach.cargo > 4).map(p => p.frame.position.clone().addScaledVector(p.frame.up, 1.35 + Math.floor((p.coach.cargo - 1) / 2) * 0.7)) ?? []),
       ...(poses?.filter(p => p.frame.airborne || p.coach.lift > 0.05 || p.coach === effects?.incoming).map(p => p.frame.position) ?? []),
-      ...flights.map(c => c.position), ...parcels.map(p => p.position),
-      ...explosions.flatMap(e => [e.position, ...e.particles.map(p => p.position)]),
+      ...(effects?.cameraSubjects() ?? []),
     ];
     if (subjects.length) subjects.unshift(f.position);
     this.cameraRig.update(baseFocus, baseHeight, this.aspect, subjects, dt);
@@ -446,23 +445,26 @@ export class MiniView {
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
     const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
-    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number) => {
+    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
       if (isParcelWagon(index)) {
         open.push(matrix); openColors.push(index);
-        if (loaded) for (const offset of parcelOffsets(loaded))
-          cargo.push(matrix.clone().multiply(new THREE.Matrix4().makeTranslation(offset.x, offset.y, offset.z)));
+        if (loaded) for (const offset of parcelPresentation(loaded, cargoAge)) {
+          if (offset.scale <= 0) continue;
+          cargo.push(matrix.clone().multiply(new THREE.Matrix4().compose(
+            new THREE.Vector3(offset.x, offset.y, offset.z), new THREE.Quaternion(), new THREE.Vector3().setScalar(offset.scale))));
+        }
       } else { closed.push(matrix); closedColors.push(index); }
     };
     const attached = poses ?? Array.from({ length: count }, (_, index) => ({
-      frame: this.track.sample(distance - index * MINI_CART_SPACING), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0 },
+      frame: this.track.sample(distance - index * MINI_CART_SPACING), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0, cargoAge: 1 },
     }));
     for (const { frame, coach } of attached) {
       const position = frame.position.clone();
       position.x -= anchor;
       const screen = position.clone().project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-      addCar(position, frame.rotation, coach.id, coach.cargo);
+      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge);
     }
     this.renderedCartCount = open.length + closed.length;
     for (const cart of flights) {
@@ -487,9 +489,13 @@ export class MiniView {
       dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
       dummy.updateMatrix();
       this.couplings.setMatrixAt(i, dummy.matrix);
+      const color = new THREE.Color("#56786f").lerp(new THREE.Color("#efb750"), Math.min(1, link.stress * 1.4));
+      if (link.stress > 0.75) color.lerp(new THREE.Color("#e67657"), (link.stress - 0.75) * 4);
+      this.couplings.setColorAt(i, color);
     }
     this.couplings.count = links.length;
     this.couplings.instanceMatrix.needsUpdate = true;
+    if (this.couplings.instanceColor) this.couplings.instanceColor.needsUpdate = true;
     let chunks = 0, flashes = 0, rings = 0;
     for (const explosion of explosions) {
       for (const [i, particle] of explosion.particles.entries()) {

@@ -73,6 +73,7 @@ export interface Coach {
   lift: number;
   liftVelocity: number;
   cargo: number;
+  cargoAge: number;
   nextCargo: number;
   refill: number;
   grace: number;
@@ -81,6 +82,8 @@ export interface Coach {
   relativeVelocity: THREE.Vector3;
   couplingLoad: number;
   couplingStrain: number;
+  stress: number;
+  velocity: THREE.Vector3;
 }
 
 /** Fixed-step carriage, cargo and impact physics; rendering consumes this state. */
@@ -105,8 +108,8 @@ export class MiniCarriages {
   }
   private newCoach(id: number, offset: number): Coach {
     return { id, offset, lift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? 2 : 0,
-      nextCargo: 3, refill: 0, grace: 0, parcelStrain: 0,
-      displacement: new THREE.Vector3(), relativeVelocity: new THREE.Vector3(), couplingLoad: 0, couplingStrain: 0 };
+      cargoAge: 1, nextCargo: 3, refill: 0, grace: 0, parcelStrain: 0,
+      displacement: new THREE.Vector3(), relativeVelocity: new THREE.Vector3(), couplingLoad: 0, couplingStrain: 0, stress: 0, velocity: new THREE.Vector3() };
   }
   frame(coach: Coach, distance: number) {
     const frame = this.sample(distance - coach.offset);
@@ -124,17 +127,18 @@ export class MiniCarriages {
   }
   /** Coupler endpoints are shared by the 3D view and the side-view fallback. */
   links(distance: number) {
-    const links: { start: THREE.Vector3; end: THREE.Vector3 }[] = [];
+    const links: { start: THREE.Vector3; end: THREE.Vector3; stress: number }[] = [];
     const end = (position: THREE.Vector3, rotation: THREE.Quaternion, front: boolean) =>
       new THREE.Vector3(0, 0.3, front ? -1.02 : 1.02).applyQuaternion(rotation).add(position);
     const poses = this.poses(distance).filter(p => p.coach !== this.incoming);
     for (let i = 1; i < poses.length; i++) links.push({
+      stress: poses[i].coach.stress,
       start: end(poses[i - 1].frame.position, poses[i - 1].frame.rotation, false),
       end: end(poses[i].frame.position, poses[i].frame.rotation, true),
     });
     for (const cart of this.flights) {
       const ahead = this.flights.find(c => c.colorIndex === cart.coupledTo);
-      if (ahead) links.push({ start: end(ahead.position, ahead.rotation, false), end: end(cart.position, cart.rotation, true) });
+      if (ahead) links.push({ stress: 0, start: end(ahead.position, ahead.rotation, false), end: end(cart.position, cart.rotation, true) });
     }
     return links;
   }
@@ -142,6 +146,14 @@ export class MiniCarriages {
     return [...this.coaches.slice(0, MINI_VISIBLE_CARTS), ...(this.incoming ? [this.incoming] : [])]
       .filter(c => distance - c.offset >= this.track.sections[0].start)
       .map(coach => ({ coach, frame: this.frame(coach, distance) }));
+  }
+  cameraSubjects() {
+    return [
+      ...this.flights.map(cart => cart.position),
+      ...this.parcels.filter(parcel => !parcel.bounces && !parcel.groundedFor).map(parcel => parcel.position),
+      ...this.explosions.filter(explosion => explosion.age < 0.65)
+        .flatMap(explosion => [explosion.position, ...explosion.particles.map(particle => particle.position)]),
+    ];
   }
   splash(frame: RailFrame) {
     this.explode({ position: frame.position.clone(), velocity: new THREE.Vector3(),
@@ -173,7 +185,7 @@ export class MiniCarriages {
     coach.refill = MINI_PARCEL_RESPAWN;
     coach.parcelStrain = 0;
     const angularVelocity = frame.tangent.clone().cross(frame.curvature).multiplyScalar(speed).clampLength(0, 3);
-    const carrierVelocity = frame.tangent.clone().multiplyScalar(speed).add(coach.relativeVelocity);
+    const carrierVelocity = coach.velocity;
     for (const offset of parcelOffsets(count)) {
       const local = new THREE.Vector3(offset.x, offset.y, offset.z).applyQuaternion(frame.rotation);
       // Boxes can slip against one another: a taller stack is not a rigid lever.
@@ -193,7 +205,7 @@ export class MiniCarriages {
   }
 
   update(dt: number, distance: number, speed: number, running = true) {
-    if (!Number.isFinite(dt) || dt < 0) return false;
+    if (!Number.isFinite(dt) || dt <= 0) return false;
     for (let i = this.explosions.length - 1; i >= 0; i--) {
       const explosion = this.explosions[i];
       explosion.age += dt;
@@ -264,8 +276,11 @@ export class MiniCarriages {
     }
     if (this.incoming) {
       const target = this.coaches.at(-1)!.offset + MINI_CART_SPACING;
-      this.incoming.offset = Math.max(target, this.incoming.offset - (2 + speed * 0.7) * dt);
-      if (this.incoming.offset <= target + 0.001) {
+      const gap = this.incoming.offset - target;
+      // Brake relative to the train before the drawbars meet, without overshooting.
+      const closing = Math.min(2 + speed * 0.7, gap * 5);
+      this.incoming.offset = Math.max(target, this.incoming.offset - closing * dt);
+      if (this.incoming.offset <= target + 0.025) {
         this.incoming.offset = target;
         this.coaches.push(this.incoming);
         this.incoming = undefined;
@@ -278,11 +293,13 @@ export class MiniCarriages {
         ? outwardForce(frame, speed, this.gravity) : 0);
     const shed = this.updateCouplings(dt, frames, outward, distance, speed);
     for (const coach of this.coaches.slice(1)) {
+      coach.cargoAge += dt;
       coach.grace = Math.max(0, coach.grace - dt);
       if (coach.refill > 0) {
         coach.refill -= dt;
         if (coach.refill <= 0) {
           coach.cargo = coach.nextCargo++;
+          coach.cargoAge = 0;
           coach.grace = 0.75;
           this.refills++;
         }
@@ -304,7 +321,7 @@ export class MiniCarriages {
     this.coaches[0].displacement.set(0, 0, 0);
     this.coaches[0].relativeVelocity.set(0, 0, 0);
     // Rail suspension and neighbouring drawbars share the load. The front is
-    // the fixed end of this chain; there is no arbitrary multiplier for tail cars.
+    // the fixed end of this damped chain.
     for (let i = 1; i < this.coaches.length; i++) {
       const coach = this.coaches[i];
       const acceleration = frames[i].up.clone().multiplyScalar(Math.max(0, outward[i] - 230))
@@ -327,6 +344,8 @@ export class MiniCarriages {
       const strength = MINI_COUPLING_STRENGTH * (i === 1 ? 4 : 1);
       coach.couplingStrain = Math.max(0, coach.couplingStrain
         + (coach.couplingLoad > strength ? coach.couplingLoad / strength - 1 : -3) * dt);
+      const stress = Math.min(1, Math.max(coach.couplingLoad / strength * 0.7, coach.couplingStrain / 0.025));
+      coach.stress = Math.max(stress, coach.stress * Math.exp(-6 * dt));
       if (coach.couplingStrain > 0.025 && breakAt < 0) breakAt = i;
     }
     // Position constraints stop a stretched coupling from becoming a rubber band.
@@ -352,6 +371,7 @@ export class MiniCarriages {
       coach.relativeVelocity.copy(coach.displacement).sub(previous[i]).divideScalar(dt);
       coach.lift = coach.displacement.dot(frames[i].up);
       coach.liftVelocity = coach.relativeVelocity.dot(frames[i].up);
+      coach.velocity.copy(frames[i].tangent).multiplyScalar(speed).add(coach.relativeVelocity);
     }
     if (breakAt < 0) return false;
     const tail = this.coaches.slice(breakAt);
@@ -361,7 +381,7 @@ export class MiniCarriages {
       if (coach.cargo) this.spill(coach, frame, speed);
       if (this.flights.length >= MINI_MAX_FLYING_CARTS) this.flights.shift();
       this.flights.push({ position: frame.position, rotation: frame.rotation,
-        velocity: frames[breakAt + i].tangent.clone().multiplyScalar(speed).add(coach.relativeVelocity),
+        velocity: coach.velocity.clone(),
         angularVelocity: frames[breakAt + i].tangent.clone().cross(frames[breakAt + i].curvature).multiplyScalar(speed).clampLength(0, 5),
         colorIndex: coach.id, cargo: 0, age: 0, groundedFor: 0,
         coupledTo: i ? tail[i - 1].id : undefined,
