@@ -11,7 +11,7 @@ import {
 } from "./mini-config";
 import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
-import { MINI_CAMERA_DIRECTION, MiniCameraRig } from "./mini-camera";
+import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
 const CART_COLORS = ["#e5ef93", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987", "#a8dac7"].map(c => new THREE.Color(c));
@@ -38,6 +38,7 @@ export class MiniView {
   private board = new THREE.Group();
   private lastState = "";
   private aspect = 2;
+  private readonly compactLayout = window.matchMedia("(max-width: 800px), (hover: none), (pointer: coarse)");
   private materials = new Map<string, THREE.MeshStandardMaterial>();
   private lamp = new THREE.PointLight("#eaff90", 0, 8);
   constructor(
@@ -222,7 +223,7 @@ export class MiniView {
       const rail = this.mesh(
         new THREE.TubeGeometry(
           new MiniRailCurve(section, offset, from, to),
-          Math.ceil((to - from) * 14),
+          Math.max(24, Math.min(8000, Math.ceil((to - from) * 5))),
           0.095,
           6,
           false,
@@ -260,8 +261,10 @@ export class MiniView {
     for (let s = section.start + 0.8; s < section.end; s += 2.4) {
       if (!section.hasRail(s)) continue;
       const f = section.sample(s);
+      const local = f.position.clone().sub(section.origin);
       const onTower = section.kind === "triplehelix"
-        && f.position.x - section.origin.x > section.width * 0.57;
+        ? local.x > section.width * 0.57
+        : section.kind === "ascendinghelix" && Math.abs(local.x - section.width * 0.24) < section.width * 0.17;
       if (!onTower && f.up.y > 0.2 && Math.abs(f.tangent.y) < 0.88)
         supports.push(f.position.clone().sub(section.origin));
     }
@@ -290,18 +293,20 @@ export class MiniView {
     posts.castShadow = true;
     posts.receiveShadow = true;
     group.add(posts, feet);
-    if (section.kind === "triplehelix") {
-      const radius = section.width * 0.095;
+    if (section.kind === "triplehelix" || section.kind === "ascendinghelix") {
+      const rising = section.kind === "ascendinghelix";
+      const radius = section.width * (rising ? 0.12 : 0.095);
       const height = section.amplitude + section.origin.y;
       const mast = this.mesh(new THREE.CylinderGeometry(0.4, 0.6, height, 10), "#e8cfac");
-      mast.position.set(section.width * 0.68 + radius * 0.2, height / 2 - section.origin.y, section.hand * radius);
+      mast.position.set(section.width * (rising ? 0.2 : 0.68) + radius * (rising ? 0.325 : 0.2), height / 2 - section.origin.y, section.hand * radius);
       group.add(mast);
       const cap = this.mesh(new THREE.ConeGeometry(1.2, 1.4, 10), "#e89983");
       cap.position.copy(mast.position); cap.position.y = section.amplitude + 0.7;
       group.add(cap);
       const spokeGeometry = new THREE.CylinderGeometry(0.07, 0.1, 1, 6);
-      for (let i = 0; i < 12; i++) {
-        const frame = section.frames[Math.round(section.resolution * (0.3 + 0.6 * (i + 0.5) / 12))];
+      const spokes = section.turns * 4;
+      for (let i = 0; i < spokes; i++) {
+        const frame = section.frames[Math.round(section.resolution * ((rising ? 0.1 : 0.3) + (rising ? 0.68 : 0.6) * (i + 0.5) / spokes))];
         const end = frame.position.clone().sub(section.origin).addScaledVector(frame.up, -0.3);
         const start = new THREE.Vector3(mast.position.x, end.y - 0.3, mast.position.z);
         const direction = end.clone().sub(start);
@@ -341,9 +346,10 @@ export class MiniView {
       1;
     const trunkGeo = new THREE.CylinderGeometry(0.12, 0.17, 1, 6),
       leafGeo = new THREE.ConeGeometry(0.9, 2.2, 7);
-    for (let i = 0; i < 5; i++) {
-      const x = (Math.max(3, section.width) * (i + 0.5)) / 5;
-      const side = section.kind === "helix" || section.kind === "triplehelix" ? -section.hand : i % 2 ? 1 : -1;
+    const trees = section.runout ? Math.ceil(section.span / 16) : 5;
+    for (let i = 0; i < trees; i++) {
+      const x = (Math.max(3, section.span) * (i + 0.5)) / trees;
+      const side = ["helix", "triplehelix", "ascendinghelix", "immelmann", "diveloop", "nestedloop", "interlockingloops"].includes(section.kind) ? -section.hand : i % 2 ? 1 : -1;
       const z = side * (8.3 + random(i) * 2.5) - section.origin.z;
       const tree = new THREE.Group();
       const trunk = this.mesh(trunkGeo, "#b99c82");
@@ -377,7 +383,7 @@ export class MiniView {
     time = 0,
   ) {
     const flights = effects?.flights ?? [], parcels = effects?.parcels ?? [], explosions = effects?.explosions ?? [];
-    const dt = clamp(time - this.lastTime, 0, 0.05);
+    const dt = clamp(time - this.lastTime, 0, 0.05) || 1 / 60;
     this.lastTime = time;
     const state = `${distance}:${velocity}:${flash}:${close}:${cartCount}:${this.track.generated}:${effects?.spilled}:${effects?.refills}:${time}:${flights.map(c => c.age)}:${parcels.map(p => p.age + p.groundedFor)}:${explosions.map(e => e.age)}`;
     if (state === this.lastState && this.cameraRig.settled) return;
@@ -409,23 +415,17 @@ export class MiniView {
           clamp((f.position.x + 65 - p.x) / 22, 0, 1);
         skyline = Math.max(skyline, 4 + (p.y - 4) * influence);
       }
-    const baseFocus = new THREE.Vector3(
-      // Narrow screens need the train centred, with less empty track ahead.
-      f.position.x + (close ? 3 : 9) * clamp(this.aspect - 1, 0, 1),
-      close
-        ? Math.max(4.1, f.position.y * 0.78)
-        : Math.max(4.1, skyline * 0.43),
-      0,
-    );
-    const baseHeight = (close ? 26 : Math.max(32, skyline * 1.25 + 10))
-      * (this.stage.clientHeight < 400 ? 1.22 : 1);
+    const framing = coasterFraming(f.position, skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches);
+    // Follow the head of a long train. New arrivals enter from behind without
+    // pulling the camera hundreds of metres back to its ever-growing tail.
+    // Detached coaches and loose cargo still get the full airborne camera treatment.
     const subjects = [
-      ...(poses?.filter(p => p.coach.cargo > 4).map(p => p.frame.position.clone().addScaledVector(p.frame.up, 1.35 + Math.floor((p.coach.cargo - 1) / 2) * 0.7)) ?? []),
-      ...(poses?.filter(p => p.frame.airborne || p.coach.lift > 0.05 || p.coach === effects?.incoming).map(p => p.frame.position) ?? []),
+      ...(poses?.slice(0, MINI_STARTING_CARTS).filter(p => p.coach !== effects?.incoming
+        && (p.frame.airborne || p.coach.lift > 0.05)).map(p => p.frame.position) ?? []),
       ...(effects?.cameraSubjects() ?? []),
     ];
-    if (subjects.length) subjects.unshift(f.position);
-    this.cameraRig.update(baseFocus, baseHeight, this.aspect, subjects, dt);
+    subjects.unshift(f.position);
+    this.cameraRig.update(framing.focus, framing.height, this.aspect, subjects, dt);
     const height = this.cameraRig.height;
     const focus = this.cameraRig.focus.clone();
     focus.x -= anchor;
@@ -529,7 +529,8 @@ export class MiniView {
     this.lamp.position.x -= anchor;
     this.lamp.intensity = flash > 0 ? flash * 12 : 0;
     this.board.position.x = focus.x;
-    this.board.scale.set(Math.max(1, height * this.aspect / 150), 1, Math.max(1, height / 50));
+    this.board.position.z = this.cameraRig.focus.z;
+    this.board.scale.set(Math.max(1, height * this.aspect / 150), 1, Math.max(1, height / 40, (Math.abs(f.position.z - this.board.position.z) + 12) / 13.5));
     this.renderer.render(this.scene, this.camera);
   }
   private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[]) {

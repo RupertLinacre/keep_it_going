@@ -64,3 +64,14 @@ test("slow downhill motion and intentional airtime do not produce stall warnings
   assert.ok(physics.flight);
   assert.equal(approachingStall(physics), false);
 });
+
+test("a tall late-game vertical can need a boost even above the old 30 m/s warning cutoff", async () => {
+  const { MiniSection } = await import("../src/games/mini-track.ts");
+  const { Vector3 } = await import("three");
+  const hill = new MiniSection(1, "verticalhill", 0, new Vector3(0, 4, 0), 36, 120, 0, 1);
+  const at = hill.frames.findIndex(f => f.tangent.y > 0.9999);
+  const physics = new MiniPhysics(hill, { initialDistance: hill.distances[at] + 5, initialSpeed: 32 });
+  assert.equal(approachingStall(physics), true);
+  for (let i = 0; i < 420 && !physics.held; i++) physics.update(1 / 120);
+  assert.ok(physics.held);
+});

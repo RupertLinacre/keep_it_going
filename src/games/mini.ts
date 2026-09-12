@@ -83,6 +83,7 @@ export class Mini extends BaseGame {
       this.stalling = approachingStall(this.physics);
       this.guideAt = this.elapsed + 0.25;
     }
+    this.host.stage.parentElement?.classList.toggle("needs-boost", this.stalling);
     this.host.stats([
       { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
       { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
@@ -239,6 +240,7 @@ export class Mini extends BaseGame {
       refillIn: reloading.length ? Math.min(...reloading.map(coach => coach.refill)) : undefined,
       stress: Math.max(0, ...this.carriages.coaches.map(coach => coach.stress)),
       feature: this.track.sectionAt(this.physics.distance).kind,
+      turns: this.track.sectionAt(this.physics.distance).turns,
       boost: this.flash > 0 ? Math.round(this.lastImpulse * 3.6) : null,
     });
     this.drawParticles(ctx);
@@ -251,7 +253,7 @@ export class Mini extends BaseGame {
     let centerX = frame.position.x + 200 / scale;
     let centerY = Math.max(0, frame.position.y - 10) + 65 / scale;
     const subjects = [
-      ...this.carriages.poses(this.physics.distance).filter(p => p.frame.airborne || p.coach === this.carriages.incoming).map(p => p.frame.position),
+      ...this.carriages.poses(this.physics.distance).slice(0, MINI_STARTING_CARTS).filter(p => p.frame.airborne && p.coach !== this.carriages.incoming).map(p => p.frame.position),
       ...this.carriages.cameraSubjects(),
     ];
     if (subjects.length) {

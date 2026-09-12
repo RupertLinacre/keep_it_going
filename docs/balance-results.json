@@ -1,0 +1,100 @@
+{
+  "date": "2026-09-12",
+  "runLimitSeconds": 600,
+  "seedPattern": {
+    "first": 1,
+    "step": 17,
+    "count": 40
+  },
+  "assumptions": [
+    {
+      "name": "Learning",
+      "seconds": 4.8,
+      "jitter": 0.25,
+      "accuracy": 0.9,
+      "hesitateEvery": 12
+    },
+    {
+      "name": "Steady",
+      "seconds": 3.2,
+      "jitter": 0.25,
+      "accuracy": 0.94,
+      "hesitateEvery": 15
+    },
+    {
+      "name": "Fluent",
+      "seconds": 2,
+      "jitter": 0.18,
+      "accuracy": 0.97,
+      "hesitateEvery": 20
+    },
+    {
+      "name": "Expert",
+      "seconds": 1.25,
+      "jitter": 0.15,
+      "accuracy": 0.99,
+      "hesitateEvery": 25
+    }
+  ],
+  "summaries": [
+    {
+      "profile": "Learning",
+      "medianSeconds": 159.4,
+      "medianMetres": 3551,
+      "shortestSeconds": 32.8,
+      "longestSeconds": 303,
+      "survivedOneMinute": 39,
+      "survivedFiveMinutes": 1,
+      "reachedTimeLimit": 0,
+      "seeds": 40
+    },
+    {
+      "profile": "Steady",
+      "medianSeconds": 241.4,
+      "medianMetres": 6479,
+      "shortestSeconds": 151.1,
+      "longestSeconds": 406.8,
+      "survivedOneMinute": 40,
+      "survivedFiveMinutes": 9,
+      "reachedTimeLimit": 0,
+      "seeds": 40
+    },
+    {
+      "profile": "Fluent",
+      "medianSeconds": 600,
+      "medianMetres": 18715,
+      "shortestSeconds": 382.1,
+      "longestSeconds": 600,
+      "survivedOneMinute": 40,
+      "survivedFiveMinutes": 40,
+      "reachedTimeLimit": 24,
+      "seeds": 40
+    },
+    {
+      "profile": "Expert",
+      "medianSeconds": 600,
+      "medianMetres": 22606,
+      "shortestSeconds": 600,
+      "longestSeconds": 600,
+      "survivedOneMinute": 40,
+      "survivedFiveMinutes": 40,
+      "reachedTimeLimit": 40,
+      "seeds": 40
+    }
+  ],
+  "bounds": {
+    "maximumRetainedSections": 13,
+    "maximumRetainedFrames": 23348
+  },
+  "runwayAudit": {
+    "cadencesSeconds": [
+      1,
+      1.25,
+      2,
+      3.2
+    ],
+    "seeds": 40,
+    "successfulLandings": 728,
+    "landingsOutsideRunout": 0
+  }
+}

@@ -66,7 +66,8 @@ export class MiniPhysics {
     this.launched.add(section.id);
     this.distance = section.takeoff;
     const frame = section.sample(section.takeoff - 0.05);
-    frame.position.copy(section.sample(section.takeoff).position);
+    frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
+    frame.tangent.copy(section.launchTangent);
     this.flight = { section, position: frame.position.clone(), velocity: frame.tangent.clone().multiplyScalar(this.velocity), startX: frame.position.x };
     this.traces.push({ start: this.distance, end: this.distance, points: [{ distance: this.distance, frame: this.airFrame() }] });
   }
@@ -81,7 +82,7 @@ export class MiniPhysics {
     flight.position.addScaledVector(flight.velocity, h);
     flight.position.y -= 0.5 * this.options.gravity * h * h;
     flight.velocity.y -= this.options.gravity * h;
-    const endX = flight.section.origin.x + flight.section.width;
+    const endX = flight.section.origin.x + flight.section.span;
     this.distance = this.track.distanceAtWorldX?.(flight.position.x, this.distance) ?? (flight.position.x <= endX
       ? flight.section.distanceAtX(flight.position.x)
       : flight.section.end + flight.position.x - endX);

@@ -983,3 +983,10 @@ kbd {
   .number-pad { gap: 5px; }
   .number-pad button { height: clamp(40px, 11svh, 48px); font-size: 22px; border-radius: 8px; }
 }
+
+/* A quiet warning in the question itself also works when phone HUDs are hidden. */
+.play-zone.needs-boost .answer-display {
+  color: #9a5518;
+  border-color: #dba343;
+  background: #fff1c8;
+}

@@ -9,7 +9,7 @@ export interface JumpApproach {
 
 /** Warn only if coasting would actually stop the train in the next few seconds. */
 export function approachingStall(physics: MiniPhysics): boolean {
-  if (physics.held || physics.crashed || physics.flight || physics.velocity > 30) return false;
+  if (physics.held || physics.crashed || physics.flight) return false;
   const coast = new MiniPhysics(physics.track, { ...physics.options,
     initialDistance: physics.distance, initialSpeed: physics.velocity });
   for (let i = 0; i < 35; i++) {
@@ -42,8 +42,9 @@ export function jumpApproach(track: MiniTrack, physics: MiniPhysics): JumpApproa
     at += step;
     height = nextHeight;
   }
-  const tangent = jump.sample(jump.takeoff - 0.05).tangent;
-  const launch = jump.sample(jump.takeoff).position;
+  const tangent = jump.launchTangent;
+  const launch = jump.origin.clone();
+  launch.x += jump.width * 0.2; launch.y += jump.amplitude;
   const speed = Math.sqrt(speedSquared);
   const time = (jump.landingX - launch.x) / (speed * tangent.x);
   const clearance = launch.y + speed * tangent.y * time - gravity * time * time / 2 - jump.origin.y;

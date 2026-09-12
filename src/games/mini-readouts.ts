@@ -1,4 +1,5 @@
 import type { MiniKind } from "./mini-track";
+import { ELEMENT_NAMES } from "./mini-progression";
 import type { JumpApproach } from "./mini-guide";
 
 const text = (element: HTMLElement, value: string) => {
@@ -58,6 +59,7 @@ export class MiniReadouts {
     refillIn?: number;
     stress: number;
     feature: MiniKind;
+    turns?: number;
     boost: number | null;
   }) {
     text(this.score, state.score.toLocaleString());
@@ -95,12 +97,9 @@ export class MiniReadouts {
       value = `+${state.boost} km/h · BOOST`;
       tone = "ready";
     } else {
-      value = state.feature === "firsthill" ? "FIRST DROP"
-        : state.feature === "skyhill" ? "SKY-HIGH CLIMB"
-        : state.feature === "triplehelix" ? "HELTER SKELTER · 3 TURNS"
-        : state.feature === "invertedhill" ? "INVERTED CREST"
-        : state.feature === "verticalhill" ? "VERTICAL CLIMB"
-        : state.feature === "jump" ? "WATER JUMP" : state.feature.toUpperCase();
+      value = ELEMENT_NAMES[state.feature];
+      if (state.feature === "triplehelix" || state.feature === "ascendinghelix")
+        value += ` · ${state.turns ?? 3} TURNS`;
     }
     text(this.kicker, kicker); text(this.value, value); text(this.detail, detail);
     this.feature.dataset.tone = tone;
