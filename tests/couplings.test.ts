@@ -4,7 +4,7 @@ import { Vector3, Quaternion } from "three";
 import { MiniTrack, MiniSection } from "../src/games/mini-track.ts";
 import { isolatedHill } from "./mini-fixtures.ts";
 import { MiniCarriages, outwardForce } from "../src/games/mini-carriages.ts";
-import { MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_CART_SPACING, parcelOffsets } from "../src/games/mini-config.ts";
+import { MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_CART_SPACING, MINI_COACH_MAX_LIFT, parcelOffsets } from "../src/games/mini-config.ts";
 
 test("parcel drag matches the analytical horizontal solution at different frame rates", () => {
   const run = (fps: number) => {
@@ -52,7 +52,7 @@ test("vertical crest forces still lift wheels when the rail is almost vertical",
   assert.equal(outwardForce({ ...frame, airborne: true }, 35), 0, "Intentional jumps do not overload retaining wheels");
 });
 
-test("coaches lift, share drawbar forces, and settle without needing a broken coupling", () => {
+test("coaches make a small vertical arc and settle without needing a broken coupling", () => {
   const { track, hill } = isolatedHill(), c = new MiniCarriages(track);
   let lift = 0, airborne = 0;
   for (let step = 0; step < (hill.length + 65) / 32 * 120; step++) {
@@ -66,12 +66,12 @@ test("coaches lift, share drawbar forces, and settle without needing a broken co
     }
     airborne = Math.max(airborne, c.coaches.filter(coach => coach.derailed).length);
   }
-  assert.ok(lift > 1 && airborne >= 2, "A visible arc of tethered coaches, rather than a suspension jiggle");
+  assert.ok(lift > 0.2 && lift <= MINI_COACH_MAX_LIFT && airborne >= 2, "A small, controlled wave through the train");
   assert.equal(c.lost, 0);
   assert.ok(c.coaches.every(coach => !coach.derailed && coach.displacement.length() < 1e-8));
 });
 
-test("a vertical hill whips up the rear chain, detaches only its tail, and leaves the lead pinned", () => {
+test("a vertical hill lifts the rear chain, detaches only its tail, and leaves the lead pinned", () => {
   for (const speed of [35, 60, 80]) {
     const { track, hill } = isolatedHill("verticalhill"), c = new MiniCarriages(track);
     let airborne = 0, lift = 0;
@@ -89,7 +89,7 @@ test("a vertical hill whips up the rear chain, detaches only its tail, and leave
       assert.ok(c.lost <= 1, "A second coupling must never break on this hill");
     }
     assert.equal(c.lost, 1);
-    assert.ok(airborne >= 3 && lift > 2);
+    assert.ok(airborne >= 3 && lift > 0.25 && lift <= MINI_COACH_MAX_LIFT);
     assert.ok(c.coaches.every(coach => !coach.derailed), "The remaining chain settles back onto the track");
   }
 });
@@ -132,4 +132,45 @@ test("a later hill has its own tail breakaway allowance after replacement coache
   assert.equal(breaksOnFirst, 1);
   assert.equal(breaksOnSecond, 1);
   assert.ok(c.arrived > 0);
+});
+
+test("attached coaches only rise vertically and finish their hop within 0.6 seconds", () => {
+  for (const kind of ["skyhill", "verticalhill"] as const) for (const seed of [1, 12, 42, 93]) for (const speed of [32, 35, 80]) {
+    const { track, hill } = isolatedHill(kind, seed), c = new MiniCarriages(track);
+    const airborne = new Map<number, { first: number; last: number }>();
+    for (let step = 0; step < (hill.length + 100) / speed * 120; step++) {
+      const time = step / 120, distance = hill.start + time * speed;
+      c.update(1 / 120, distance, speed);
+      for (const { coach, frame } of c.poses(distance)) {
+        const rail = track.sample(distance - coach.offset);
+        assert.equal(frame.position.x, rail.position.x, "No forward or backward swing relative to the rail");
+        assert.equal(frame.position.z, rail.position.z, "No sideways swing");
+        assert.ok(frame.position.y >= rail.position.y && frame.position.y <= rail.position.y + 1.4 + 1e-8);
+        assert.ok(1 - Math.abs(frame.rotation.dot(rail.rotation)) < 1e-10, "No extra spin or roll beyond the track's own orientation");
+        assert.equal(coach.relativeVelocity.x, 0);
+        assert.equal(coach.relativeVelocity.z, 0);
+        if (coach.lift > 1e-6) {
+          const interval = airborne.get(coach.id) ?? { first: time, last: time };
+          interval.last = time;
+          airborne.set(coach.id, interval);
+        }
+      }
+    }
+    assert.ok(airborne.size > 0, `${kind}, seed ${seed}, speed ${speed}: retain visible airtime`);
+    for (const interval of airborne.values()) assert.ok(interval.last - interval.first <= 0.6 + 1e-8, "No hovering, repeated bouncing or lingering swing");
+    assert.ok(c.coaches.every(coach => coach.lift === 0 && coach.liftVelocity === 0));
+    assert.ok(c.lost <= 1);
+  }
+});
+
+test("sustained crest overload cannot launch a coach repeatedly on the same hill", () => {
+  const { track, hill } = isolatedHill(), c = new MiniCarriages(track);
+  const distance = hill.start + hill.length / 2 + c.coaches[1].offset;
+  const heights: number[] = [];
+  for (let step = 0; step < 360; step++) {
+    c.update(1 / 120, distance, 80);
+    heights.push(c.coaches[1].lift);
+  }
+  assert.ok(Math.max(...heights) > 0.1);
+  assert.ok(heights.slice(90).every(height => height === 0), "The same force must not keep re-triggering airtime");
 });

@@ -12,6 +12,8 @@ export const MINI_PARCELS_PER_WAGON = 4;
 export const MINI_PARCEL_DRAG = 0.055;
 export const MINI_COUPLING_SLACK = 0.06;
 export const MINI_COACH_RETENTION = 150;
+export const MINI_COACH_MAX_LIFT = 1.4;
+export const MINI_COACH_HOP_DURATION = 0.6;
 // Only the tail drawbar can break; the remaining chain stays tethered to the engine.
 export const MINI_COUPLING_STRENGTH = 250;
 export const parcelOffsets = (count: number) => Array.from({ length: Math.min(count, MINI_PARCELS_PER_WAGON) }, (_, i) => ({

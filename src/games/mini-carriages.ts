@@ -6,7 +6,7 @@ import {
   MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS,
   parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
   MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_COUPLING_STRENGTH,
-  MINI_COACH_RETENTION, MINI_PARCELS_PER_WAGON,
+  MINI_COACH_RETENTION, MINI_COACH_MAX_LIFT, MINI_COACH_HOP_DURATION, MINI_PARCELS_PER_WAGON,
 } from "./mini-config";
 
 interface FlyingBody {
@@ -87,6 +87,7 @@ export interface Coach {
   derailed: boolean;
   airTime: number;
   wheelStrain: number;
+  liftPeak: number;
   hillId?: number;
 }
 
@@ -115,25 +116,14 @@ export class MiniCarriages {
     return { id, offset, lift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? 2 : 0,
       cargoAge: 1, nextCargo: 3, refill: 0, grace: 0, parcelStrain: 0,
       displacement: new THREE.Vector3(), relativeVelocity: new THREE.Vector3(), couplingLoad: 0, couplingStrain: 0, stress: 0, velocity: new THREE.Vector3(),
-      position: new THREE.Vector3(), derailed: false, airTime: 0, wheelStrain: 0 };
+      position: new THREE.Vector3(), derailed: false, airTime: MINI_COACH_HOP_DURATION, wheelStrain: 0, liftPeak: 0 };
   }
   frame(coach: Coach, distance: number) {
     const frame = this.sample(distance - coach.offset);
-    if (coach.derailed) frame.position.copy(coach.position);
-    else frame.position.add(coach.displacement);
-    const index = this.coaches.indexOf(coach);
-    if (index > 0 && coach.derailed) {
-      const ahead = this.coaches[index - 1], behind = this.coaches[index + 1] ?? coach;
-      const position = (cart: Coach) => cart.derailed ? cart.position : this.sample(distance - cart.offset).position;
-      const tangent = position(ahead).clone().sub(position(behind));
-      if (tangent.lengthSq() > 1e-8) frame.tangent.copy(tangent).normalize();
-      frame.right.addScaledVector(frame.tangent, -frame.right.dot(frame.tangent));
-      if (frame.right.lengthSq() < 1e-8) frame.right.copy(frame.tangent).cross(frame.up);
-      frame.right.normalize();
-      frame.up.copy(frame.right).cross(frame.tangent).normalize();
-      frame.rotation.setFromRotationMatrix(new THREE.Matrix4().makeBasis(frame.right, frame.up, frame.tangent.clone().negate()));
-      frame.airborne = true;
-    }
+    // Tethered coaches follow the same rail position and orientation. Their only
+    // extra degree of freedom is height in world space, never yaw or lateral drift.
+    frame.position.y += coach.lift;
+    if (coach.lift > 0) frame.airborne = true;
     return frame;
   }
   /** Coupler endpoints are shared by the 3D view and the side-view fallback. */
@@ -325,170 +315,65 @@ export class MiniCarriages {
 
   private updateCouplings(dt: number, frames: RailFrame[], outward: number[], distance: number, speed: number) {
     const coaches = this.coaches;
-    const release = (i: number, hillId?: number) => {
-      const coach = coaches[i];
-      coach.derailed = true;
-      coach.airTime = 0;
-      coach.hillId = hillId ?? this.track.sectionAt(distance - coach.offset).id;
-    };
+    const previous = coaches.map(coach => coach.lift);
     for (let i = 0; i < coaches.length; i++) {
       const coach = coaches[i], frame = frames[i];
-      coach.couplingLoad = 0;
-      const onRetainedTrack = distance - coach.offset >= this.track.sections[0].start;
-      if (!onRetainedTrack) { coach.derailed = false; coach.wheelStrain = 0; }
-      if (!coach.derailed || i === 0) {
-        coach.position.copy(frame.position);
-        coach.velocity.copy(frame.tangent).multiplyScalar(speed);
-        coach.wheelStrain = Math.max(0, coach.wheelStrain + (outward[i] / MINI_COACH_RETENTION - 1) * dt);
-        if (i > 0 && onRetainedTrack && coach.wheelStrain > 0.02) release(i);
-      } else {
-        // Once the retaining wheels lose contact, momentum and gravity determine
-        // the path. The articulated drawbars below tow and damp the airborne chain.
-        coach.airTime += dt;
-        coach.position.addScaledVector(coach.velocity, dt);
-        coach.position.y -= this.gravity * dt * dt / 2;
-        coach.velocity.y -= this.gravity * dt;
+      const section = this.track.sectionAt(distance - coach.offset);
+      const retained = distance - coach.offset >= this.track.sections[0].start;
+      coach.couplingLoad = Math.max(0, outward[i] - MINI_COACH_RETENTION);
+      coach.wheelStrain = Math.max(0, coach.wheelStrain + (outward[i] / MINI_COACH_RETENTION - 1) * dt);
+      coach.airTime = Math.min(MINI_COACH_HOP_DURATION, coach.airTime + dt);
+      if (i > 0 && retained && coach.airTime >= MINI_COACH_HOP_DURATION
+        && outward[i] > MINI_COACH_RETENTION && coach.wheelStrain > 0.02 && coach.hillId !== section.id) {
+        coach.hillId = section.id;
+        coach.airTime = 0;
+        coach.couplingStrain = 0;
+        // A little more lift toward the tail makes one short, controlled wave.
+        coach.liftPeak = Math.min(MINI_COACH_MAX_LIFT, Math.max(0.35, (outward[i] / MINI_COACH_RETENTION - 0.6) * 0.8))
+          * (0.45 + 0.55 * Math.min(i / 5, 1));
       }
-    }
-    const predicted = coaches.map(coach => coach.position.clone());
-    const contacts = coaches.map((coach, i) => {
-      if (!coach.derailed) return frames[i];
-      // A flying coach can be ahead of its original rail position. Find the
-      // actual surface beneath its wheels, including the bottom of a vertical drop.
-      const nominal = distance - coach.offset;
-      let nearest = nominal, best = Infinity;
-      const radius = Math.min(28, coach.offset + 5);
-      for (let s = nominal - radius; s <= nominal + radius; s += 2) {
-        const gap = this.sample(s).position.distanceToSquared(coach.position);
-        if (gap < best) { best = gap; nearest = s; }
-      }
-      for (let step = 1; step > 0.03; step /= 2) for (const s of [nearest - step, nearest + step]) {
-        const gap = this.sample(s).position.distanceToSquared(coach.position);
-        if (gap < best) { best = gap; nearest = s; }
-      }
-      return this.sample(nearest);
-    });
-    const maxLength = MINI_CART_SPACING + MINI_COUPLING_SLACK;
-    for (let iteration = 0; iteration < (coaches.some(coach => coach.derailed) ? 64 : 0); iteration++) {
-      for (let k = 1; k < coaches.length; k++) {
-        const i = iteration % 2 ? coaches.length - k : k;
-        const ahead = coaches[i - 1], coach = coaches[i];
-        if (!ahead.derailed && !coach.derailed) continue;
-        const delta = coach.position.clone().sub(ahead.position);
-        const length = delta.length();
-        if (length < 1e-8) continue;
-        delta.divideScalar(length);
-        // Articulated drawbars bend freely, but cannot fold a coach through its
-        // neighbour. This also lets the wheels line up again after the crest.
-        const forward = i > 1 && ahead.derailed
-          ? coaches[i - 2].position.clone().sub(ahead.position).normalize() : frames[i - 1].tangent;
-        const alignment = delta.dot(forward);
-        if (alignment > -0.2) {
-          const side = delta.clone().addScaledVector(forward, -alignment);
-          if (side.lengthSq() < 1e-8) side.copy(frames[i].up);
-          const limited = side.normalize().multiplyScalar(Math.sqrt(0.96)).addScaledVector(forward, -0.2);
-          const change = limited.multiplyScalar(length).addScaledVector(delta, -length);
-          const a = ahead.derailed ? 1 : 0, b = coach.derailed ? 1 : 0;
-          coach.position.addScaledVector(change, b / (a + b));
-          ahead.position.addScaledVector(change, -a / (a + b));
-          delta.copy(coach.position).sub(ahead.position).normalize();
-        }
-        const extension = length - Math.max(MINI_CART_SPACING - 0.16, Math.min(maxLength, length));
-        if (Math.abs(extension) < 1e-8) continue;
-        // A taut drawbar can pull another set of wheels off the rail. The engine
-        // is the immovable anchor; inverted track and jump traces keep their grip.
-        if (extension > 0) for (const [index, normal] of [[i, -1], [i - 1, 1]]) {
-          const cart = coaches[index], section = this.track.sectionAt(distance - cart.offset);
-          if (index && !cart.derailed && isHump(section.kind) && section.kind !== "invertedhill"
-            && !frames[index].airborne && delta.dot(frames[index].up) * normal * extension / (dt * dt) > MINI_COACH_RETENTION)
-            release(index, (ahead.derailed ? ahead : coach).hillId);
-        }
-        const a = ahead.derailed ? 1 : 0, b = coach.derailed ? 1 : 0;
-        if (!a && !b) continue;
-        const correction = extension / (a + b);
-        ahead.position.addScaledVector(delta, correction * a);
-        coach.position.addScaledVector(delta, -correction * b);
-        coach.couplingLoad += Math.max(0, correction) / (dt * dt);
-      }
-      // Unilateral rail contact: wheels may leave the running surface, but cannot
-      // pass through it on the way back down. Vertical crests use the same normal.
-      for (let i = 1; i < coaches.length; i++) if (coaches[i].derailed) {
-        const contact = contacts[i];
-        const offset = coaches[i].position.clone().sub(contact.position);
-        const below = offset.dot(contact.up);
-        if (below < 0 && Math.abs(offset.dot(contact.right)) < 1.2 && Math.abs(offset.dot(contact.tangent)) < 1.2)
-          coaches[i].position.addScaledVector(contact.up, -below);
-        coaches[i].position.y = Math.max(0.2, coaches[i].position.y);
-      }
-    }
-    // Finish from the anchored end so no amount of whipping can stretch a joint.
-    for (let i = 1; i < coaches.length; i++) if (coaches[i].derailed) {
-      const delta = coaches[i].position.clone().sub(coaches[i - 1].position);
-      if (delta.length() > maxLength) coaches[i].position.copy(coaches[i - 1].position).add(delta.setLength(maxLength));
-    }
-    for (let i = 1; i < coaches.length; i++) {
-      const coach = coaches[i], frame = frames[i];
-      if (coach.derailed) {
-        coach.velocity.add(coach.position.clone().sub(predicted[i]).divideScalar(dt));
-        const offset = coach.position.clone().sub(frame.position);
-        // Catch the retaining wheels again only when they physically meet the rail.
-        if (coach.airTime > 0.12 && outward[i] < MINI_COACH_RETENTION * 0.7
-          && offset.length() < 0.32
-          && coaches[i - 1].position.distanceTo(frame.position) <= maxLength
-          && (!coaches[i + 1] || coaches[i + 1].position.distanceTo(frame.position) <= maxLength)
-          && coach.velocity.clone().addScaledVector(frame.tangent, -speed).dot(frame.up) < 1) {
-          coach.derailed = false;
-          coach.position.copy(frame.position);
-          coach.velocity.copy(frame.tangent).multiplyScalar(speed);
-          coach.wheelStrain = 0;
-          coach.airTime = 0;
-        }
-      }
-      coach.displacement.copy(coach.position).sub(frame.position);
-      coach.relativeVelocity.copy(coach.velocity).addScaledVector(frame.tangent, -speed);
-      coach.lift = Math.max(0, coach.displacement.dot(frame.up));
-      coach.liftVelocity = coach.relativeVelocity.dot(frame.up);
+      const t = coach.airTime / MINI_COACH_HOP_DURATION;
+      // Smooth takeoff and landing, with no rebound or repeated hop on this hill.
+      coach.lift = i > 0 && retained ? coach.liftPeak * 16 * t * t * (1 - t) * (1 - t) : 0;
       coach.couplingStrain = Math.max(0, coach.couplingStrain
-        + (coach.couplingLoad / MINI_COUPLING_STRENGTH - 1) * dt);
-      const stress = Math.min(1, Math.max(coach.couplingLoad / MINI_COUPLING_STRENGTH * 0.5, coach.couplingStrain / 0.06));
-      coach.stress = Math.max(stress, coach.stress * Math.exp(-6 * dt));
+        + (coach.couplingLoad > 0 ? coach.couplingLoad / MINI_COUPLING_STRENGTH : -1) * dt);
+      coach.stress = Math.max(Math.min(1, coach.couplingStrain / 0.08), coach.stress * Math.exp(-6 * dt));
+      coach.position.copy(frame.position);
     }
-    // Drawbar dampers dissipate relative motion without adding launch energy.
-    for (let i = 1; i < coaches.length; i++) {
-      const ahead = coaches[i - 1], coach = coaches[i];
-      const a = ahead.derailed ? 1 : 0, b = coach.derailed ? 1 : 0;
-      if (!a && !b) continue;
-      const delta = coach.position.clone().sub(ahead.position);
-      const direction = delta.clone().normalize();
-      // The pivot bushings resist excessive bending, with equal and opposite
-      // torque on neighbouring coaches. They guide the wheels back into line.
-      const bend = frames[i].position.clone().sub(frames[i - 1].position).sub(delta);
-      bend.addScaledVector(direction, -bend.dot(direction)).multiplyScalar(35 * dt);
-      coach.velocity.addScaledVector(bend, b);
-      ahead.velocity.addScaledVector(bend, -a);
-      const relative = coach.velocity.clone().sub(ahead.velocity).multiplyScalar((1 - Math.exp(-8 * dt)) / (a + b));
-      ahead.velocity.addScaledVector(relative, a);
-      coach.velocity.addScaledVector(relative, -b);
+    // Keep the drawbars within their normal reach by reducing excessive lift.
+    // A constraint can only lower a coach; it cannot inject another upward kick.
+    const maxLength = MINI_CART_SPACING + MINI_COUPLING_SLACK;
+    for (let iteration = 0; iteration < 12; iteration++) for (let k = 1; k < coaches.length; k++) {
+      const i = iteration % 2 ? coaches.length - k : k;
+      const a = frames[i - 1].position, b = frames[i].position;
+      const verticalReach = Math.sqrt(Math.max(0, maxLength ** 2 - (b.x - a.x) ** 2 - (b.z - a.z) ** 2));
+      const separation = b.y + coaches[i].lift - a.y - coaches[i - 1].lift;
+      if (separation > verticalReach) coaches[i].lift = Math.max(0, coaches[i].lift - separation + verticalReach);
+      else if (separation < -verticalReach && i > 1)
+        coaches[i - 1].lift = Math.max(0, coaches[i - 1].lift + separation + verticalReach);
     }
-    for (let i = 1; i < coaches.length; i++) {
-      coaches[i].relativeVelocity.copy(coaches[i].velocity).addScaledVector(frames[i].tangent, -speed);
-      coaches[i].liftVelocity = coaches[i].relativeVelocity.dot(frames[i].up);
+    for (let i = 0; i < coaches.length; i++) {
+      const coach = coaches[i];
+      coach.derailed = coach.lift > 1e-6;
+      coach.liftVelocity = (coach.lift - previous[i]) / dt;
+      coach.displacement.set(0, coach.lift, 0);
+      coach.relativeVelocity.set(0, coach.liftVelocity, 0);
+      coach.position.y += coach.lift;
+      coach.velocity.copy(frames[i].tangent).multiplyScalar(speed).add(coach.relativeVelocity);
     }
-    for (const id of this.detachedHills) if (id < this.track.sections[0].id && !coaches.some(c => c.hillId === id)) this.detachedHills.delete(id);
-    coaches[0].displacement.set(0, 0, 0);
-    coaches[0].relativeVelocity.set(0, 0, 0);
+    for (const id of this.detachedHills) if (id < this.track.sections[0].id
+      && !coaches.some(coach => coach.hillId === id && coach.airTime < MINI_COACH_HOP_DURATION)) this.detachedHills.delete(id);
     const tail = coaches.at(-1)!;
-    // One sacrificial tail coupling per physical hill, even if a replacement
-    // catches up before the rest of the train has cleared the same crest.
-    if (coaches.length < 2 || !tail.derailed || tail.airTime < 0.12 || tail.displacement.length() < 0.5
-      || tail.couplingStrain < 0.06 || tail.hillId === undefined || this.detachedHills.has(tail.hillId)) return false;
+    // Each physical hill can shed only its tail coach. The rest remain tethered.
+    if (coaches.length < 2 || tail.lift < 0.12 || tail.airTime < 0.08
+      || tail.couplingStrain < 0.08 || tail.hillId === undefined || this.detachedHills.has(tail.hillId)) return false;
     this.detachedHills.add(tail.hillId);
     const frame = this.frame(tail, distance);
     if (tail.cargo) this.spill(tail, frame, speed);
     if (this.flights.length >= MINI_MAX_FLYING_CARTS) this.flights.shift();
     this.flights.push({ position: frame.position, rotation: frame.rotation,
       velocity: tail.velocity.clone(),
-      angularVelocity: frames.at(-1)!.tangent.clone().cross(frames.at(-1)!.curvature).multiplyScalar(speed).clampLength(0, 5),
+      angularVelocity: frames.at(-1)!.tangent.clone().cross(frames.at(-1)!.curvature).multiplyScalar(speed).clampLength(0, 0.6),
       colorIndex: tail.id, cargo: 0, age: 0, groundedFor: 0,
     });
     this.lost++;
