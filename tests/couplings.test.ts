@@ -52,23 +52,25 @@ test("vertical crest forces still lift wheels when the rail is almost vertical",
   assert.equal(outwardForce({ ...frame, airborne: true }, 35), 0, "Intentional jumps do not overload retaining wheels");
 });
 
-test("coaches make a small vertical arc and settle without needing a broken coupling", () => {
-  const { track, hill } = isolatedHill(), c = new MiniCarriages(track);
-  let lift = 0, airborne = 0;
-  for (let step = 0; step < (hill.length + 65) / 32 * 120; step++) {
-    const distance = hill.start + step * 32 / 120;
-    c.update(1 / 120, distance, 32);
-    const poses = c.poses(distance).filter(p => p.coach !== c.incoming);
-    assert.ok(poses[0].frame.position.distanceTo(track.sample(distance).position) < 1e-8);
-    for (let i = 1; i < poses.length; i++) {
-      assert.ok(poses[i].frame.position.distanceTo(poses[i - 1].frame.position) <= MINI_CART_SPACING + MINI_COUPLING_SLACK + 0.006);
-      lift = Math.max(lift, poses[i].coach.lift);
+test("moderate speeds trigger higher vertical hops without breaking a coupling", () => {
+  for (const [kind, speed, minimumLift] of [["skyhill", 24, 0.25], ["skyhill", 32, 0.3], ["verticalhill", 28, 0.35], ["verticalhill", 32, 0.75]] as const) {
+    const { track, hill } = isolatedHill(kind), c = new MiniCarriages(track);
+    let lift = 0, airborne = 0;
+    for (let step = 0; step < (hill.length + 65) / speed * 120; step++) {
+      const distance = hill.start + step * speed / 120;
+      c.update(1 / 120, distance, speed);
+      const poses = c.poses(distance).filter(p => p.coach !== c.incoming);
+      assert.ok(poses[0].frame.position.distanceTo(track.sample(distance).position) < 1e-8);
+      for (let i = 1; i < poses.length; i++) {
+        assert.ok(poses[i].frame.position.distanceTo(poses[i - 1].frame.position) <= MINI_CART_SPACING + MINI_COUPLING_SLACK + 0.006);
+        lift = Math.max(lift, poses[i].coach.lift);
+      }
+      airborne = Math.max(airborne, c.coaches.filter(coach => coach.derailed).length);
     }
-    airborne = Math.max(airborne, c.coaches.filter(coach => coach.derailed).length);
+    assert.ok(lift > minimumLift && lift <= MINI_COACH_MAX_LIFT && airborne >= 2, `${kind} at ${speed} m/s: a visible, controlled wave`);
+    assert.equal(c.lost, 0, "Easier airtime does not weaken the tail coupling");
+    assert.ok(c.coaches.every(coach => !coach.derailed && coach.displacement.length() < 1e-8));
   }
-  assert.ok(lift > 0.2 && lift <= MINI_COACH_MAX_LIFT && airborne >= 2, "A small, controlled wave through the train");
-  assert.equal(c.lost, 0);
-  assert.ok(c.coaches.every(coach => !coach.derailed && coach.displacement.length() < 1e-8));
 });
 
 test("a vertical hill lifts the rear chain, detaches only its tail, and leaves the lead pinned", () => {
@@ -145,7 +147,7 @@ test("attached coaches only rise vertically and finish their hop within 0.6 seco
         const rail = track.sample(distance - coach.offset);
         assert.equal(frame.position.x, rail.position.x, "No forward or backward swing relative to the rail");
         assert.equal(frame.position.z, rail.position.z, "No sideways swing");
-        assert.ok(frame.position.y >= rail.position.y && frame.position.y <= rail.position.y + 1.4 + 1e-8);
+        assert.ok(frame.position.y >= rail.position.y && frame.position.y <= rail.position.y + 2 + 1e-8);
         assert.ok(1 - Math.abs(frame.rotation.dot(rail.rotation)) < 1e-10, "No extra spin or roll beyond the track's own orientation");
         assert.equal(coach.relativeVelocity.x, 0);
         assert.equal(coach.relativeVelocity.z, 0);

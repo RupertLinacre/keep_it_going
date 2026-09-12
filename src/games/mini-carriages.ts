@@ -6,7 +6,7 @@ import {
   MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS,
   parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
   MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_COUPLING_STRENGTH,
-  MINI_COACH_RETENTION, MINI_COACH_MAX_LIFT, MINI_COACH_HOP_DURATION, MINI_PARCELS_PER_WAGON,
+  MINI_COUPLING_LOAD_THRESHOLD, MINI_COACH_RETENTION, MINI_COACH_MAX_LIFT, MINI_COACH_HOP_DURATION, MINI_PARCELS_PER_WAGON,
 } from "./mini-config";
 
 interface FlyingBody {
@@ -320,7 +320,7 @@ export class MiniCarriages {
       const coach = coaches[i], frame = frames[i];
       const section = this.track.sectionAt(distance - coach.offset);
       const retained = distance - coach.offset >= this.track.sections[0].start;
-      coach.couplingLoad = Math.max(0, outward[i] - MINI_COACH_RETENTION);
+      coach.couplingLoad = Math.max(0, outward[i] - MINI_COUPLING_LOAD_THRESHOLD);
       coach.wheelStrain = Math.max(0, coach.wheelStrain + (outward[i] / MINI_COACH_RETENTION - 1) * dt);
       coach.airTime = Math.min(MINI_COACH_HOP_DURATION, coach.airTime + dt);
       if (i > 0 && retained && coach.airTime >= MINI_COACH_HOP_DURATION
@@ -329,7 +329,7 @@ export class MiniCarriages {
         coach.airTime = 0;
         coach.couplingStrain = 0;
         // A little more lift toward the tail makes one short, controlled wave.
-        coach.liftPeak = Math.min(MINI_COACH_MAX_LIFT, Math.max(0.35, (outward[i] / MINI_COACH_RETENTION - 0.6) * 0.8))
+        coach.liftPeak = Math.min(MINI_COACH_MAX_LIFT, Math.max(0.55, (outward[i] / MINI_COACH_RETENTION - 0.6) * 1.25))
           * (0.45 + 0.55 * Math.min(i / 5, 1));
       }
       const t = coach.airTime / MINI_COACH_HOP_DURATION;
