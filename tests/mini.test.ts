@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { MiniTrack, type MiniRail } from "../src/games/mini-track.ts";
 import { MiniPhysics } from "../src/games/mini-physics.ts";
 import { Mini } from "../src/games/mini.ts";
+import { MiniCarriages } from "../src/games/mini-carriages.ts";
 import {
   MINI_BOOST_ENERGY,
   miniCartCount,
@@ -240,16 +241,16 @@ test("every three correct answers adds exactly one cart; mistakes and locked inp
       game.key("0");
       game.key("Enter");
       advance(game, 0.25);
-      assert.equal(game.cartCount, 3 + Math.floor((n - 1) / 3));
+      assert.equal(game.cartCount + game.carriages.lost, 3 + Math.floor((n - 1) / 3));
     }
     answer(game);
-    assert.equal(game.cartCount, 3 + Math.floor(n / 3));
+    assert.equal(game.cartCount + game.carriages.lost, 3 + Math.floor(n / 3));
     const correct = game.correct;
     answer(game);
     assert.equal(game.correct, correct);
     advance(game, 0.25);
   }
-  assert.equal(game.cartCount, 9);
+  assert.equal(game.cartCount + game.carriages.lost, 9);
   assert.equal(miniCartCount(3000), 1003, "Reward count has no artificial cap");
   assert.equal(
     new HeadlessMini(harness().host, 17).cartCount,
@@ -284,4 +285,101 @@ test("boost energy is consistent and speed gains ease off once the train is alre
     Math.abs(fast.energy - fastBefore - MINI_BOOST_ENERGY * fast.options.mass) <
       1e-8,
   );
+});
+
+test("every opening ride includes a full corkscrew and an upright, rising 360-degree helix", () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const track = new MiniTrack(seed);
+    const corkscrew = track.sections.find(s => s.kind === "corkscrew")!;
+    const helix = track.sections.find(s => s.kind === "helix")!;
+    assert.ok(corkscrew.frames.some(f => f.up.y < -0.98 * Math.hypot(f.tangent.x, f.tangent.z)), "Corkscrew fully inverts relative to its pitched rail");
+    assert.ok(helix.frames.some(f => f.tangent.x < -0.7), "Helix turns back around its circle");
+    assert.ok(helix.frames.some(f => f.position.y > 9), "Helix climbs above its entry rail");
+    assert.ok(helix.frames.every(f => f.up.y > 0.3), "Helix banks without inverting");
+    assert.ok(Math.abs(helix.frames.at(-1)!.position.y - helix.origin.y) < 1e-8);
+    assert.ok(Math.max(...helix.frames.map(f => f.position.z)) - Math.min(...helix.frames.map(f => f.position.z)) > 7);
+  }
+});
+
+test("only excessive speed at the rear carriage sheds a cart, once per hump", () => {
+  const track = new MiniTrack(42);
+  const hill = track.sections.find(s => s.kind === "skyhill")!;
+  const crest = hill.start + hill.length / 2;
+  const frame = hill.sample(crest);
+  const threshold = Math.sqrt(9.81 * frame.up.y / -frame.curvature.dot(frame.up));
+  const carriages = new MiniCarriages(track);
+  const front = crest + 2 * MINI_CART_SPACING;
+  assert.equal(carriages.update(0, front, threshold * 0.8, 3), false);
+  assert.equal(carriages.lost, 0);
+  assert.equal(carriages.update(0, front, threshold * 1.5, 3), true);
+  assert.equal(carriages.lost, 1);
+  const flight = carriages.flights[0];
+  assert.equal(flight.colorIndex, 2, "The rear carriage leaves");
+  assert.ok(flight.position.distanceTo(frame.position) < 1e-8);
+  assert.ok(flight.velocity.distanceTo(frame.tangent.clone().multiplyScalar(threshold * 1.5)) < 1e-8);
+  assert.equal(carriages.update(0, crest + MINI_CART_SPACING, threshold * 2, 2), false);
+  assert.equal(carriages.lost, 1, "The next carriage stays on this hump");
+  assert.equal(new MiniCarriages(track).update(0, crest, 500, 1), false, "The front carriage is retained");
+  for (const kind of ["loop", "corkscrew", "helix"]) {
+    const section = track.sections.find(s => s.kind === kind)!;
+    assert.equal(carriages.update(0, section.start + section.length / 2 + MINI_CART_SPACING, 500, 2), false);
+  }
+});
+
+test("a detached carriage follows the analytical gravity parabola, lands, and is cleaned up", () => {
+  const track = new MiniTrack(42);
+  const hill = track.sections.find(s => s.kind === "skyhill")!;
+  const carriages = new MiniCarriages(track);
+  const front = hill.start + hill.length / 2 + 2 * MINI_CART_SPACING;
+  assert.equal(carriages.update(0, front, 35, 3), true);
+  const cart = carriages.flights[0];
+  const start = cart.position.clone(), velocity = cart.velocity.clone();
+  const time = 0.75;
+  for (let i = 0; i < 90; i++) carriages.update(1 / 120, front, 0, 2);
+  const expected = start.addScaledVector(velocity, time);
+  expected.y -= 0.5 * 9.81 * time ** 2;
+  assert.ok(cart.position.distanceTo(expected) < 1e-8);
+  assert.ok(Math.abs(cart.velocity.y - (velocity.y - 9.81 * time)) < 1e-8);
+  assert.ok(Math.abs(cart.rotation.length() - 1) < 1e-8);
+  for (let i = 0; i < 1200; i++) carriages.update(1 / 120, front, 0, 2);
+  assert.ok(cart.groundedFor > 0, "Carriage lands on the ground");
+  assert.equal(carriages.flights.length, 0, "Landed carts do not accumulate");
+});
+
+test("detachment and airborne motion agree at 30 and 144 frames per second", () => {
+  const run = (fps: number) => {
+    const game = new HeadlessMini(harness().host, 42);
+    const hill = game.track.sections.find(s => s.kind === "skyhill")!;
+    game.physics.distance = hill.start + hill.length / 2 - 5;
+    game.physics.velocity = 35;
+    advance(game, 1.5, fps);
+    return game;
+  };
+  const a = run(30), b = run(144);
+  assert.equal(a.carriages.lost, 1);
+  assert.equal(a.carriages.lost, b.carriages.lost);
+  assert.equal(a.cartCount, b.cartCount);
+  assert.equal(a.carriages.flights.length, 1);
+  assert.ok(a.carriages.flights[0].position.distanceTo(b.carriages.flights[0].position) < 1e-8);
+  assert.ok(a.carriages.flights[0].velocity.distanceTo(b.carriages.flights[0].velocity) < 1e-8);
+});
+
+test("lost carriages can be earned back and a restart clears the losses", () => {
+  const game = new HeadlessMini(harness().host, 42);
+  for (const kind of ["hill", "skyhill"]) {
+    const hill = game.track.sections.find(s => s.kind === kind)!;
+    game.carriages.update(0, hill.start + hill.length / 2 + (game.cartCount - 1) * MINI_CART_SPACING, 100, game.cartCount);
+  }
+  assert.equal(game.cartCount, 1);
+  game.physics.velocity = 0;
+  for (let i = 0; i < 3; i++) {
+    answer(game);
+    game.physics.velocity = 0;
+    advance(game, 0.25);
+  }
+  assert.equal(game.cartCount, 2);
+  const fresh = new HeadlessMini(harness().host, 42);
+  assert.equal(fresh.cartCount, 3);
+  assert.equal(fresh.carriages.lost, 0);
+  assert.equal(fresh.carriages.flights.length, 0);
 });

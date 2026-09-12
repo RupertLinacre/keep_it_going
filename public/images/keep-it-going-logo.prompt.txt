@@ -1,0 +1,9 @@
+Generated with the built-in imagegen tool.
+
+Use case: logo-brand.
+Asset type: transparent raster wordmark for the header of a miniature rollercoaster maths game.
+Primary request: create an original, polished logo reading exactly "Keep it going".
+Style: cheerful, clean, chunky rounded lettering with the confident simplicity of a well-designed children's wooden toy brand. Deep blue-green lettering (#202d46 / #416f65), a small lime-green toy coaster carriage and a restrained coral-and-gold looping rail flourish integrated to the left of or beneath the lettering. Match a calm pastel model railway game with sage greenery and cream backgrounds.
+Composition: very compact horizontal wordmark, approximately 4:1 width-to-height; text in one clear line, easy to read at 180–240 pixels wide. The lettering is the dominant element. Minimal transparent padding, no badge or enclosing shape.
+Text (verbatim): "Keep it going". Capital K, all remaining letters lowercase. No other text or slogan.
+Constraints: actual transparent background with alpha, crisp edges, flat vector-like shapes, no scene, no mockup, no lighting effects, no drop shadow, no watermark. Deliver only the finished logo.

@@ -11,7 +11,7 @@
   --lime: #dfff85;
 }
 
-/* Standalone Tiny Tracks shell */
+/* Standalone Keep it going shell */
 body {
   min-width: 320px;
   min-height: 100svh;
@@ -21,11 +21,18 @@ body {
 }
 
 .tiny-utility {
-  min-height: 64px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+}
+.game-logo {
+  display: block;
+  width: 192px;
+  height: 64px;
+  object-fit: contain;
+  margin-right: auto;
 }
 
 .tiny-pace { gap: 9px; }
@@ -58,7 +65,8 @@ body {
 }
 
 @media (max-width: 540px) {
-  .tiny-utility { min-height: 50px; gap: 7px; }
+  .tiny-utility { min-height: 50px; gap: 7px; flex-wrap: wrap; justify-content: center; padding-block: 8px; }
+  .game-logo { flex-basis: 100%; height: 50px; margin-right: 0; }
   .tiny-pace select { max-width: 94px; padding: 7px 24px 7px 10px; font-size: 9px; }
   .tiny-utility .icon-button { width: 32px; height: 32px; }
 }
@@ -263,9 +271,57 @@ h2 {
   line-height: 1.1;
   white-space: nowrap;
 }
+.mini-readouts {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  font-family: Outfit, sans-serif;
+}
+.mini-run,
+.mini-feature {
+  position: absolute;
+  border: 1px solid #ffffffbc;
+  border-radius: 10px;
+  background: #fffffff0;
+  color: #638c80;
+}
+.mini-run {
+  left: 20px;
+  bottom: 20px;
+  width: 280px;
+  max-width: calc(100% - 40px);
+  padding: 14px 16px;
+}
+.mini-run-title {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.mini-run-summary {
+  margin-top: 7px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #74877c;
+  font-variant-numeric: tabular-nums;
+}
+.mini-feature {
+  top: 92px;
+  right: 20px;
+  min-width: 144px;
+  max-width: calc(100% - 40px);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+}
+.mini-feature.boosting {
+  background: #edffb9;
+}
 .game-feedback {
   position: absolute;
-  bottom: 14px;
+  bottom: 106px;
   left: 50%;
   transform: translate(-50%, 8px);
   z-index: 3;
@@ -329,6 +385,9 @@ h2 {
 }
 .prompt p strong {
   color: #5e7450;
+}
+.keyboard-hint {
+  display: none;
 }
 .answer {
   display: flex;
@@ -552,6 +611,14 @@ kbd {
     top: 12px;
     gap: 8px;
   }
+  .mini-run {
+    left: 12px;
+    bottom: 12px;
+  }
+  .mini-feature {
+    top: 80px;
+    right: 12px;
+  }
   .game-stage {
     height: auto;
     min-height: 0;
@@ -591,6 +658,7 @@ kbd {
     font-size: 31px;
   }
   .game-feedback {
+    bottom: 98px;
     font-size: 10px;
     max-width: 94%;
     padding: 8px 12px;
@@ -635,8 +703,33 @@ kbd {
   .hud-stat > strong {
     font-size: 14px;
   }
+  .mini-run {
+    left: 8px;
+    bottom: 8px;
+    width: max-content;
+    max-width: calc(100% - 16px);
+    padding: 9px 12px;
+    border-radius: 7px;
+  }
+  .mini-run-title {
+    font-size: 10px;
+  }
+  .mini-run-summary {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+  .mini-feature {
+    top: 64px;
+    right: 8px;
+    min-width: 0;
+    max-width: calc(100% - 16px);
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: 11px;
+    line-height: 16px;
+  }
   .game-feedback {
-    bottom: 9px;
+    bottom: 80px;
     font-size: 9px;
     border-radius: 6px;
     white-space: normal;
@@ -702,6 +795,84 @@ kbd {
     height: 43px;
   }
 }
+/* Let the railway use the desktop viewport, with a compact question bar above. */
+@media (min-width: 801px) {
+  #app {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100svh;
+    min-height: 560px;
+    padding-bottom: 24px;
+  }
+  .container {
+    width: calc(100% - 48px);
+  }
+  .tiny-utility {
+    min-height: 72px;
+  }
+  #main-content {
+    min-height: 0;
+  }
+  .standalone-game {
+    height: 100%;
+    padding-top: 0;
+  }
+  .play-zone {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .game-stage {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+  .play-controls {
+    order: -1;
+    flex-shrink: 0;
+    min-height: 96px;
+    padding: 14px 24px;
+    border-top: 0;
+    border-bottom: 1px solid #e3e9db;
+  }
+  .prompt h2 {
+    margin-top: 0;
+    font-size: 36px;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .camera-switch {
+    min-height: 36px;
+    font-size: 11px;
+  }
+}
+
+/* Keep the touch keypad available on tablets, including landscape layouts. */
+@media (min-width: 801px) and (hover: hover) and (pointer: fine) {
+  .number-pad {
+    display: none;
+  }
+  .play-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 20px;
+  }
+  .prompt {
+    grid-column: 2;
+    text-align: center;
+  }
+  .prompt .keyboard-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+  }
+  .coaster-controls {
+    grid-column: 3;
+    justify-self: end;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

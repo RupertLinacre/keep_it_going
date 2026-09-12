@@ -4,7 +4,10 @@ import { clamp } from "../math";
 import { MINI_TRAIL_DISTANCE } from "./mini-config";
 
 export type MiniKind =
-  "station" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew";
+  "station" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  | "triplehelix" | "invertedhill" | "verticalhill";
+export const isHump = (kind: MiniKind) =>
+  ["hill", "skyhill", "invertedhill", "verticalhill"].includes(kind);
 export interface MiniRail {
   sample(distance: number): RailFrame;
   slope(distance: number): number;
@@ -12,13 +15,36 @@ export interface MiniRail {
 }
 const smooth = (t: number) => t * t * t * (10 + t * (-15 + 6 * t));
 
+/** Circular transitions joined to genuinely vertical straight rail. */
+function verticalHill(t: number, width: number, height: number) {
+  const radius = width / 4;
+  const quarter = Math.PI * radius / 2;
+  const straight = height - 2 * radius;
+  let s = t * (4 * quarter + 2 * straight);
+  if (s <= quarter) {
+    const angle = s / radius;
+    return [radius * Math.sin(angle), radius * (1 - Math.cos(angle))];
+  }
+  s -= quarter;
+  if (s <= straight) return [radius, radius + s];
+  s -= straight;
+  if (s <= 2 * quarter) {
+    const angle = s / radius;
+    return [2 * radius - radius * Math.cos(angle), height - radius + radius * Math.sin(angle)];
+  }
+  s -= 2 * quarter;
+  if (s <= straight) return [3 * radius, height - radius - s];
+  const angle = (s - straight) / radius;
+  return [4 * radius - radius * Math.cos(angle), radius * (1 - Math.sin(angle))];
+}
+
 /** One immutable, metre-scale piece. Its rail frames are shared by rendering and physics. */
 export class MiniSection implements MiniRail {
   readonly frames: RailFrame[] = [];
   readonly distances: number[] = [];
   readonly length: number;
   readonly end: number;
-  readonly resolution = 420;
+  readonly resolution: number;
   constructor(
     readonly id: number,
     readonly kind: MiniKind,
@@ -29,14 +55,16 @@ export class MiniSection implements MiniRail {
     readonly shift: number,
     readonly hand: number,
   ) {
+    this.resolution = kind === "triplehelix" ? 1260 : kind === "verticalhill" ? 600 : 420;
     const point = (t: number) => {
       const ease = smooth(t),
         theta = Math.PI * 2 * (kind === "loop" ? t : ease);
       let x = width * t,
         y = 0,
         z = shift * ease;
-      if (kind === "hill" || kind === "skyhill" || kind === "dip")
+      if (kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "verticalhill") [x, y] = verticalHill(t, width, amplitude);
       if (kind === "loop") {
         x = amplitude * Math.sin(theta) + width * ease;
         y = amplitude * (1 - Math.cos(theta));
@@ -44,6 +72,38 @@ export class MiniSection implements MiniRail {
       if (kind === "corkscrew") {
         y = amplitude * Math.sin(theta);
         z += hand * amplitude * (1 - Math.cos(theta));
+      }
+      if (kind === "helix") {
+        // A full rising horizontal spiral, followed by a smooth exit ramp.
+        // Separate entry/exit elevations keep the crossing rails apart.
+        const coil = 0.76;
+        const turn = Math.PI * 2 * Math.min(t / coil, 1);
+        if (t <= coil) {
+          x = amplitude * Math.sin(turn) + width * 0.3 * smooth(t / coil);
+          y = amplitude * 1.4 * smooth(t / coil);
+          z += hand * amplitude * (1 - Math.cos(turn));
+        } else {
+          const exit = (t - coil) / (1 - coil);
+          x = width * (0.3 + 0.7 * exit);
+          y = amplitude * 1.4 * (1 - smooth(exit));
+        }
+      }
+      if (kind === "triplehelix") {
+        const radius = width * 0.095;
+        const lead = width * 0.68;
+        const drift = radius * 0.4;
+        if (t < 0.3) {
+          x = lead * t / 0.3;
+          y = amplitude * smooth(t / 0.3);
+        } else if (t <= 0.9) {
+          const u = (t - 0.3) / 0.6;
+          const turn = 6 * Math.PI * u;
+          x = lead + radius * Math.sin(turn) + drift * smooth(u);
+          y = amplitude * (1 - smooth(u));
+          z += hand * radius * (1 - Math.cos(turn));
+        } else {
+          x = lead + drift + (width - lead - drift) * (t - 0.9) / 0.1;
+        }
       }
       return origin.clone().add(new THREE.Vector3(x, y, z));
     };
@@ -62,6 +122,29 @@ export class MiniSection implements MiniRail {
           : kind === "corkscrew"
             ? new THREE.Vector3(0, Math.cos(theta), hand * Math.sin(theta))
             : new THREE.Vector3(0, 1, 0);
+      if (kind === "helix" && t < 0.76) {
+        const turn = Math.PI * 2 * t / 0.76;
+        const bank = 0.95 * Math.sin(Math.PI * t / 0.76) ** 2;
+        up.set(
+          -Math.sin(turn) * Math.sin(bank),
+          Math.cos(bank),
+          hand * Math.cos(turn) * Math.sin(bank),
+        );
+      }
+      if (kind === "triplehelix" && t >= 0.3 && t <= 0.9) {
+        const u = (t - 0.3) / 0.6;
+        const turn = 6 * Math.PI * u;
+        const bank = 0.95 * smooth(clamp(Math.min(u, 1 - u) / 0.08, 0, 1));
+        up.set(-Math.sin(turn) * Math.sin(bank), Math.cos(bank), hand * Math.cos(turn) * Math.sin(bank));
+      }
+      if (kind === "verticalhill") {
+        // A world-up projection collapses on vertical rail; the planar normal doesn't.
+        up.set(-tangent.y, tangent.x, 0);
+      }
+      if (kind === "invertedhill") {
+        const roll = Math.PI * smooth(clamp(Math.min(t - 0.06, 0.94 - t) / 0.22, 0, 1));
+        up.set(-tangent.y, tangent.x, 0).normalize().applyAxisAngle(tangent, hand * roll);
+      }
       up.addScaledVector(tangent, -up.dot(tangent)).normalize();
       const right = tangent.clone().cross(up).normalize();
       up.copy(right).cross(tangent).normalize();
@@ -141,6 +224,7 @@ export class MiniTrack implements MiniRail {
   generated = 0;
   private random: () => number;
   private bag: MiniKind[] = [];
+  private bags = 0;
   constructor(seed = Math.floor(Math.random() * 0xffffffff)) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
@@ -163,7 +247,11 @@ export class MiniTrack implements MiniRail {
     this.append("loop");
     this.append("skyhill");
     this.append("corkscrew");
+    this.append("helix");
     this.append("dip");
+    this.append("invertedhill");
+    this.append("verticalhill");
+    this.append("triplehelix");
     this.ensure(8);
   }
   get end() {
@@ -194,9 +282,23 @@ export class MiniTrack implements MiniRail {
       amplitude = r(2.2, 2.8);
       width = r(23, 29);
     }
-    if (kind === "skyhill") {
+    if (kind === "helix") {
+      amplitude = r(4.1, 4.8);
+      width = amplitude * r(4.8, 5.6);
+    }
+    if (kind === "skyhill" || kind === "invertedhill") {
       amplitude = r(17, 23);
       width = r(48, 62);
+    }
+    if (kind === "verticalhill") {
+      width = r(20, 25);
+      amplitude = r(19, 23);
+      shift = 0;
+    }
+    if (kind === "triplehelix") {
+      width = r(48, 55);
+      amplitude = r(21, 23);
+      shift = 0;
     }
     this.sections.push(
       new MiniSection(
@@ -214,7 +316,8 @@ export class MiniTrack implements MiniRail {
   ensure(distance: number) {
     while (this.end < distance + 230) {
       if (!this.bag.length) {
-        this.bag = ["hill", "skyhill", "dip", "loop", "corkscrew"];
+        this.bag = ["hill", "skyhill", "dip", "loop", "corkscrew", "helix", "invertedhill", "verticalhill"];
+        if (++this.bags % 3 === 0) this.bag.push("triplehelix");
         for (let i = this.bag.length - 1; i > 0; i--) {
           const j = Math.floor(this.random() * (i + 1));
           [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];

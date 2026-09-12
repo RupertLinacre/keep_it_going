@@ -20,7 +20,7 @@ export function mountGame(
     <div class="game-page container standalone-game">
       <div class="play-zone">
         <div class="game-stage" style="--game-color:#d6e8d9">
-          <canvas class="game-canvas" width="${W}" height="${H}" aria-label="Tiny Tracks game world"></canvas>
+          <canvas class="game-canvas" width="${W}" height="${H}" aria-label="Keep it going game world"></canvas>
           <div class="game-hud"></div>
           <div class="game-feedback" role="status" aria-live="polite"></div>
         </div>

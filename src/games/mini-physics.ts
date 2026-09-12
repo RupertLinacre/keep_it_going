@@ -58,7 +58,7 @@ export class MiniPhysics {
       this.options.rolling * Math.tanh(v * 5)
     );
   }
-  update(dt: number) {
+  update(dt: number, afterStep?: (dt: number) => void) {
     if (!Number.isFinite(dt) || dt <= 0) return;
     this.accumulator += Math.min(dt, 0.25);
     const h = 1 / 120;
@@ -70,6 +70,7 @@ export class MiniPhysics {
         a1 = this.force(s, v);
       if (v === 0 && a1 <= 0) {
         this.acceleration = 0;
+        afterStep?.(h);
         continue;
       }
       // Clamp RK stages to nonnegative speed: the safety catch cannot do forward work.
@@ -89,6 +90,7 @@ export class MiniPhysics {
         this.stops++;
         this.uninterrupted = 0;
       }
+      afterStep?.(h);
     }
   }
   get energy() {

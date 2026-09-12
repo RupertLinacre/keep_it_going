@@ -23,6 +23,7 @@ function render() {
   cleanup?.();
   app.innerHTML = `
     <div class="tiny-utility container">
+      <img class="game-logo" src="${import.meta.env.BASE_URL}images/keep-it-going-logo.png" alt="Keep it going" width="2172" height="724" />
       <label class="tiny-pace" for="difficulty">
         <span>PACE</span>
         <select id="difficulty" aria-label="Difficulty">
