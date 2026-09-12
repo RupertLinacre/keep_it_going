@@ -23,16 +23,21 @@ export class MiniReadouts {
 
   render(state: {
     held: boolean;
+    incoming: boolean;
+    jump?: { distance: number; landed: boolean };
     correct: number;
     bestRun: number;
     feature: MiniKind;
     boost: number | null;
   }) {
     const title = state.held
-      ? "HELD · SOLVE TO ROLL AGAIN"
-      : "KEEP THE LITTLE TRAIN ROLLING";
-    const summary = `${state.correct} boosts · best run ${Math.floor(state.bestRun)} m`;
-    const feature = state.boost !== null
+      ? "RIDE COMPLETE"
+      : state.incoming ? "A COACH IS CATCHING UP" : "KEEP THE LITTLE TRAIN ROLLING";
+    const summary = `${state.correct} ${state.correct === 1 ? "boost" : "boosts"} · best run ${Math.floor(state.bestRun)} m`;
+    const feature = state.jump
+      ? `${state.jump.distance.toFixed(1)} m · ${state.jump.landed ? `JUMP BONUS +${Math.round(state.jump.distance * 10)}` : "AIRTIME!"}`
+      : state.feature === "jump" ? "WATER JUMP · BUILD SPEED"
+      : state.boost !== null
       ? `+${state.boost} km/h · BOOST`
       : state.feature === "skyhill"
         ? "SKY-HIGH CLIMB"
@@ -48,7 +53,7 @@ export class MiniReadouts {
     if (this.title.textContent !== title) this.title.textContent = title;
     if (this.summary.textContent !== summary) this.summary.textContent = summary;
     if (this.feature.textContent !== feature) this.feature.textContent = feature;
-    this.feature.classList.toggle("boosting", state.boost !== null);
+    this.feature.classList.toggle("boosting", state.boost !== null || !!state.jump);
   }
 
   destroy() {

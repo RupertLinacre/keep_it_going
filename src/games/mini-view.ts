@@ -6,7 +6,7 @@ import {
   MINI_STARTING_CARTS,
   MINI_MAX_FLYING_CARTS,
   MINI_MAX_FLYING_PARCELS, MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES,
-  MINI_PARCEL_OFFSETS, isParcelWagon,
+  parcelOffsets, isParcelWagon,
 } from "./mini-config";
 import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
@@ -212,12 +212,14 @@ export class MiniView {
   }
   private build(section: MiniSection) {
     const group = new THREE.Group();
-    const segments = Math.ceil(section.length * 14);
-    for (const [i, offset] of [-0.57, 0.57].entries()) {
+    const ranges = section.kind === "jump"
+      ? [[section.start, section.takeoff - 0.03], [section.distanceAtX(section.landingX), section.end]]
+      : [[section.start, section.end]];
+    for (const [from, to] of ranges) for (const [i, offset] of [-0.57, 0.57].entries()) {
       const rail = this.mesh(
         new THREE.TubeGeometry(
-          new MiniRailCurve(section, offset),
-          segments,
+          new MiniRailCurve(section, offset, from, to),
+          Math.ceil((to - from) * 14),
           0.095,
           6,
           false,
@@ -235,8 +237,11 @@ export class MiniView {
     sleepers.castShadow = true;
     sleepers.receiveShadow = true;
     const dummy = new THREE.Object3D();
+    let sleeperCount = 0;
     for (let i = 0; i < count; i++) {
-      const f = section.sample(section.start + (i / count) * section.length);
+      const at = section.start + (i / count) * section.length;
+      if (!section.hasRail(at)) continue;
+      const f = section.sample(at);
       dummy.position
         .copy(f.position)
         .sub(section.origin)
@@ -244,11 +249,13 @@ export class MiniView {
       dummy.quaternion.copy(f.rotation);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
-      sleepers.setMatrixAt(i, dummy.matrix);
+      sleepers.setMatrixAt(sleeperCount++, dummy.matrix);
     }
+    sleepers.count = sleeperCount;
     group.add(sleepers);
     const supports: THREE.Vector3[] = [];
     for (let s = section.start + 0.8; s < section.end; s += 2.4) {
+      if (!section.hasRail(s)) continue;
       const f = section.sample(s);
       const onTower = section.kind === "triplehelix"
         && f.position.x - section.origin.x > section.width * 0.57;
@@ -302,6 +309,28 @@ export class MiniView {
         group.add(spoke);
       }
     }
+    if (section.kind === "jump") {
+      const left = section.width * 0.2, right = section.width * 0.64;
+      const water = this.mesh(new THREE.BoxGeometry(right - left + 1.5, 0.2, 11), "#58b9c9");
+      water.position.set((left + right) / 2, 0.18 - section.origin.y, 0);
+      group.add(water);
+      for (const z of [-5.7, 5.7]) {
+        const bank = this.mesh(new THREE.BoxGeometry(right - left + 2.2, 0.38, 0.55), "#f1dec0");
+        bank.position.set((left + right) / 2, 0.18 - section.origin.y, z); group.add(bank);
+      }
+      for (let i = 0; i < 8; i++) {
+        const ripple = this.mesh(new THREE.BoxGeometry(1.5 + i % 3, 0.025, 0.07), "#b9eced");
+        ripple.position.set(left + 2 + (right - left - 4) * i / 7, 0.295 - section.origin.y, i % 2 ? 2.5 : -2);
+        group.add(ripple);
+      }
+      for (const x of [left - 0.4, right + 0.4]) for (const z of [-1.2, 1.2]) {
+        const height = x < right ? section.amplitude + section.origin.y + 0.7 : section.origin.y + 0.7;
+        const post = this.mesh(new THREE.CylinderGeometry(0.12, 0.12, height, 8), "#f4ca64");
+        post.position.set(x, height / 2 - section.origin.y, z); group.add(post);
+        const flag = this.mesh(new THREE.BoxGeometry(0.65, 0.65, 0.08), "#e89983");
+        flag.position.set(x + 0.28, height - section.origin.y - 0.2, z); group.add(flag);
+      }
+    }
     // Little model trees and paving give the track a tangible tabletop scale.
     const random = (n: number) =>
       (Math.sin(section.id * 93.17 + n * 71.43 + this.track.seed) * 4159.93 +
@@ -347,7 +376,7 @@ export class MiniView {
     const flights = effects?.flights ?? [], parcels = effects?.parcels ?? [], explosions = effects?.explosions ?? [];
     const dt = clamp(time - this.lastTime, 0, 0.05);
     this.lastTime = time;
-    const state = `${distance}:${velocity}:${flash}:${close}:${cartCount}:${this.track.generated}:${effects?.spilled}:${flights.map(c => c.age)}:${parcels.map(p => p.age + p.groundedFor)}:${explosions.map(e => e.age)}`;
+    const state = `${distance}:${velocity}:${flash}:${close}:${cartCount}:${this.track.generated}:${effects?.spilled}:${effects?.refills}:${time}:${flights.map(c => c.age)}:${parcels.map(p => p.age + p.groundedFor)}:${explosions.map(e => e.age)}`;
     if (state === this.lastState && this.cameraRig.settled) return;
     this.lastState = state;
     const ids = new Set(this.track.sections.map((s) => s.id));
@@ -356,7 +385,8 @@ export class MiniView {
         this.release(mesh);
         this.pieces.delete(id);
       }
-    const f = this.track.sample(distance),
+    const poses = effects?.poses(distance);
+    const f = poses?.[0]?.frame ?? this.track.sample(distance),
       anchor = Math.floor(f.position.x / 25) * 25;
     for (const section of this.track.sections) {
       if (!this.pieces.has(section.id)) this.build(section);
@@ -386,6 +416,8 @@ export class MiniView {
     const baseHeight = (close ? 26 : Math.max(32, skyline * 1.25 + 10))
       * (this.stage.clientHeight < 400 ? 1.22 : 1);
     const subjects = [
+      ...(poses?.filter(p => p.coach.cargo > 4).map(p => p.frame.position.clone().addScaledVector(p.frame.up, 1.35 + Math.floor((p.coach.cargo - 1) / 2) * 0.7)) ?? []),
+      ...(poses?.filter(p => p.frame.airborne || p.coach.lift > 0.05 || p.coach === effects?.incoming).map(p => p.frame.position) ?? []),
       ...flights.map(c => c.position), ...parcels.map(p => p.position),
       ...explosions.flatMap(e => [e.position, ...e.particles.map(p => p.position)]),
     ];
@@ -412,27 +444,29 @@ export class MiniView {
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
     const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
-    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: boolean) => {
+    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
       if (isParcelWagon(index)) {
         open.push(matrix); openColors.push(index);
-        if (loaded) for (const offset of MINI_PARCEL_OFFSETS)
+        if (loaded) for (const offset of parcelOffsets(loaded))
           cargo.push(matrix.clone().multiply(new THREE.Matrix4().makeTranslation(offset.x, offset.y, offset.z)));
       } else { closed.push(matrix); closedColors.push(index); }
     };
-    for (let index = 0; index < count; index++) {
-      const frame = this.track.sample(distance - index * MINI_CART_SPACING);
+    const attached = poses ?? Array.from({ length: count }, (_, index) => ({
+      frame: this.track.sample(distance - index * MINI_CART_SPACING), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0 },
+    }));
+    for (const { frame, coach } of attached) {
       const position = frame.position.clone();
       position.x -= anchor;
       const screen = position.clone().project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-      addCar(position, frame.rotation, index, !effects?.emptyWagons.has(index));
+      addCar(position, frame.rotation, coach.id, coach.cargo);
     }
     this.renderedCartCount = open.length + closed.length;
     for (const cart of flights) {
       const position = cart.position.clone();
       position.x -= anchor;
-      addCar(position, cart.rotation, cart.colorIndex, cart.hasCargo);
+      addCar(position, cart.rotation, cart.colorIndex, cart.cargo);
     }
     for (const parcel of parcels) {
       const position = parcel.position.clone(); position.x -= anchor;
@@ -450,17 +484,18 @@ export class MiniView {
         dummy.scale.setScalar(particle.size * 2 * Math.max(0, 1 - explosion.age / 2));
         dummy.updateMatrix();
         this.debris.setMatrixAt(chunks, dummy.matrix);
-        this.debris.setColorAt(chunks++, i % 3 ? CART_COLORS[explosion.colorIndex % CART_COLORS.length] : new THREE.Color("#ffa451"));
+        this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : i % 3 ? CART_COLORS[explosion.colorIndex % CART_COLORS.length] : new THREE.Color("#ffa451"));
       }
       dummy.position.copy(explosion.position); dummy.position.x -= anchor;
       dummy.rotation.set(0, 0, 0);
-      if (explosion.age < 0.3) {
+      if (explosion.age < 0.3 && !explosion.water) {
         dummy.scale.setScalar(2.2 * (1 - explosion.age / 0.3)); dummy.updateMatrix();
         this.impactFlashes.setMatrixAt(flashes++, dummy.matrix);
       }
       if (explosion.age < 0.8) {
         dummy.position.y = 0.16; dummy.rotation.x = Math.PI / 2;
         dummy.scale.setScalar(0.5 + explosion.age * 8); dummy.updateMatrix();
+        this.impactRings.setColorAt(rings, new THREE.Color(explosion.water ? "#c7f7ff" : "#f6ad62"));
         this.impactRings.setMatrixAt(rings++, dummy.matrix);
       }
     }
@@ -478,6 +513,15 @@ export class MiniView {
   private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[]) {
     const matrix = new THREE.Matrix4();
     for (const part of parts) {
+      if (transforms.length > part.mesh.instanceMatrix.count) {
+        const previous = part.mesh;
+        const mesh = new THREE.InstancedMesh(previous.geometry, previous.material, 2 ** Math.ceil(Math.log2(transforms.length)));
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.scene.remove(previous); previous.dispose();
+        this.scene.add(mesh); part.mesh = mesh;
+      }
       part.mesh.count = transforms.length;
       transforms.forEach((transform, index) => {
         matrix.multiplyMatrices(transform, part.transform);

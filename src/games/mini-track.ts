@@ -5,10 +5,13 @@ import { MINI_TRAIL_DISTANCE } from "./mini-config";
 
 export type MiniKind =
   "station" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
-  | "triplehelix" | "invertedhill" | "verticalhill";
+  | "triplehelix" | "invertedhill" | "verticalhill" | "jump";
 export const isHump = (kind: MiniKind) =>
   ["hill", "skyhill", "invertedhill", "verticalhill"].includes(kind);
 export interface MiniRail {
+  jumpAt?(distance: number): MiniSection | undefined;
+  hasRail?(distance: number): boolean;
+  distanceAtWorldX?(x: number, after: number): number;
   sample(distance: number): RailFrame;
   slope(distance: number): number;
   height(distance: number): number;
@@ -64,6 +67,12 @@ export class MiniSection implements MiniRail {
         z = shift * ease;
       if (kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "jump") {
+        // The middle is a virtual distance guide only: neither rails nor sleepers span the water.
+        const takeoff = width * 0.2, landing = width * 0.64;
+        if (x <= takeoff) y = amplitude * (x / takeoff) ** 2;
+        else if (x < landing) y = amplitude * (1 - smooth((x - takeoff) / (landing - takeoff)));
+      }
       if (kind === "verticalhill") [x, y] = verticalHill(t, width, amplitude);
       if (kind === "loop") {
         x = amplitude * Math.sin(theta) + width * ease;
@@ -171,6 +180,17 @@ export class MiniSection implements MiniRail {
         .divideScalar(this.distances[b] - this.distances[a]);
     }
   }
+  distanceAtX(x: number) {
+    const t = clamp((x - this.origin.x) / this.width, 0, 1) * this.resolution;
+    const i = Math.min(this.resolution - 1, Math.floor(t));
+    return this.start + THREE.MathUtils.lerp(this.distances[i], this.distances[i + 1], t - i);
+  }
+  get takeoff() { return this.distanceAtX(this.origin.x + this.width * 0.2); }
+  get landingX() { return this.origin.x + this.width * 0.64; }
+  hasRail(distance: number) {
+    return this.kind !== "jump" || distance < this.takeoff - 0.02
+      || this.sample(distance).position.x >= this.landingX;
+  }
   private indices(distance: number) {
     const s = clamp(distance - this.start, 0, this.length);
     let a = 0,
@@ -249,6 +269,7 @@ export class MiniTrack implements MiniRail {
     this.append("corkscrew");
     this.append("helix");
     this.append("dip");
+    this.append("jump");
     this.append("invertedhill");
     this.append("verticalhill");
     this.append("triplehelix");
@@ -295,6 +316,11 @@ export class MiniTrack implements MiniRail {
       amplitude = r(19, 23);
       shift = 0;
     }
+    if (kind === "jump") {
+      width = r(70, 78);
+      amplitude = 3.8;
+      shift = 0;
+    }
     if (kind === "triplehelix") {
       width = r(48, 55);
       amplitude = r(21, 23);
@@ -317,7 +343,8 @@ export class MiniTrack implements MiniRail {
     while (this.end < distance + 230) {
       if (!this.bag.length) {
         this.bag = ["hill", "skyhill", "dip", "loop", "corkscrew", "helix", "invertedhill", "verticalhill"];
-        if (++this.bags % 3 === 0) this.bag.push("triplehelix");
+        if (++this.bags % 2 === 0) this.bag.push("jump");
+        if (this.bags % 3 === 0) this.bag.push("triplehelix");
         for (let i = this.bag.length - 1; i > 0; i--) {
           const j = Math.floor(this.random() * (i + 1));
           [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
@@ -330,6 +357,25 @@ export class MiniTrack implements MiniRail {
       this.sections[0].end < distance - MINI_TRAIL_DISTANCE
     )
       this.sections.shift();
+  }
+  distanceAtWorldX(x: number, after: number) {
+    for (const section of this.sections) {
+      if (section.end < after) continue;
+      for (let i = 1; i < section.frames.length; i++) {
+        const a = section.frames[i - 1].position.x, b = section.frames[i].position.x;
+        if (b <= a || x < a || x > b) continue;
+        const at = section.start + THREE.MathUtils.lerp(section.distances[i - 1], section.distances[i], (x - a) / (b - a));
+        if (at >= after) return at;
+      }
+    }
+    const last = this.sections.at(-1)!;
+    return Math.max(after, last.end + x - last.frames.at(-1)!.position.x);
+  }
+  hasRail(distance: number) { return this.sectionAt(distance).hasRail(distance); }
+  jumpAt(distance: number) {
+    const section = this.sectionAt(distance);
+    return section.kind === "jump" && distance >= section.takeoff && distance < section.end
+      ? section : undefined;
   }
   sectionAt(distance: number) {
     return (
@@ -351,11 +397,13 @@ export class MiniRailCurve extends THREE.Curve<THREE.Vector3> {
   constructor(
     readonly section: MiniSection,
     readonly offset: number,
+    readonly from = section.start,
+    readonly to = section.end,
   ) {
     super();
   }
   getPoint(t: number, target = new THREE.Vector3()) {
-    const f = this.section.sample(this.section.start + t * this.section.length);
+    const f = this.section.sample(this.from + t * (this.to - this.from));
     return target
       .copy(f.position)
       .sub(this.section.origin)

@@ -4,7 +4,7 @@ import { seededRandom, type RailFrame } from "./mini-rail";
 import {
   MINI_CART_SPACING, MINI_MAX_FLYING_CARTS, MINI_MAX_FLYING_PARCELS,
   MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS,
-  MINI_PARCEL_OFFSETS, isParcelWagon,
+  parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
 } from "./mini-config";
 
 interface FlyingBody {
@@ -17,12 +17,13 @@ interface FlyingBody {
 }
 export interface FlyingCart extends FlyingBody {
   colorIndex: number;
-  hasCargo: boolean;
+  cargo: number;
 }
 export interface FlyingParcel extends FlyingBody {
   bounces: number;
 }
 export interface Explosion {
+  water?: boolean;
   position: THREE.Vector3;
   age: number;
   colorIndex: number;
@@ -41,11 +42,23 @@ function fly(body: FlyingBody, dt: number, gravity: number) {
     ));
 }
 
-export function losesContact(frame: RailFrame, speed: number, gravity = 9.81) {
-  // N/m = g·up.y + v² κ·up. The inverted crest turns the curvature toward
-  // the floor of the wagon, so speed holds the load in instead of throwing it out.
-  return frame.up.y > 0.65
-    && gravity * frame.up.y + speed ** 2 * frame.curvature.dot(frame.up) < -0.5;
+export function outwardForce(frame: RailFrame, speed: number, gravity = 9.81) {
+  // Inverted crests press the load into the wagon. Retaining wheels and cargo
+  // friction add deliberately forgiving adhesion beyond the weightless threshold.
+  return frame.up.y > 0.65 && !frame.airborne
+    ? Math.max(0, -gravity * frame.up.y - speed ** 2 * frame.curvature.dot(frame.up)) : 0;
+}
+export interface Coach {
+  id: number;
+  offset: number;
+  lift: number;
+  liftVelocity: number;
+  cargo: number;
+  nextCargo: number;
+  refill: number;
+  grace: number;
+  parcelStrain: number;
+  cartStrain: number;
 }
 
 /** Fixed-step carriage, cargo and impact physics; rendering consumes this state. */
@@ -56,10 +69,38 @@ export class MiniCarriages {
   readonly flights: FlyingCart[] = [];
   readonly parcels: FlyingParcel[] = [];
   readonly explosions: Explosion[] = [];
-  readonly emptyWagons = new Set<number>();
-  private shedHumps = new Set<number>();
+  readonly coaches: Coach[] = [];
+  incoming?: Coach;
+  arrived = 0;
+  refills = 0;
+  private nextId = MINI_STARTING_CARTS;
+  private arrivalTravel = 0;
+  sample: (distance: number) => RailFrame;
 
-  constructor(readonly track: MiniTrack, readonly gravity = 9.81) {}
+  constructor(readonly track: MiniTrack, readonly gravity = 9.81) {
+    this.sample = distance => track.sample(distance);
+    for (let i = 0; i < MINI_STARTING_CARTS; i++) this.coaches.push(this.newCoach(i, i * MINI_CART_SPACING));
+  }
+  private newCoach(id: number, offset: number): Coach {
+    return { id, offset, lift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? 2 : 0,
+      nextCargo: 3, refill: 0, grace: 0, parcelStrain: 0, cartStrain: 0 };
+  }
+  frame(coach: Coach, distance: number) {
+    const frame = this.sample(distance - coach.offset);
+    frame.position.addScaledVector(frame.up, coach.lift);
+    frame.rotation.premultiply(new THREE.Quaternion().setFromAxisAngle(frame.right, -coach.liftVelocity * 0.025));
+    return frame;
+  }
+  poses(distance: number) {
+    return [...this.coaches.slice(0, MINI_VISIBLE_CARTS), ...(this.incoming ? [this.incoming] : [])]
+      .filter(c => distance - c.offset >= this.track.sections[0].start)
+      .map(coach => ({ coach, frame: this.frame(coach, distance) }));
+  }
+  splash(frame: RailFrame) {
+    this.explode({ position: frame.position.clone(), velocity: new THREE.Vector3(),
+      rotation: frame.rotation, angularVelocity: new THREE.Vector3(), age: 0, groundedFor: 0, colorIndex: 0, cargo: 0 });
+    this.explosions.at(-1)!.water = true;
+  }
 
   private explode(cart: FlyingCart) {
     this.impacts++;
@@ -79,10 +120,13 @@ export class MiniCarriages {
     this.explosions.push({ position, particles, age: 0, colorIndex: cart.colorIndex });
   }
 
-  private spill(index: number, frame: RailFrame, speed: number) {
-    this.emptyWagons.add(index);
+  private spill(coach: Coach, frame: RailFrame, speed: number) {
+    const count = coach.cargo;
+    coach.cargo = 0;
+    coach.refill = MINI_PARCEL_RESPAWN;
+    coach.parcelStrain = 0;
     const angularVelocity = frame.tangent.clone().cross(frame.curvature).multiplyScalar(speed);
-    for (const offset of MINI_PARCEL_OFFSETS) {
+    for (const offset of parcelOffsets(count)) {
       const local = new THREE.Vector3(offset.x, offset.y, offset.z).applyQuaternion(frame.rotation);
       if (this.parcels.length >= MINI_MAX_FLYING_PARCELS) this.parcels.shift();
       this.parcels.push({
@@ -97,7 +141,7 @@ export class MiniCarriages {
     }
   }
 
-  update(dt: number, distance: number, speed: number, cartCount: number) {
+  update(dt: number, distance: number, speed: number, running = true) {
     if (!Number.isFinite(dt) || dt < 0) return false;
     for (let i = this.explosions.length - 1; i >= 0; i--) {
       const explosion = this.explosions[i];
@@ -123,7 +167,7 @@ export class MiniCarriages {
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cart.rotation);
         const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(cart.rotation);
         const open = isParcelWagon(cart.colorIndex);
-        const centerY = open ? (cart.hasCargo ? 0.66 : 0.46) : 0.765;
+        const centerY = open ? (cart.cargo ? 0.66 : 0.46) : 0.765;
         const halfHeight = centerY + 0.1;
         const bottom = centerY * up.y - halfHeight * Math.abs(up.y)
           - 0.725 * Math.abs(right.y) - 1.05 * Math.abs(forward.y);
@@ -158,39 +202,66 @@ export class MiniCarriages {
       }
     }
 
-    for (const index of this.emptyWagons) if (index >= cartCount) this.emptyWagons.delete(index);
-    for (const id of this.shedHumps)
-      if (id < this.track.sections[0].id) this.shedHumps.delete(id);
-    for (let index = 1; index < Math.min(cartCount, MINI_VISIBLE_CARTS); index++) {
-      if (!isParcelWagon(index) || this.emptyWagons.has(index)) continue;
-      const at = distance - index * MINI_CART_SPACING;
-      if (at < this.track.sections[0].start) continue;
-      const section = this.track.sectionAt(at);
-      if (isHump(section.kind)) {
-        const frame = section.sample(at);
-        if (losesContact(frame, speed, this.gravity)) this.spill(index, frame, speed);
+    if (!running) return false;
+    // Each arriving coach is a real, visible rail traveller, closing the gap faster
+    // at high speed. Distance travelled also brings the next one along sooner.
+    this.arrivalTravel += speed * dt;
+    if (!this.incoming && this.arrivalTravel >= 140) {
+      this.arrivalTravel = 0;
+      this.incoming = this.newCoach(this.nextId++, this.coaches.at(-1)!.offset + 34);
+    }
+    if (this.incoming) {
+      const target = this.coaches.at(-1)!.offset + MINI_CART_SPACING;
+      this.incoming.offset = Math.max(target, this.incoming.offset - (2 + speed * 0.7) * dt);
+      if (this.incoming.offset <= target + 0.001) {
+        this.coaches.push(this.incoming);
+        this.incoming = undefined;
+        this.arrived++;
       }
     }
-    if (cartCount <= 1) return false;
-    const tailDistance = distance - (cartCount - 1) * MINI_CART_SPACING;
-    if (tailDistance < this.track.sections[0].start) return false;
-    const section = this.track.sectionAt(tailDistance);
-    if (!isHump(section.kind) || this.shedHumps.has(section.id)) return false;
-    const frame = section.sample(tailDistance);
-    if (!losesContact(frame, speed, this.gravity)) return false;
-    this.shedHumps.add(section.id);
-    this.lost++;
-    if (this.flights.length >= MINI_MAX_FLYING_CARTS) this.flights.shift();
-    this.flights.push({
-      position: frame.position.clone(),
-      velocity: frame.tangent.clone().multiplyScalar(speed),
-      rotation: frame.rotation.clone(),
-      angularVelocity: frame.tangent.clone().cross(frame.curvature).multiplyScalar(speed),
-      colorIndex: cartCount - 1,
-      hasCargo: isParcelWagon(cartCount - 1) && !this.emptyWagons.has(cartCount - 1),
-      age: 0, groundedFor: 0,
-    });
-    this.emptyWagons.delete(cartCount - 1);
-    return true;
+    let shed = false;
+    for (let index = this.coaches.length - 1; index >= 1; index--) {
+      const coach = this.coaches[index];
+      coach.offset = Math.max(index * MINI_CART_SPACING, coach.offset - dt * 3);
+      coach.grace = Math.max(0, coach.grace - dt);
+      if (coach.refill > 0) {
+        coach.refill -= dt;
+        if (coach.refill <= 0) {
+          coach.cargo = coach.nextCargo++;
+          coach.grace = 0.75;
+          this.refills++;
+        }
+      }
+      const at = distance - coach.offset;
+      if (at < this.track.sections[0].start) continue;
+      const section = this.track.sectionAt(at);
+      const frame = this.sample(at);
+      const outward = isHump(section.kind) ? outwardForce(frame, speed, this.gravity) : 0;
+      const whip = 1 + Math.min(index, 12) * 0.09;
+      const targetLift = Math.min(0.6, Math.max(0, outward * whip - 140) / 500);
+      coach.liftVelocity += ((targetLift - coach.lift) * 180 - coach.liftVelocity * 18) * dt;
+      coach.lift = Math.max(0, coach.lift + coach.liftVelocity * dt);
+      if (coach.cargo && coach.grace === 0) {
+        coach.parcelStrain = Math.max(0, coach.parcelStrain + (outward > 110 ? outward / 110 - 1 : -4) * dt);
+        if (coach.parcelStrain > 0.035) this.spill(coach, this.frame(coach, distance), speed);
+      }
+      coach.cartStrain = Math.max(0, coach.cartStrain + (outward * whip > 430 ? outward * whip / 430 - 1 : -4) * dt);
+      if (coach.cartStrain <= 0.055) continue;
+      const pose = this.frame(coach, distance);
+      if (coach.cargo) this.spill(coach, pose, speed);
+      this.lost++;
+      shed = true;
+      if (this.flights.length >= MINI_MAX_FLYING_CARTS) this.flights.shift();
+      this.flights.push({
+        position: pose.position,
+        velocity: frame.tangent.clone().multiplyScalar(speed)
+          .addScaledVector(frame.up, Math.max(1.5, coach.liftVelocity)),
+        rotation: pose.rotation,
+        angularVelocity: frame.tangent.clone().cross(frame.curvature).multiplyScalar(speed * whip),
+        colorIndex: coach.id, cargo: 0, age: 0, groundedFor: 0,
+      });
+      this.coaches.splice(index, 1);
+    }
+    return shed;
   }
 }

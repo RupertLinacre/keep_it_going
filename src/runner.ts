@@ -13,6 +13,7 @@ export function mountGame(
   let raf = 0;
   let game: Game | undefined;
   let paused = false;
+  let finished = false;
   let lastTime = 0;
   let feedbackUntil = 0;
 
@@ -37,6 +38,9 @@ export function mountGame(
   const hud = root.querySelector<HTMLElement>(".game-hud")!;
   const feedback = root.querySelector<HTMLElement>(".game-feedback")!;
   const pauseButton = document.querySelector<HTMLButtonElement>("#pause-game")!;
+  pauseButton.disabled = false;
+  pauseButton.textContent = "Ⅱ";
+  pauseButton.setAttribute("aria-label", "Pause game");
   const options = { signal: controller.signal };
   let lastStats = "";
 
@@ -59,6 +63,7 @@ export function mountGame(
   };
 
   const togglePause = () => {
+    if (finished) return;
     paused = !paused;
     pauseButton.textContent = paused ? "▷" : "Ⅱ";
     pauseButton.setAttribute("aria-label", paused ? "Resume game" : "Pause game");
@@ -79,7 +84,17 @@ export function mountGame(
     stage,
     difficulty,
     sound,
-    finish: (_result: Result) => {},
+    finish: (result: Result) => {
+      finished = true;
+      pauseButton.disabled = true;
+      feedback.classList.remove("visible");
+      showOverlay(`
+        <div class="eyebrow">RIDE COMPLETE</div>
+        <h2>${result.message.startsWith("Splash!") ? "Into the drink!" : "Keep it going?"}</h2>
+        <p>${result.message}</p>
+        <div class="result-score">${result.score.toLocaleString()} <span>points · ${result.correct} ${result.correct === 1 ? "boost" : "boosts"}</span></div>
+        <button class="primary-button full-button" data-overlay="restart">Ride again →</button>`);
+    },
     panel: (html) => {
       const active =
         document.activeElement instanceof HTMLElement && controls.contains(document.activeElement)
@@ -136,7 +151,7 @@ export function mountGame(
 
   controls.addEventListener("click", (event) => {
     const action = (event.target as HTMLElement).closest<HTMLElement>("[data-action]")?.dataset.action;
-    if (action && !paused) {
+    if (action && !paused && !finished) {
       unlockAudio();
       game?.action(action);
       if (event.detail > 0) canvas.focus({ preventScroll: true });
@@ -144,7 +159,7 @@ export function mountGame(
   }, options);
 
   canvas.addEventListener("pointerdown", (event) => {
-    if (paused) return;
+    if (paused || finished) return;
     const rect = canvas.getBoundingClientRect();
     game?.pointer?.(
       ((event.clientX - rect.left) / rect.width) * W,
@@ -164,7 +179,7 @@ export function mountGame(
       togglePause();
       return;
     }
-    if (paused) return;
+    if (paused || finished) return;
     if (/^[0-9c]$/i.test(event.key) || ["Enter", "Backspace"].includes(event.key)) {
       event.preventDefault();
       unlockAudio();

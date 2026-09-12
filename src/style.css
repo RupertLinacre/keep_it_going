@@ -888,3 +888,7 @@ kbd {
     transform: none;
   }
 }
+
+.overlay-card > p { color: #6c8178; line-height: 1.6; margin: 12px 0 20px; }
+.result-score { color: #4e7564; font: 700 32px "Outfit", sans-serif; margin-bottom: 24px; }
+.result-score span { display: block; font: 500 14px "DM Sans", sans-serif; margin-top: 4px; }

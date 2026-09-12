@@ -1,10 +1,14 @@
 # Keep it going
 
-A standalone endless miniature coaster game. Solve multiplication products to give the train a momentum boost; every three correct answers adds another cart.
+A miniature coaster game about keeping your momentum. Start with six coaches at 28 m/s. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.
 
-Ride through loops, full-roll corkscrews, banked helices, vertical climbs and occasional three-turn helter-skelter descents. Some hilltops roll upside down before the crest, keeping the train and its cargo pressed against the rail at speed.
+Ride through loops, corkscrews, banked helices, vertical climbs and occasional three-turn helter-skelter descents. Some hilltops invert before the crest, pressing the train and its cargo into the track at speed.
 
-Boost carefully: too much speed over an upright hump spills parcels from open wagons and can send the last carriage flying. Airborne objects inherit their motion from the train and fall under gravity. The camera widens to follow them; detached carriages explode into a burst of debris on impact, while parcels bounce. You lose at most one carriage per hump, and the front carriage always stays on the track. Correct answers keep earning replacement carriages, with fresh parcels in new open wagons.
+The lead coach stays attached to the rails except during intentional jumps. Following coaches can lift and settle back down over humps. Excessive speed can whip one or several off, with a stronger effect toward the rear. Retaining wheels make coaches much stickier than loose parcels. Detached objects follow gravity; the camera widens to follow them, carriages explode on impact, and parcels bounce.
+
+Open wagons refill 2.5 seconds after spilling. They begin with two parcels, then return with three, four, and so on, stacked in the wagon. New coaches visibly approach from behind and couple onto the tail. Travelling faster brings them along sooner and closes the gap faster; answering does not instantly add a coach.
+
+Water jumps have a real gap in the rails. Build enough speed to clear the far edge, then land to collect ten bonus points per metre flown. Live airtime distance, a landing bonus and your best jump appear on screen.
 
 On desktop, type an answer and press **Enter** to boost; **C** changes the view and **P** pauses. Phones and tablets have a touch keypad.
 

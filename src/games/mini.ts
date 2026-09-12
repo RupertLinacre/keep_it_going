@@ -6,13 +6,9 @@ import { MiniReadouts } from "./mini-readouts";
 import { MiniCarriages } from "./mini-carriages";
 import { numberPad } from "./input";
 import { multiplication } from "../math";
-import { gradient, label, line, roundRect, circle } from "../draw";
+import { gradient, line, roundRect, circle } from "../draw";
 import { record } from "../storage";
 import {
-  miniCartCount,
-  MINI_ANSWERS_PER_CART,
-  MINI_CART_SPACING,
-  MINI_VISIBLE_CARTS,
   isParcelWagon,
 } from "./mini-config";
 import type { Host } from "../types";
@@ -32,13 +28,14 @@ export class Mini extends BaseGame {
   lastImpulse = 0;
   private hudAt = 0;
   private recordedAt = 0;
-  private previousStops = 0;
+  private jumpBonusUntil = 0;
   private readouts?: MiniReadouts;
   constructor(host: Host, seed?: number) {
     super(host);
     this.track = new MiniTrack(seed);
     this.physics = new MiniPhysics(this.track);
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
+    this.carriages.sample = distance => this.physics.sample(distance);
     this.next();
     this.hud();
     try {
@@ -55,7 +52,7 @@ export class Mini extends BaseGame {
     return this.physics.distance - this.physics.options.initialDistance;
   }
   get cartCount() {
-    return Math.max(1, miniCartCount(this.correct) - this.carriages.lost);
+    return this.carriages.coaches.length;
   }
   next() {
     [this.a, this.b] = multiplication(this.host.difficulty);
@@ -69,24 +66,14 @@ export class Mini extends BaseGame {
   }
   hud() {
     this.host.stats([
-      {
-        label: this.physics.held ? "SAFETY CATCH" : "SPEED",
-        value: this.physics.held
-          ? "Held"
-          : `${(this.physics.velocity * 3.6).toFixed(0)} km/h`,
-      },
-      {
-        label: "WITHOUT STOPPING",
-        value: `${Math.floor(this.physics.uninterrupted)} m`,
-      },
-      {
-        label: "YOUR TRAIN",
-        value: `${this.cartCount} carts`,
-      },
-      { label: "TOTAL DISTANCE", value: `${Math.floor(this.travelled)} m` },
+      { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
+      { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
+      { label: "YOUR TRAIN", value: `${this.cartCount} ${this.cartCount === 1 ? "coach" : "coaches"}` },
+      { label: "BEST JUMP", value: this.physics.bestJump ? `${this.physics.bestJump.toFixed(1)} m` : "—" },
     ]);
   }
   action(value: string) {
+    if (this.ended) return;
     if (value === "camera") {
       this.close = !this.close;
       this.panel();
@@ -103,17 +90,11 @@ export class Mini extends BaseGame {
         this.good(
           `${this.a} × ${this.b} = ${this.a * this.b}. Big forward boost!`,
         );
-        if (this.correct % MINI_ANSWERS_PER_CART === 0) {
-          this.host.feedback(
-            `New cart! Your train now has ${this.cartCount} carts. Keep rolling!`,
-          );
-          this.burst(560, 325, "#edca88");
-        }
         this.lock = 0.18;
         this.next();
       } else {
         this.bad(
-          `Try ${this.a} equal groups of ${this.b}. Your train is still here.`,
+          `Try ${this.a} equal groups of ${this.b}. Keep going!`,
         );
         this.answer = "";
         this.lock = 0.2;
@@ -128,33 +109,52 @@ export class Mini extends BaseGame {
     if (key === "Backspace") this.action("back");
     if (key.toLowerCase() === "c") this.action("camera");
   }
+  private endRide(water: boolean) {
+    this.hud();
+    if (water) this.carriages.splash(this.physics.sample(this.physics.distance));
+    this.host.sound("bad");
+    record("mini", this.host.difficulty, this.score);
+    this.finish(false, `${water ? "Splash! Build more speed before the water jump." : "The train stopped. Keep solving to keep it going!"} You travelled ${Math.floor(this.travelled)} m${this.physics.bestJump ? ` and jumped ${this.physics.bestJump.toFixed(1)} m` : ""}.`);
+  }
   update(dt: number) {
     this.step(dt);
     this.lock -= dt;
     this.flash = Math.max(0, this.flash - dt);
+    if (this.ended) {
+      this.carriages.update(dt, this.physics.distance, 0, false);
+      return;
+    }
     this.track.ensure(this.physics.distance + this.physics.velocity * dt);
     let shed = false;
     const previousSpills = this.carriages.spilled;
     const previousImpacts = this.carriages.impacts;
+    const previousArrivals = this.carriages.arrived;
+    const previousJumps = this.physics.jumps;
     this.physics.update(dt, (step) => {
-      shed = this.carriages.update(
-        step, this.physics.distance, this.physics.velocity, this.cartCount,
-      ) || shed;
+      shed = this.carriages.update(step, this.physics.distance, this.physics.velocity) || shed;
+      if (this.physics.crashed || this.physics.held) {
+        this.endRide(this.physics.crashed);
+        return false;
+      }
     });
-    if (shed) {
-      this.host.feedback("Too fast over the hump! The last carriage flew off. Ease off the boosts near a crest.", false);
+    if (this.ended) return;
+    if (this.physics.jumps > previousJumps) {
+      const distance = this.physics.lastJumpDistance;
+      const bonus = Math.round(distance * 10);
+      this.score += bonus;
+      this.jumpBonusUntil = this.elapsed + 4;
+      this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
+      this.host.sound("win");
+    } else if (shed) {
+      this.host.feedback("The train whipped over that hump! Coaches away!", false);
       this.host.sound("bad");
+    } else if (this.carriages.arrived > previousArrivals) {
+      this.host.feedback(`A coach caught up! ${this.cartCount} coaches and counting.`);
+      this.host.sound("jump");
     } else if (this.carriages.spilled > previousSpills) {
-      this.host.feedback("Parcels away! Ease off the boosts over upright humps.", false);
+      this.host.feedback("Parcels away! A bigger load is on its way.");
     }
     if (this.carriages.impacts > previousImpacts) this.host.sound("bad");
-    if (this.physics.stops > this.previousStops) {
-      this.previousStops = this.physics.stops;
-      this.host.feedback(
-        "The safety catch is holding you. Solve a product to push forwards again.",
-        false,
-      );
-    }
     if (this.elapsed >= this.hudAt) {
       this.hud();
       this.hudAt = this.elapsed + 0.1;
@@ -163,7 +163,6 @@ export class Mini extends BaseGame {
       record("mini", this.host.difficulty, this.score);
       this.recordedAt = this.elapsed;
     }
-    // Deliberately no finish condition. Stalls are pauses in the journey, never game over.
   }
   draw(ctx: CanvasRenderingContext2D) {
     if (this.view) {
@@ -179,7 +178,11 @@ export class Mini extends BaseGame {
       );
     } else this.fallback(ctx);
     this.readouts?.render({
-      held: this.physics.held,
+      held: this.ended,
+      incoming: !!this.carriages.incoming,
+      jump: this.physics.flight && !this.ended
+        ? { distance: this.physics.flight.position.x - this.physics.flight.startX, landed: false }
+        : this.elapsed < this.jumpBonusUntil ? { distance: this.physics.lastJumpDistance, landed: true } : undefined,
       correct: this.correct,
       bestRun: this.physics.bestRun,
       feature: this.track.sectionAt(this.physics.distance).kind,
@@ -189,12 +192,13 @@ export class Mini extends BaseGame {
   }
   private fallback(ctx: CanvasRenderingContext2D) {
     gradient(ctx, "#e1eee4", "#f5efd9");
-    const frame = this.track.sample(this.physics.distance);
+    const frame = this.physics.sample(this.physics.distance);
     const baseScale = this.close ? 28 : 19;
     let scale = baseScale;
     let centerX = frame.position.x + 200 / scale;
     let centerY = Math.max(0, frame.position.y - 10) + 65 / scale;
     const subjects = [
+      ...this.carriages.poses(this.physics.distance).filter(p => p.frame.airborne || p.coach === this.carriages.incoming).map(p => p.frame.position),
       ...this.carriages.flights.map(c => c.position),
       ...this.carriages.parcels.map(p => p.position),
       ...this.carriages.explosions.flatMap(e => e.particles.map(p => p.position)),
@@ -212,21 +216,21 @@ export class Mini extends BaseGame {
       300 - (y - centerY) * scale,
     ];
     for (const section of this.track.sections) {
-      const points = section.frames
-        .filter((_, i) => i % 3 === 0)
-        .map((f) => project(f.position.x, f.position.y));
-      line(ctx, points, "#78a296", 8);
-      line(ctx, points, "#f3d68f", 3);
+      if (section.kind === "jump") {
+        const [x, y] = project(section.origin.x + section.width * 0.2, 0.4);
+        roundRect(ctx, x, y, section.width * 0.44 * scale, 18, 4, "#58b9c9");
+      }
+      let points: [number, number][] = [];
+      const drawRail = () => { if (points.length > 1) { line(ctx, points, "#78a296", 8); line(ctx, points, "#f3d68f", 3); } points = []; };
+      for (let i = 0; i < section.frames.length; i += 3) {
+        if (!section.hasRail(section.start + section.distances[i])) { drawRail(); continue; }
+        const f = section.frames[i]; points.push(project(f.position.x, f.position.y));
+      }
+      drawRail();
     }
     const palette = ["#d7e99b", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987"];
-    for (
-      let index = Math.min(this.cartCount, MINI_VISIBLE_CARTS) - 1;
-      index >= 0;
-      index--
-    ) {
-      const cart = this.track.sample(
-        this.physics.distance - index * MINI_CART_SPACING,
-      );
+    for (const { coach, frame: cart } of this.carriages.poses(this.physics.distance).reverse()) {
+      const index = coach.id;
       const [x, y] = project(cart.position.x, cart.position.y);
       if (x < -50 || x > 1150) continue;
       ctx.save();
@@ -243,11 +247,11 @@ export class Mini extends BaseGame {
         palette[index % palette.length],
         "#779486",
       );
-      if (isParcelWagon(index) && !this.carriages.emptyWagons.has(index))
-        for (const x of [-15, 2]) {
-          roundRect(ctx, x, -27, 13, 13, 1, "#c89560");
-          roundRect(ctx, x + 5, -27, 3, 13, 0, "#f9e8b9");
-        }
+      for (let i = 0; i < coach.cargo; i++) {
+        const x = i % 2 ? 2 : -15, y = -27 - Math.floor(i / 2) * 14;
+        roundRect(ctx, x, y, 13, 13, 1, "#c89560");
+        roundRect(ctx, x + 5, y, 3, 13, 0, "#f9e8b9");
+      }
       circle(ctx, -10, 0, 4, "#738779");
       circle(ctx, 10, 0, 4, "#738779");
       ctx.restore();
@@ -273,7 +277,7 @@ export class Mini extends BaseGame {
       ctx.restore();
     }
     for (const explosion of this.carriages.explosions) {
-      if (explosion.age < 0.3) {
+      if (explosion.age < 0.3 && !explosion.water) {
         const [x, y] = project(explosion.position.x, explosion.position.y);
         circle(ctx, x, y, 2.2 * scale * (1 - explosion.age / 0.3), "#ffe6a6");
       }
@@ -281,10 +285,9 @@ export class Mini extends BaseGame {
         const [x, y] = project(particle.position.x, particle.position.y);
         const size = particle.size * 2 * scale * (1 - explosion.age / 2);
         roundRect(ctx, x - size / 2, y - size / 2, size, size, 1,
-          i % 3 ? palette[explosion.colorIndex % palette.length] : "#ffa451");
+          explosion.water ? "#58b9c9" : i % 3 ? palette[explosion.colorIndex % palette.length] : "#ffa451");
       }
     }
-    label(ctx, "MINIATURE RAILWAY · 2D FALLBACK", 550, 113, 12, "#8ca397");
   }
   destroy() {
     record("mini", this.host.difficulty, this.score);

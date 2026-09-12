@@ -62,9 +62,10 @@ test("inverting before the crest retains the carriage and parcels at high speed"
     const track = new MiniTrack(seed);
     const protectedHill = track.sections.find(s => s.kind === "invertedhill")!;
     const carriages = new MiniCarriages(track);
+    carriages.coaches.splice(2);
     for (let i = 0; i <= 200; i++) {
       const at = protectedHill.start + protectedHill.length * i / 200;
-      carriages.update(0, at + MINI_CART_SPACING, 60, 2);
+      carriages.update(1 / 120, at + MINI_CART_SPACING, 60);
     }
     const crest = protectedHill.sample(protectedHill.start + protectedHill.length / 2);
     assert.ok(crest.up.y < -0.99);
@@ -72,36 +73,34 @@ test("inverting before the crest retains the carriage and parcels at high speed"
     assert.equal(carriages.lost, 0);
     assert.equal(carriages.spilled, 0);
     const upright = track.sections.find(s => s.kind === "skyhill")!;
-    carriages.update(0, upright.start + upright.length / 2 + MINI_CART_SPACING, 60, 2);
+    for (let i = 0; i < 40; i++) carriages.update(1 / 120, upright.start + upright.length / 2 + MINI_CART_SPACING, 80);
     assert.equal(carriages.lost, 1);
     assert.equal(carriages.spilled, 2);
   }
 });
 
-test("open wagons spill ballistic parcels once and newly earned wagons get fresh cargo", () => {
-  const track = new MiniTrack(42);
+test("spilled parcels follow gravity, then respawn quickly with one extra parcel each time", () => {
+  const track = new MiniTrack(42), c = new MiniCarriages(track);
+  c.coaches.splice(2);
+  const coach = c.coaches[1];
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   const at = hill.start + hill.length / 2 + MINI_CART_SPACING;
-  const carriages = new MiniCarriages(track);
-  carriages.update(0, at, 1, 3);
-  assert.equal(carriages.parcels.length, 0, "Slow cargo stays in its wagon");
-  carriages.update(0, at, 35, 3);
-  assert.equal(carriages.parcels.length, 2);
-  assert.ok(carriages.emptyWagons.has(1));
-  const parcel = carriages.parcels[0];
-  const position = parcel.position.clone(), velocity = parcel.velocity.clone();
-  for (let i = 0; i < 60; i++) carriages.update(1 / 120, at, 0, 2);
-  const expected = position.addScaledVector(velocity, 0.5);
-  expected.y -= 0.5 * 9.81 * 0.5 ** 2;
-  assert.ok(parcel.position.distanceTo(expected) < 1e-8);
-  for (let i = 0; i < 1200; i++) carriages.update(1 / 120, at, 0, 2);
-  assert.equal(carriages.parcels.length, 0);
-  assert.ok(parcel.bounces > 0);
-  carriages.update(0, at, 35, 2);
-  assert.equal(carriages.spilled, 2, "Empty wagons do not spontaneously refill");
-  carriages.update(0, 8, 0, 1);
-  carriages.update(0, at, 35, 2);
-  assert.equal(carriages.spilled, 4, "A new wagon at that position has a new load");
+  for (const expectedCount of [2, 3, 4]) {
+    assert.equal(coach.cargo, expectedCount);
+    for (let i = 0; i < 120 && coach.cargo; i++) c.update(1 / 120, at, 35);
+    assert.equal(coach.cargo, 0);
+    assert.equal(c.lost, 0);
+    const parcel = c.parcels.at(-1)!;
+    const expected = parcel.position.clone().addScaledVector(parcel.velocity, 0.5);
+    expected.y -= 0.5 * 9.81 * 0.25;
+    for (let i = 0; i < 60; i++) c.update(1 / 120, 8, 0);
+    assert.ok(parcel.position.distanceTo(expected) < 1e-8);
+    for (let i = 0; i < 245; i++) c.update(1 / 120, 8, 0);
+    assert.equal(coach.cargo, expectedCount + 1);
+  }
+  assert.equal(c.refills, 3);
+  for (let i = 0; i < 1500; i++) c.update(1 / 120, 8, 0);
+  assert.equal(c.parcels.length, 0);
 });
 
 test("a carriage explodes once on impact and the debris follows gravity then expires", () => {
@@ -109,9 +108,11 @@ test("a carriage explodes once on impact and the debris follows gravity then exp
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   const front = hill.start + hill.length / 2 + 2 * MINI_CART_SPACING;
   const carriages = new MiniCarriages(track);
-  carriages.update(0, front, 35, 3);
+  carriages.coaches.splice(1, 4);
+  carriages.coaches[1].offset = 2 * MINI_CART_SPACING;
+  for (let i = 0; i < 30 && !carriages.lost; i++) carriages.update(1 / 120, front, 80);
   assert.equal(carriages.explosions.length, 0, "No mid-air explosion");
-  for (let i = 0; i < 1200 && carriages.flights.length; i++) carriages.update(1 / 120, front, 0, 2);
+  for (let i = 0; i < 1200 && carriages.flights.length; i++) carriages.update(1 / 120, front, 0, false);
   assert.equal(carriages.flights.length, 0);
   assert.equal(carriages.impacts, 1);
   assert.equal(carriages.explosions.length, 1);
@@ -120,9 +121,9 @@ test("a carriage explodes once on impact and the debris follows gravity then exp
   const particle = explosion.particles[0];
   const expected = particle.position.clone().addScaledVector(particle.velocity, 0.1);
   expected.y -= 0.5 * 9.81 * 0.1 ** 2;
-  carriages.update(0.1, front, 0, 2);
+  carriages.update(0.1, front, 0, false);
   assert.ok(particle.position.distanceTo(expected) < 1e-8);
-  for (let i = 0; i < 360; i++) carriages.update(1 / 120, front, 0, 2);
+  for (let i = 0; i < 360; i++) carriages.update(1 / 120, front, 0, false);
   assert.equal(carriages.impacts, 1);
   assert.equal(carriages.explosions.length, 0);
 });

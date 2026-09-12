@@ -1,6 +1,7 @@
 import type * as THREE from "three";
 
 export interface RailFrame {
+  airborne?: boolean;
   position: THREE.Vector3;
   tangent: THREE.Vector3;
   up: THREE.Vector3;
