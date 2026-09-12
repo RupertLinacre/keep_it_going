@@ -27,6 +27,7 @@ export class MiniView {
   private wagonParts: ModelPart[];
   private parcelParts: ModelPart[];
   readonly debris: THREE.InstancedMesh;
+  readonly couplings: THREE.InstancedMesh;
   readonly impactFlashes: THREE.InstancedMesh;
   readonly impactRings: THREE.InstancedMesh;
   readonly cameraRig = new MiniCameraRig();
@@ -83,6 +84,7 @@ export class MiniView {
     this.wagonParts = this.instanceModel(this.car("#ffffff", true), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.parcelParts = this.instanceModel(this.parcel(), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
     this.train.push(...[...this.trainParts, ...this.wagonParts].map(part => part.mesh));
+    this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#56786f", MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.debris = this.instances(new THREE.BoxGeometry(1, 1, 1), "#ffffff", MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
     this.impactFlashes = this.instances(new THREE.IcosahedronGeometry(1, 1), "#ffe6a6", MINI_MAX_EXPLOSIONS);
     this.impactRings = this.instances(new THREE.TorusGeometry(1, 0.035, 6, 40), "#f6ad62", MINI_MAX_EXPLOSIONS);
@@ -476,6 +478,18 @@ export class MiniView {
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);
     const dummy = new THREE.Object3D();
+    const links = effects?.links(distance) ?? [];
+    for (const [i, link] of links.entries()) {
+      const direction = link.end.clone().sub(link.start);
+      dummy.position.copy(link.start).add(link.end).multiplyScalar(0.5);
+      dummy.position.x -= anchor;
+      dummy.scale.set(1, direction.length(), 1);
+      dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+      dummy.updateMatrix();
+      this.couplings.setMatrixAt(i, dummy.matrix);
+    }
+    this.couplings.count = links.length;
+    this.couplings.instanceMatrix.needsUpdate = true;
     let chunks = 0, flashes = 0, rings = 0;
     for (const explosion of explosions) {
       for (const [i, particle] of explosion.particles.entries()) {

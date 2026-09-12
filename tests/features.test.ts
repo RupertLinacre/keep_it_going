@@ -65,7 +65,7 @@ test("inverting before the crest retains the carriage and parcels at high speed"
     carriages.coaches.splice(2);
     for (let i = 0; i <= 200; i++) {
       const at = protectedHill.start + protectedHill.length * i / 200;
-      carriages.update(1 / 120, at + MINI_CART_SPACING, 60);
+      carriages.update(1 / 120, at + MINI_CART_SPACING, 120);
     }
     const crest = protectedHill.sample(protectedHill.start + protectedHill.length / 2);
     assert.ok(crest.up.y < -0.99);
@@ -73,9 +73,11 @@ test("inverting before the crest retains the carriage and parcels at high speed"
     assert.equal(carriages.lost, 0);
     assert.equal(carriages.spilled, 0);
     const upright = track.sections.find(s => s.kind === "skyhill")!;
-    for (let i = 0; i < 40; i++) carriages.update(1 / 120, upright.start + upright.length / 2 + MINI_CART_SPACING, 80);
-    assert.equal(carriages.lost, 1);
-    assert.equal(carriages.spilled, 2);
+    const exposed = new MiniCarriages(track);
+    exposed.coaches.splice(2);
+    for (let i = 0; i < 40; i++) exposed.update(1 / 120, upright.start + upright.length / 2 + MINI_CART_SPACING, 120);
+    assert.equal(exposed.lost, 1);
+    assert.equal(exposed.spilled, 2);
   }
 });
 
@@ -91,10 +93,11 @@ test("spilled parcels follow gravity, then respawn quickly with one extra parcel
     assert.equal(coach.cargo, 0);
     assert.equal(c.lost, 0);
     const parcel = c.parcels.at(-1)!;
-    const expected = parcel.position.clone().addScaledVector(parcel.velocity, 0.5);
-    expected.y -= 0.5 * 9.81 * 0.25;
+    const before = parcel.position.clone();
+    const launchSpeed = parcel.velocity.length();
     for (let i = 0; i < 60; i++) c.update(1 / 120, 8, 0);
-    assert.ok(parcel.position.distanceTo(expected) < 1e-8);
+    assert.ok(parcel.position.distanceTo(before) < launchSpeed * 0.5);
+    assert.ok(parcel.velocity.length() < launchSpeed, "Drag slows a loose parcel");
     for (let i = 0; i < 245; i++) c.update(1 / 120, 8, 0);
     assert.equal(coach.cargo, expectedCount + 1);
   }

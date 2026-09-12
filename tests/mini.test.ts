@@ -299,12 +299,12 @@ test("sticky coaches survive ordinary humps; the rear whips off first and faster
     return { c, maximumLift };
   };
   assert.equal(run(20).c.spilled, 0);
-  const normal = run(35), fast = run(45), extreme = run(60);
+  const normal = run(35), fast = run(60), extreme = run(80);
   assert.equal(normal.c.lost, 0);
   assert.ok(normal.c.spilled > 0, "Parcels release before coaches");
   assert.ok(normal.maximumLift > 0.1, "Coaches can lift and settle without detaching");
   assert.ok(fast.c.lost > 0 && fast.c.lost < 5);
-  assert.deepEqual(fast.c.coaches.map(c => c.id), [0, 1, 2], "Rear coaches have the strongest whip");
+  assert.deepEqual(fast.c.coaches.map(c => c.id), [0, 1, 2], "The broken joint releases a continuous rear section");
   assert.equal(extreme.c.lost, 5);
 });
 
@@ -336,17 +336,22 @@ test("detachment and airborne motion agree at 30 and 144 frames per second", () 
     const game = new HeadlessMini(harness().host, 42);
     const hill = game.track.sections.find(s => s.kind === "skyhill")!;
     game.physics.distance = hill.start + hill.length / 2 - 5;
-    game.physics.velocity = 60;
+    game.physics.velocity = 80;
     advance(game, 1.5, fps);
     return game;
   };
   const a = run(30), b = run(144);
-  assert.equal(a.carriages.lost, 5);
+  assert.ok(a.carriages.lost > 0);
   assert.equal(a.carriages.lost, b.carriages.lost);
   assert.equal(a.cartCount, b.cartCount);
-  assert.equal(a.carriages.flights.length, 5);
-  assert.ok(a.carriages.flights[0].position.distanceTo(b.carriages.flights[0].position) < 1e-8);
-  assert.ok(a.carriages.flights[0].velocity.distanceTo(b.carriages.flights[0].velocity) < 1e-8);
+  assert.equal(a.carriages.flights.length, b.carriages.flights.length);
+  for (const key of ["flights", "parcels"] as const) {
+    assert.equal(a.carriages[key].length, b.carriages[key].length);
+    for (let i = 0; i < a.carriages[key].length; i++) {
+      assert.ok(a.carriages[key][i].position.distanceTo(b.carriages[key][i].position) < 1e-8);
+      assert.ok(a.carriages[key][i].velocity.distanceTo(b.carriages[key][i].velocity) < 1e-8);
+    }
+  }
 });
 
 test("replacement coaches visibly close the gap from behind, sooner at higher speed", () => {

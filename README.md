@@ -4,7 +4,7 @@ A miniature coaster game about keeping your momentum. Start with six coaches at 
 
 Ride through loops, corkscrews, banked helices, vertical climbs and occasional three-turn helter-skelter descents. Some hilltops invert before the crest, pressing the train and its cargo into the track at speed.
 
-The lead coach stays attached to the rails except during intentional jumps. Following coaches can lift and settle back down over humps. Excessive speed can whip one or several off, with a stronger effect toward the rear. Retaining wheels make coaches much stickier than loose parcels. Detached objects follow gravity; the camera widens to follow them, carriages explode on impact, and parcels bounce.
+The lead coach stays attached to the rails except during intentional jumps. Following coaches share forces through damped suspension and visible couplings. They can lift over a hump while their drawbars keep them connected. Sustained tension can break a joint, releasing a rear section whose coaches remain coupled as they fall. The engine stays pinned to the rails, with a reinforced tow point. Retaining wheels make coaches much stickier than loose parcels. Parcels inherit almost the same speed as their wagon, with only a small amount of rotational motion; strong air resistance slows their flight and tumbling. The camera follows detached objects, carriages explode on impact, and parcels bounce.
 
 Open wagons refill 2.5 seconds after spilling. They begin with two parcels, then return with three, four, and so on, stacked in the wagon. New coaches visibly approach from behind and couple onto the tail. Travelling faster brings them along sooner and closes the gap faster; answering does not instantly add a coach.
 

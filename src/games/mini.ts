@@ -146,7 +146,7 @@ export class Mini extends BaseGame {
       this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
       this.host.sound("win");
     } else if (shed) {
-      this.host.feedback("The train whipped over that hump! Coaches away!", false);
+      this.host.feedback("A coupling snapped! The rear of the train broke away.", false);
       this.host.sound("bad");
     } else if (this.carriages.arrived > previousArrivals) {
       this.host.feedback(`A coach caught up! ${this.cartCount} coaches and counting.`);
@@ -228,6 +228,8 @@ export class Mini extends BaseGame {
       }
       drawRail();
     }
+    for (const link of this.carriages.links(this.physics.distance))
+      line(ctx, [project(link.start.x, link.start.y), project(link.end.x, link.end.y)], "#56786f", Math.max(2, scale * 0.16));
     const palette = ["#d7e99b", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987"];
     for (const { coach, frame: cart } of this.carriages.poses(this.physics.distance).reverse()) {
       const index = coach.id;
