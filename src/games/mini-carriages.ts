@@ -6,6 +6,7 @@ import {
   MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS,
   parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
   MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_COUPLING_STRENGTH,
+  MINI_ENGINE_COUPLING_STRENGTH, MINI_PARCELS_PER_WAGON,
 } from "./mini-config";
 
 interface FlyingBody {
@@ -298,7 +299,8 @@ export class MiniCarriages {
       if (coach.refill > 0) {
         coach.refill -= dt;
         if (coach.refill <= 0) {
-          coach.cargo = coach.nextCargo++;
+          coach.cargo = Math.min(coach.nextCargo, MINI_PARCELS_PER_WAGON);
+          coach.nextCargo = Math.min(coach.cargo + 1, MINI_PARCELS_PER_WAGON);
           coach.cargoAge = 0;
           coach.grace = 0.75;
           this.refills++;
@@ -341,7 +343,7 @@ export class MiniCarriages {
       const extension = Math.max(0, positions[i].distanceTo(positions[i - 1]) - lengths[i]);
       coach.couplingLoad = extension / (dt * dt * (i === 1 ? 1 : 2));
       // The engine has a reinforced tow point; ordinary coach drawbars share one rating.
-      const strength = MINI_COUPLING_STRENGTH * (i === 1 ? 4 : 1);
+      const strength = i === 1 ? MINI_ENGINE_COUPLING_STRENGTH : MINI_COUPLING_STRENGTH;
       coach.couplingStrain = Math.max(0, coach.couplingStrain
         + (coach.couplingLoad > strength ? coach.couplingLoad / strength - 1 : -3) * dt);
       const stress = Math.min(1, Math.max(coach.couplingLoad / strength * 0.7, coach.couplingStrain / 0.025));

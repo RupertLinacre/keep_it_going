@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Vector3, Quaternion } from "three";
 import { MiniTrack } from "../src/games/mini-track.ts";
 import { MiniCarriages } from "../src/games/mini-carriages.ts";
-import { MINI_PARCEL_DRAG, MINI_COUPLING_SLACK } from "../src/games/mini-config.ts";
+import { MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, parcelOffsets } from "../src/games/mini-config.ts";
 
 test("parcel drag matches the analytical horizontal solution at different frame rates", () => {
   const run = (fps: number) => {
@@ -21,15 +21,16 @@ test("parcel drag matches the analytical horizontal solution at different frame 
   assert.ok(run(30).position.distanceTo(run(144).position) < 1e-8);
 });
 
-test("tall cargo stacks do not turn into long rigid levers or acquire a large launch boost", () => {
+test("a full four-parcel wagon does not give its upper layer an extra launch boost", () => {
   const track = new MiniTrack(42), c = new MiniCarriages(track);
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   const wagon = c.coaches[1];
-  wagon.cargo = 30;
+  wagon.cargo = 4;
   c.coaches.splice(2);
   const distance = hill.start + hill.length / 2 + wagon.offset;
   for (let i = 0; i < 120 && !c.spilled; i++) c.update(1 / 120, distance, 35);
-  assert.equal(c.parcels.length, 30);
+  assert.equal(c.parcels.length, 4);
+  assert.equal(parcelOffsets(30).length, 4, "Rendering and ejection share the four-parcel limit");
   const carrierVelocity = wagon.velocity;
   assert.ok(carrierVelocity.distanceTo(track.sample(distance - wagon.offset).tangent.clone()
     .multiplyScalar(35).add(wagon.relativeVelocity)) < 1e-8,
@@ -38,8 +39,8 @@ test("tall cargo stacks do not turn into long rigid levers or acquire a large la
     assert.ok(parcel.velocity.length() <= carrierVelocity.length() * 1.040001);
     assert.ok(parcel.velocity.distanceTo(carrierVelocity) < 1.51);
   }
-  assert.ok(c.parcels[0].velocity.distanceTo(c.parcels[28].velocity) < 1e-8,
-    "A box fifteen layers up inherits the same motion as the first layer");
+  assert.ok(c.parcels[0].velocity.distanceTo(c.parcels[2].velocity) < 1e-8,
+    "The upper layer inherits the same motion as the first layer");
 });
 
 test("suspension loads propagate between neighbours while the lead coach stays pinned", () => {
@@ -58,15 +59,15 @@ test("attached coaches cannot stretch their couplings while lifting over a crest
   const track = new MiniTrack(42), c = new MiniCarriages(track);
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   let lifted = false;
-  for (let t = 0; t < (hill.length + 16) / 45; t += 1 / 120) {
-    const distance = hill.start + t * 45;
-    c.update(1 / 120, distance, 45);
+  for (let t = 0; t < (hill.length + 16) / 32; t += 1 / 120) {
+    const distance = hill.start + t * 32;
+    c.update(1 / 120, distance, 32);
     const poses = c.poses(distance);
     assert.ok(poses[0].frame.position.distanceTo(track.sample(distance).position) < 1e-8);
     for (let i = 1; i < c.coaches.length; i++) {
       const rest = track.sample(distance - c.coaches[i].offset).position.distanceTo(track.sample(distance - c.coaches[i - 1].offset).position);
       assert.ok(poses[i].frame.position.distanceTo(poses[i - 1].frame.position) <= rest + MINI_COUPLING_SLACK + 0.006);
-      lifted ||= c.coaches[i].lift > 0.2;
+      lifted ||= c.coaches[i].lift > 0.1;
     }
   }
   assert.ok(lifted);
@@ -78,16 +79,17 @@ test("a broken joint releases a connected rear section that conserves its centre
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   let distance = hill.start;
   for (let i = 0; i < 1000 && !c.lost; i++) {
-    distance = hill.start + i / 120 * 60;
-    c.update(1 / 120, distance, 60);
+    distance = hill.start + i / 120 * 38;
+    c.update(1 / 120, distance, 38);
   }
-  assert.equal(c.lost, 3);
-  assert.deepEqual(c.coaches.map(coach => coach.id), [0, 1, 2]);
-  assert.deepEqual(c.flights.map(coach => coach.colorIndex), [3, 4, 5]);
+  assert.equal(c.lost, 4);
+  assert.deepEqual(c.coaches.map(coach => coach.id), [0, 1]);
+  assert.deepEqual(c.flights.map(coach => coach.colorIndex), [2, 3, 4, 5]);
   assert.equal(c.flights[0].coupledTo, undefined);
-  assert.equal(c.flights[1].coupledTo, 3);
-  assert.equal(c.flights[2].coupledTo, 4);
-  const mean = (field: "position" | "velocity") => c.flights.reduce((sum, cart) => sum.add(cart[field]), new Vector3()).divideScalar(3);
+  assert.equal(c.flights[1].coupledTo, 2);
+  assert.equal(c.flights[2].coupledTo, 3);
+  assert.equal(c.flights[3].coupledTo, 4);
+  const mean = (field: "position" | "velocity") => c.flights.reduce((sum, cart) => sum.add(cart[field]), new Vector3()).divideScalar(4);
   const initial = mean("position"), velocity = mean("velocity");
   for (let i = 0; i < 60; i++) c.update(1 / 120, distance, 0, false);
   const expected = initial.addScaledVector(velocity, 0.5); expected.y -= 0.5 * 9.81 * 0.25;

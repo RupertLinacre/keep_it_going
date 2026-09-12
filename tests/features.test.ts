@@ -81,13 +81,13 @@ test("inverting before the crest retains the carriage and parcels at high speed"
   }
 });
 
-test("spilled parcels follow gravity, then respawn quickly with one extra parcel each time", () => {
+test("spilled parcels follow gravity and refill with one extra parcel up to four per wagon", () => {
   const track = new MiniTrack(42), c = new MiniCarriages(track);
   c.coaches.splice(2);
   const coach = c.coaches[1];
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   const at = hill.start + hill.length / 2 + MINI_CART_SPACING;
-  for (const expectedCount of [2, 3, 4]) {
+  for (const expectedCount of [2, 3, 4, 4, 4, 4]) {
     assert.equal(coach.cargo, expectedCount);
     for (let i = 0; i < 120 && coach.cargo; i++) c.update(1 / 120, at, 35);
     assert.equal(coach.cargo, 0);
@@ -100,10 +100,11 @@ test("spilled parcels follow gravity, then respawn quickly with one extra parcel
     assert.ok(parcel.position.distanceTo(before) < launchSpeed * 0.5);
     assert.ok(parcel.velocity.length() < launchSpeed, "Drag slows a loose parcel");
     for (let i = 0; i < 245; i++) c.update(1 / 120, 8, 0);
-    assert.equal(coach.cargo, expectedCount + 1);
+    assert.equal(coach.cargo, Math.min(4, expectedCount + 1));
+    assert.ok(coach.nextCargo <= 4, "The refill counter also stops growing at capacity");
     if (parcel.bounces) assert.ok(!c.cameraSubjects().includes(parcel.position), "Landed cargo no longer pulls the camera back");
   }
-  assert.equal(c.refills, 3);
+  assert.equal(c.refills, 6);
   for (let i = 0; i < 1500; i++) c.update(1 / 120, 8, 0);
   assert.equal(c.parcels.length, 0);
 });

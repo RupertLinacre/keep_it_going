@@ -181,7 +181,7 @@ export class Mini extends BaseGame {
       this.host.feedback(`A coach caught up! ${this.cartCount} coaches and counting.`);
       this.host.sound("jump");
     } else if (this.carriages.spilled > previousSpills) {
-      this.host.feedback("Parcels away! A bigger load is on its way.");
+      this.host.feedback("Parcels away! Fresh cargo is on its way.");
     }
     if (this.carriages.impacts > previousImpacts) this.host.sound("bad");
     if (this.elapsed >= this.hudAt) {

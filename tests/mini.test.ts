@@ -322,13 +322,36 @@ test("sticky coaches survive ordinary humps; the rear whips off first and faster
     return { c, maximumLift };
   };
   assert.equal(run(20).c.spilled, 0);
-  const normal = run(35), fast = run(60), extreme = run(80);
+  const normal = run(32), fast = run(35), faster = run(38), extreme = run(80);
   assert.equal(normal.c.lost, 0);
   assert.ok(normal.c.spilled > 0, "Parcels release before coaches");
   assert.ok(normal.maximumLift > 0.1, "Coaches can lift and settle without detaching");
-  assert.ok(fast.c.lost > 0 && fast.c.lost < 5);
-  assert.deepEqual(fast.c.coaches.map(c => c.id), [0, 1, 2], "The broken joint releases a continuous rear section");
+  assert.equal(fast.c.lost, 1, "A reachable boost speed can release the tail coach");
+  assert.deepEqual(fast.c.coaches.map(c => c.id), [0, 1, 2, 3, 4], "The rear coach goes first");
+  assert.equal(faster.c.lost, 4, "More speed releases a larger connected section");
   assert.equal(extreme.c.lost, 5);
+});
+
+test("ordinary answer boosts can send rear coaches airborne during an actual ride", () => {
+  for (const seed of [1, 12, 42, 93]) {
+    const game = new HeadlessMini(harness().host, seed);
+    const hill = game.track.sections.find(s => s.kind === "skyhill")!;
+    let nextAnswer = 0;
+    for (let i = 0; i < 2400 && !game.ended && !game.carriages.lost; i++) {
+      if (game.elapsed >= nextAnswer) { answer(game); nextAnswer += 1.5; }
+      game.update(1 / 120);
+      const lead = game.carriages.poses(game.physics.distance)[0];
+      assert.equal(lead.coach.id, 0);
+      assert.ok(lead.frame.position.distanceTo(game.physics.sample(game.physics.distance).position) < 1e-8);
+      if (game.physics.distance > hill.end + 16) break;
+    }
+    assert.ok(game.carriages.lost > 0 && game.carriages.lost < 6, `Seed ${seed}: answer boosts should reach detachment speeds`);
+    assert.ok(game.carriages.flights.length > 0);
+    assert.ok(game.correct <= 4, "No artificially assigned velocity or rapid-fire boost spam");
+    assert.ok(game.physics.velocity < 40, "Detachment is reachable below 144 km/h");
+    assert.ok(game.carriages.flights.every(cart => cart.colorIndex > 0 && cart.position.y > 4));
+    assert.ok(game.carriages.spilled > 0, "Loose parcels still release before or alongside a broken section");
+  }
 });
 
 test("a detached carriage follows the analytical gravity parabola, lands, and is cleaned up", () => {
