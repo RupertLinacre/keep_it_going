@@ -334,7 +334,7 @@ test("every opening ride includes a full corkscrew and an upright, rising 360-de
   }
 });
 
-test("sticky coaches survive ordinary humps; the rear whips off first and faster runs lose more", () => {
+test("sticky coaches survive ordinary humps; faster runs can detach only one tail coach per hill", () => {
   const run = (speed: number) => {
     const track = new MiniTrack(42), c = new MiniCarriages(track);
     const hill = track.sections.find(s => s.kind === "skyhill")!;
@@ -354,8 +354,8 @@ test("sticky coaches survive ordinary humps; the rear whips off first and faster
   assert.ok(normal.maximumLift > 0.1, "Coaches can lift and settle without detaching");
   assert.equal(fast.c.lost, 1, "A reachable boost speed can release the tail coach");
   assert.deepEqual(fast.c.coaches.map(c => c.id), [0, 1, 2, 3, 4], "The rear coach goes first");
-  assert.equal(faster.c.lost, 4, "More speed releases a larger connected section");
-  assert.equal(extreme.c.lost, 5);
+  assert.equal(faster.c.lost, 1, "More speed still cannot shed a second coach on the same hill");
+  assert.equal(extreme.c.lost, 1);
 });
 
 test("ordinary answer boosts can send rear coaches airborne during an actual ride", () => {
@@ -374,9 +374,9 @@ test("ordinary answer boosts can send rear coaches airborne during an actual rid
     assert.ok(game.carriages.lost > 0 && game.carriages.lost < 6, `Seed ${seed}: answer boosts should reach detachment speeds`);
     assert.ok(game.carriages.flights.length > 0);
     assert.ok(game.correct <= 4, "No artificially assigned velocity or rapid-fire boost spam");
-    assert.ok(game.physics.velocity < 40, "Detachment is reachable below 144 km/h");
+    assert.ok(game.physics.velocity < 42, "Ordinary boosts reach detachment without an artificial speed assignment");
     assert.ok(game.carriages.flights.every(cart => cart.colorIndex > 0 && cart.position.y > 4));
-    assert.ok(game.carriages.spilled > 0, "Loose parcels still release before or alongside a broken section");
+    assert.ok(game.carriages.spilled > 0, "Loose parcels still release before or alongside a detached coach");
   }
 });
 
@@ -384,10 +384,11 @@ test("a detached carriage follows the analytical gravity parabola, lands, and is
   const track = new MiniTrack(42);
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   const carriages = new MiniCarriages(track);
-  const front = hill.start + hill.length / 2 + 2 * MINI_CART_SPACING;
-  carriages.coaches.splice(1, 4);
-  carriages.coaches[1].offset = 2 * MINI_CART_SPACING;
-  for (let i = 0; i < 20 && !carriages.lost; i++) carriages.update(1 / 120, front, 80);
+  let front = hill.start;
+  for (let i = 0; i < 400 && !carriages.lost; i++) {
+    front = hill.start + i * 38 / 120;
+    carriages.update(1 / 120, front, 38);
+  }
   assert.equal(carriages.lost, 1);
   const cart = carriages.flights[0];
   const start = cart.position.clone(), velocity = cart.velocity.clone();

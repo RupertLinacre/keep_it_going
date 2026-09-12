@@ -175,7 +175,7 @@ export class Mini extends BaseGame {
       this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
       this.host.sound("win");
     } else if (shed) {
-      this.host.feedback("A coupling snapped! The rear of the train broke away.", false);
+      this.host.feedback("The tail coupling snapped! One coach broke away.", false);
       this.host.sound("bad");
     } else if (this.carriages.arrived > previousArrivals) {
       this.host.feedback(`A coach caught up! ${this.cartCount} coaches and counting.`);

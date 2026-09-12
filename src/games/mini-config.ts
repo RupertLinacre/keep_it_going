@@ -11,9 +11,9 @@ export const MINI_PARCELS_PER_WAGON = 4;
 // Quadratic drag per metre; loose boxes have much more area per kilogram than the train.
 export const MINI_PARCEL_DRAG = 0.055;
 export const MINI_COUPLING_SLACK = 0.06;
-// Ordinary drawbars can fail at speeds reached through normal answer boosts.
-export const MINI_COUPLING_STRENGTH = 20;
-export const MINI_ENGINE_COUPLING_STRENGTH = 720;
+export const MINI_COACH_RETENTION = 150;
+// Only the tail drawbar can break; the remaining chain stays tethered to the engine.
+export const MINI_COUPLING_STRENGTH = 250;
 export const parcelOffsets = (count: number) => Array.from({ length: Math.min(count, MINI_PARCELS_PER_WAGON) }, (_, i) => ({
   x: 0, y: 1 + Math.floor(i / 2) * 0.7, z: i % 2 ? 0.47 : -0.47,
 }));

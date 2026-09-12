@@ -74,10 +74,9 @@ test("inverting before the crest retains the carriage and parcels at high speed"
     assert.equal(carriages.spilled, 0);
     const upright = track.sections.find(s => s.kind === "skyhill")!;
     const exposed = new MiniCarriages(track);
-    exposed.coaches.splice(2);
-    for (let i = 0; i < 40; i++) exposed.update(1 / 120, upright.start + upright.length / 2 + MINI_CART_SPACING, 120);
+    for (let i = 0; i < 400 && !exposed.lost; i++) exposed.update(1 / 120, upright.start + i * 60 / 120, 60);
     assert.equal(exposed.lost, 1);
-    assert.equal(exposed.spilled, 2);
+    assert.ok(exposed.spilled >= 2);
   }
 });
 
@@ -89,7 +88,7 @@ test("spilled parcels follow gravity and refill with one extra parcel up to four
   const at = hill.start + hill.length / 2 + MINI_CART_SPACING;
   for (const expectedCount of [2, 3, 4, 4, 4, 4]) {
     assert.equal(coach.cargo, expectedCount);
-    for (let i = 0; i < 120 && coach.cargo; i++) c.update(1 / 120, at, 35);
+    for (let i = 0; i < 120 && coach.cargo; i++) c.update(1 / 120, at, 20);
     assert.equal(coach.cargo, 0);
     assert.equal(c.lost, 0);
     const parcel = c.parcels.at(-1)!;
@@ -112,11 +111,13 @@ test("spilled parcels follow gravity and refill with one extra parcel up to four
 test("a carriage explodes once on impact and the debris follows gravity then expires", () => {
   const track = new MiniTrack(42);
   const hill = track.sections.find(s => s.kind === "skyhill")!;
-  const front = hill.start + hill.length / 2 + 2 * MINI_CART_SPACING;
+  let front = hill.start;
   const carriages = new MiniCarriages(track);
-  carriages.coaches.splice(1, 4);
-  carriages.coaches[1].offset = 2 * MINI_CART_SPACING;
-  for (let i = 0; i < 30 && !carriages.lost; i++) carriages.update(1 / 120, front, 80);
+  for (let i = 0; i < 400 && !carriages.lost; i++) {
+    front = hill.start + i * 38 / 120;
+    carriages.update(1 / 120, front, 38);
+  }
+  assert.equal(carriages.lost, 1);
   assert.equal(carriages.explosions.length, 0, "No mid-air explosion");
   for (let i = 0; i < 1200 && carriages.flights.length; i++) carriages.update(1 / 120, front, 0, false);
   assert.equal(carriages.flights.length, 0);
@@ -131,7 +132,8 @@ test("a carriage explodes once on impact and the debris follows gravity then exp
   carriages.update(0.1, front, 0, false);
   assert.ok(particle.position.distanceTo(expected) < 1e-8);
   for (let i = 0; i < 72; i++) carriages.update(1 / 120, front, 0, false);
-  assert.equal(carriages.cameraSubjects().length, 0, "Fading debris no longer holds the camera away from the train");
+  const debris = new Set([explosion.position, ...explosion.particles.map(p => p.position)]);
+  assert.ok(carriages.cameraSubjects().every(position => !debris.has(position)), "Fading debris no longer holds the camera away from the train");
   for (let i = 0; i < 360; i++) carriages.update(1 / 120, front, 0, false);
   assert.equal(carriages.impacts, 1);
   assert.equal(carriages.explosions.length, 0);

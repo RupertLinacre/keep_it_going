@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Vector3, Quaternion } from "three";
-import { MiniTrack } from "../src/games/mini-track.ts";
-import { MiniCarriages } from "../src/games/mini-carriages.ts";
-import { MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, parcelOffsets } from "../src/games/mini-config.ts";
+import { MiniTrack, MiniSection } from "../src/games/mini-track.ts";
+import { isolatedHill } from "./mini-fixtures.ts";
+import { MiniCarriages, outwardForce } from "../src/games/mini-carriages.ts";
+import { MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_CART_SPACING, parcelOffsets } from "../src/games/mini-config.ts";
 
 test("parcel drag matches the analytical horizontal solution at different frame rates", () => {
   const run = (fps: number) => {
@@ -43,58 +44,92 @@ test("a full four-parcel wagon does not give its upper layer an extra launch boo
     "The upper layer inherits the same motion as the first layer");
 });
 
-test("suspension loads propagate between neighbours while the lead coach stays pinned", () => {
-  const c = new MiniCarriages(new MiniTrack(42));
-  c.coaches[5].displacement.y = 0.4;
-  c.update(1 / 120, 8, 20);
-  assert.ok(c.coaches[4].displacement.y > 0, "The adjacent coupling reacts to a lifted tail");
-  assert.equal(c.coaches[0].displacement.length(), 0);
-  assert.equal(c.coaches[0].relativeVelocity.length(), 0);
-  for (let i = 0; i < 240; i++) c.update(1 / 120, 8, 20);
-  assert.ok(c.coaches.every(coach => coach.displacement.length() < 0.01), "The connected train settles onto the rail");
-  assert.equal(c.lost, 0);
+test("vertical crest forces still lift wheels when the rail is almost vertical", () => {
+  const { hill } = isolatedHill("verticalhill");
+  const frame = hill.frames.find(f => f.up.y > 0.05 && f.up.y < 0.4 && f.curvature.dot(f.up) < -0.1)!;
+  assert.ok(frame);
+  assert.ok(outwardForce(frame, 35) > 150);
+  assert.equal(outwardForce({ ...frame, airborne: true }, 35), 0, "Intentional jumps do not overload retaining wheels");
 });
 
-test("attached coaches cannot stretch their couplings while lifting over a crest", () => {
-  const track = new MiniTrack(42), c = new MiniCarriages(track);
-  const hill = track.sections.find(s => s.kind === "skyhill")!;
-  let lifted = false;
-  for (let t = 0; t < (hill.length + 16) / 32; t += 1 / 120) {
-    const distance = hill.start + t * 32;
+test("coaches lift, share drawbar forces, and settle without needing a broken coupling", () => {
+  const { track, hill } = isolatedHill(), c = new MiniCarriages(track);
+  let lift = 0, airborne = 0;
+  for (let step = 0; step < (hill.length + 65) / 32 * 120; step++) {
+    const distance = hill.start + step * 32 / 120;
     c.update(1 / 120, distance, 32);
-    const poses = c.poses(distance);
+    const poses = c.poses(distance).filter(p => p.coach !== c.incoming);
     assert.ok(poses[0].frame.position.distanceTo(track.sample(distance).position) < 1e-8);
-    for (let i = 1; i < c.coaches.length; i++) {
-      const rest = track.sample(distance - c.coaches[i].offset).position.distanceTo(track.sample(distance - c.coaches[i - 1].offset).position);
-      assert.ok(poses[i].frame.position.distanceTo(poses[i - 1].frame.position) <= rest + MINI_COUPLING_SLACK + 0.006);
-      lifted ||= c.coaches[i].lift > 0.1;
+    for (let i = 1; i < poses.length; i++) {
+      assert.ok(poses[i].frame.position.distanceTo(poses[i - 1].frame.position) <= MINI_CART_SPACING + MINI_COUPLING_SLACK + 0.006);
+      lift = Math.max(lift, poses[i].coach.lift);
     }
+    airborne = Math.max(airborne, c.coaches.filter(coach => coach.derailed).length);
   }
-  assert.ok(lifted);
-  assert.equal(c.lost, 0, "Lifting alone does not break a coupling");
+  assert.ok(lift > 1 && airborne >= 2, "A visible arc of tethered coaches, rather than a suspension jiggle");
+  assert.equal(c.lost, 0);
+  assert.ok(c.coaches.every(coach => !coach.derailed && coach.displacement.length() < 1e-8));
 });
 
-test("a broken joint releases a connected rear section that conserves its centre-of-mass flight", () => {
-  const track = new MiniTrack(42), c = new MiniCarriages(track);
-  const hill = track.sections.find(s => s.kind === "skyhill")!;
-  let distance = hill.start;
-  for (let i = 0; i < 1000 && !c.lost; i++) {
-    distance = hill.start + i / 120 * 38;
-    c.update(1 / 120, distance, 38);
+test("a vertical hill whips up the rear chain, detaches only its tail, and leaves the lead pinned", () => {
+  for (const speed of [35, 60, 80]) {
+    const { track, hill } = isolatedHill("verticalhill"), c = new MiniCarriages(track);
+    let airborne = 0, lift = 0;
+    for (let step = 0; step < (hill.length + 100) / speed * 120; step++) {
+      const distance = hill.start + step * speed / 120;
+      if (c.update(1 / 120, distance, speed)) assert.equal(c.flights.at(-1)!.colorIndex, 5);
+      const poses = c.poses(distance).filter(p => p.coach !== c.incoming);
+      assert.ok(poses[0].frame.position.distanceTo(track.sample(distance).position) < 1e-8);
+      assert.equal(c.links(distance).length, c.coaches.length - 1, "Every remaining coach is connected to the engine");
+      for (let i = 1; i < poses.length; i++) {
+        assert.ok(poses[i].frame.position.distanceTo(poses[i - 1].frame.position) <= MINI_CART_SPACING + MINI_COUPLING_SLACK + 0.006);
+        lift = Math.max(lift, poses[i].coach.lift);
+      }
+      airborne = Math.max(airborne, c.coaches.filter(coach => coach.derailed).length);
+      assert.ok(c.lost <= 1, "A second coupling must never break on this hill");
+    }
+    assert.equal(c.lost, 1);
+    assert.ok(airborne >= 3 && lift > 2);
+    assert.ok(c.coaches.every(coach => !coach.derailed), "The remaining chain settles back onto the track");
   }
-  assert.equal(c.lost, 4);
-  assert.deepEqual(c.coaches.map(coach => coach.id), [0, 1]);
-  assert.deepEqual(c.flights.map(coach => coach.colorIndex), [2, 3, 4, 5]);
-  assert.equal(c.flights[0].coupledTo, undefined);
-  assert.equal(c.flights[1].coupledTo, 2);
-  assert.equal(c.flights[2].coupledTo, 3);
-  assert.equal(c.flights[3].coupledTo, 4);
-  const mean = (field: "position" | "velocity") => c.flights.reduce((sum, cart) => sum.add(cart[field]), new Vector3()).divideScalar(4);
-  const initial = mean("position"), velocity = mean("velocity");
+});
+
+test("the one detached coach inherits its motion and follows gravity without towing the rest", () => {
+  const { track, hill } = isolatedHill("verticalhill"), c = new MiniCarriages(track);
+  let distance = hill.start;
+  for (let step = 0; step < 400 && !c.lost; step++) {
+    distance = hill.start + step * 35 / 120;
+    c.update(1 / 120, distance, 35);
+  }
+  assert.equal(c.flights.length, 1);
+  assert.deepEqual(c.coaches.map(coach => coach.id), [0, 1, 2, 3, 4]);
+  const cart = c.flights[0], initial = cart.position.clone(), velocity = cart.velocity.clone();
   for (let i = 0; i < 60; i++) c.update(1 / 120, distance, 0, false);
   const expected = initial.addScaledVector(velocity, 0.5); expected.y -= 0.5 * 9.81 * 0.25;
-  assert.ok(mean("position").distanceTo(expected) < 1e-8, "Internal coupling forces cannot propel the group");
-  for (let i = 1; i < c.flights.length; i++)
-    assert.ok(Math.abs(c.flights[i].position.distanceTo(c.flights[i - 1].position) - c.flights[i].linkLength!) < 0.001);
-  assert.equal(c.links(distance).length, 4, "Only the failed drawbar disappears");
+  assert.ok(cart.position.distanceTo(expected) < 1e-8);
+  assert.ok(Math.abs(cart.velocity.y - velocity.y + 9.81 * 0.5) < 1e-8);
+  assert.equal(c.links(distance).length, 4);
+});
+
+test("a later hill has its own tail breakaway allowance after replacement coaches arrive", () => {
+  const { track, hill } = isolatedHill("verticalhill"), c = new MiniCarriages(track);
+  const exit = hill.frames.at(-1)!.position;
+  const next = new MiniSection(hill.id + 2, "verticalhill", hill.end + 160,
+    exit.clone().add(new Vector3(160, 0, 0)), hill.width, hill.amplitude, hill.shift, hill.hand);
+  track.sections.splice(2, 1,
+    new MiniSection(hill.id + 1, "station", hill.end, exit.clone(), 160, 0, 0, 1),
+    next,
+    new MiniSection(hill.id + 3, "station", next.end, next.frames.at(-1)!.position.clone(), 200, 0, 0, 1));
+  let breaksOnFirst = 0, breaksOnSecond = 0;
+  for (let step = 0; step < (next.end + 100 - hill.start) / 35 * 120; step++) {
+    const distance = hill.start + step * 35 / 120;
+    if (c.update(1 / 120, distance, 35)) {
+      if (distance < next.start) breaksOnFirst++;
+      else breaksOnSecond++;
+    }
+    assert.ok(breaksOnFirst <= 1 && breaksOnSecond <= 1);
+  }
+  assert.equal(breaksOnFirst, 1);
+  assert.equal(breaksOnSecond, 1);
+  assert.ok(c.arrived > 0);
 });
