@@ -8,6 +8,7 @@ import {
   MINI_BOOST_ENERGY,
   MINI_VISIBLE_CARTS,
   MINI_CART_SPACING,
+  MINI_START_SPEED,
 } from "../src/games/mini-config.ts";
 import type { Host, Result } from "../src/types.ts";
 
@@ -170,11 +171,36 @@ test("gravity conserves mechanical energy without resistance on the actual gener
   }
   assert.equal(p.stops, 0);
 });
+
+test("the ride starts gently at a big hilltop and gains speed down the first drop without a boost", () => {
+  for (const seed of [1, 12, 42, 93]) {
+    const game = new HeadlessMini(harness().host, seed);
+    const hill = game.track.sectionAt(game.physics.distance);
+    const peak = Math.max(...hill.frames.map(frame => frame.position.y));
+    const startHeight = game.physics.sample(game.physics.distance).position.y;
+    assert.equal(hill.kind, "firsthill");
+    assert.ok(peak - hill.origin.y >= 20, "A substantial first drop");
+    assert.ok(peak - startHeight < 0.3, "The lead coach begins just over the crest");
+    assert.ok(game.physics.velocity > 0 && game.physics.velocity <= 2);
+    assert.equal(game.travelled, 0);
+    const poses = game.carriages.poses(game.physics.distance);
+    assert.equal(poses.length, 6, "All six coaches start on real rail near the hilltop");
+    assert.ok(poses.every(pose => pose.frame.position.y > 20));
+    for (let i = 0; i < 1200 && game.physics.distance < hill.end; i++) game.update(1 / 120);
+    assert.ok(game.physics.distance >= hill.end);
+    assert.ok(game.physics.velocity > 17 && game.physics.velocity < 21, "Gravity supplies the opening momentum");
+    assert.equal(game.correct, 0);
+    assert.equal(game.ended, false);
+    assert.equal(game.carriages.lost, 0);
+    assert.equal(game.carriages.spilled, 0);
+    assert.equal(game.cartCount, 6);
+  }
+});
 test("stopping ends the ride once and no input can restart a finished train", () => {
   const { host, finishes } = harness();
   const game = new HeadlessMini(host, 123);
   assert.equal(game.cartCount, 6);
-  assert.equal(game.physics.velocity, 28, "Double the previous launch speed");
+  assert.equal(game.physics.velocity, MINI_START_SPEED, "A gentle roll starts the descent");
   game.key("0"); game.key("Enter");
   assert.equal(game.mistakes, 1);
   advance(game, 60);
@@ -338,7 +364,7 @@ test("ordinary answer boosts can send rear coaches airborne during an actual rid
     const hill = game.track.sections.find(s => s.kind === "skyhill")!;
     let nextAnswer = 0;
     for (let i = 0; i < 2400 && !game.ended && !game.carriages.lost; i++) {
-      if (game.elapsed >= nextAnswer) { answer(game); nextAnswer += 1.5; }
+      if (game.elapsed >= nextAnswer) { answer(game); nextAnswer += 1; }
       game.update(1 / 120);
       const lead = game.carriages.poses(game.physics.distance)[0];
       assert.equal(lead.coach.id, 0);

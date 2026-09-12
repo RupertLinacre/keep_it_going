@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { RailFrame } from "./mini-rail";
 import type { MiniSection, MiniRail } from "./mini-track";
-import { MINI_BOOST_ENERGY } from "./mini-config";
+import { MINI_BOOST_ENERGY, MINI_START_SPEED } from "./mini-config";
 
 export interface MiniPhysicsOptions {
   gravity: number;
@@ -114,8 +114,8 @@ export class MiniPhysics {
       mass: 40,
       drag: 0.004,
       rolling: 0.06,
-      initialSpeed: 28,
-      initialDistance: 8,
+      initialSpeed: MINI_START_SPEED,
+      initialDistance: track.startDistance ?? 8,
       ...options,
     };
     this.distance = this.options.initialDistance;

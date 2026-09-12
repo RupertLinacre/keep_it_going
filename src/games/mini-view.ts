@@ -4,6 +4,7 @@ import {
   MINI_CART_SPACING,
   MINI_VISIBLE_CARTS,
   MINI_STARTING_CARTS,
+  MINI_START_SPEED,
   MINI_MAX_FLYING_CARTS,
   MINI_MAX_FLYING_PARCELS, MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES,
   parcelPresentation, isParcelWagon,
@@ -101,7 +102,7 @@ export class MiniView {
     this.resize.observe(stage);
     this.renderer.setSize(stage.clientWidth, stage.clientHeight);
     this.aspect = stage.clientWidth / stage.clientHeight;
-    this.render(8, 5.5, 0, false);
+    this.render(track.startDistance, MINI_START_SPEED, 0, false);
   }
   private instances(geometry: THREE.BufferGeometry, color: string, capacity: number) {
     const mesh = new THREE.InstancedMesh(geometry, this.material(color), capacity);

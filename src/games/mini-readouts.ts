@@ -95,7 +95,8 @@ export class MiniReadouts {
       value = `+${state.boost} km/h · BOOST`;
       tone = "ready";
     } else {
-      value = state.feature === "skyhill" ? "SKY-HIGH CLIMB"
+      value = state.feature === "firsthill" ? "FIRST DROP"
+        : state.feature === "skyhill" ? "SKY-HIGH CLIMB"
         : state.feature === "triplehelix" ? "HELTER SKELTER · 3 TURNS"
         : state.feature === "invertedhill" ? "INVERTED CREST"
         : state.feature === "verticalhill" ? "VERTICAL CLIMB"

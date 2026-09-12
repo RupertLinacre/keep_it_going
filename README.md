@@ -1,6 +1,6 @@
 # Keep it going
 
-A miniature coaster game about keeping your momentum. Start with six coaches at 28 m/s. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.
+A miniature coaster game about keeping your momentum. Start with six coaches rolling gently over the top of a 22-metre hill at 2 m/s (about 7 km/h), then gather speed down the first drop. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.
 
 Ride through loops, corkscrews, banked helices, vertical climbs and occasional three-turn helter-skelter descents. Some hilltops invert before the crest, pressing the train and its cargo into the track at speed.
 

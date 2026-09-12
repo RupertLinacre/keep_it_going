@@ -4,11 +4,12 @@ import { clamp } from "../math";
 import { MINI_TRAIL_DISTANCE } from "./mini-config";
 
 export type MiniKind =
-  "station" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  "station" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
   | "triplehelix" | "invertedhill" | "verticalhill" | "jump";
 export const isHump = (kind: MiniKind) =>
-  ["hill", "skyhill", "invertedhill", "verticalhill"].includes(kind);
+  ["firsthill", "hill", "skyhill", "invertedhill", "verticalhill"].includes(kind);
 export interface MiniRail {
+  readonly startDistance?: number;
   jumpAt?(distance: number): MiniSection | undefined;
   hasRail?(distance: number): boolean;
   distanceAtWorldX?(x: number, after: number): number;
@@ -65,7 +66,7 @@ export class MiniSection implements MiniRail {
       let x = width * t,
         y = 0,
         z = shift * ease;
-      if (kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
+      if (kind === "firsthill" || kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
       if (kind === "jump") {
         // The middle is a virtual distance guide only: neither rails nor sleepers span the water.
@@ -241,6 +242,7 @@ export class MiniSection implements MiniRail {
 export class MiniTrack implements MiniRail {
   readonly sections: MiniSection[] = [];
   readonly seed: number;
+  readonly startDistance: number;
   generated = 0;
   private random: () => number;
   private bag: MiniKind[] = [];
@@ -248,11 +250,10 @@ export class MiniTrack implements MiniRail {
   constructor(seed = Math.floor(Math.random() * 0xffffffff)) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
-    // A flat lead-in lets newly earned trailing carts sit on real rail even
-    // if a player answers very quickly near the launch point.
+    // Retain real rail behind the six coaches on the opening hill.
     this.sections.push(
       new MiniSection(
-        -1,
+        -2,
         "station",
         -MINI_TRAIL_DISTANCE,
         new THREE.Vector3(-MINI_TRAIL_DISTANCE, 4, 0),
@@ -262,6 +263,10 @@ export class MiniTrack implements MiniRail {
         1,
       ),
     );
+    const firstHill = new MiniSection(-1, "firsthill", 0, new THREE.Vector3(0, 4, 0), 90, 22, 0, 1);
+    this.sections.push(firstHill);
+    // Just over the broad crest: a gentle roll immediately gains speed from gravity.
+    this.startDistance = firstHill.start + firstHill.length / 2 + 2;
     this.append("station");
     this.append("hill");
     this.append("loop");
@@ -273,7 +278,7 @@ export class MiniTrack implements MiniRail {
     this.append("invertedhill");
     this.append("verticalhill");
     this.append("triplehelix");
-    this.ensure(8);
+    this.ensure(this.startDistance);
   }
   get end() {
     return this.sections.at(-1)!.end;

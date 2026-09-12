@@ -1,4 +1,5 @@
 export const MINI_STARTING_CARTS = 6;
+export const MINI_START_SPEED = 2;
 export const MINI_CART_SPACING = 2.4;
 export const MINI_MAX_FLYING_CARTS = 12;
 export const MINI_MAX_FLYING_PARCELS = 64;
