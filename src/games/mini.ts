@@ -56,7 +56,7 @@ export class Mini extends BaseGame {
   }
   panel() {
     this.host.panel(
-      `<div class="prompt"><span class="eyebrow">BIGGER HILLS. BIGGER TRAIN.</span><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2><div class="mini-growth" aria-label="Train growth"><strong>${this.cartCount} carts</strong><span class="mini-growth-dots" aria-hidden="true">${Array.from({ length: MINI_ANSWERS_PER_CART }, (_, i) => `<i class="${i < this.correct % MINI_ANSWERS_PER_CART ? "filled" : ""}"></i>`).join("")}</span><span>${MINI_ANSWERS_PER_CART - (this.correct % MINI_ANSWERS_PER_CART)} to the next cart</span></div><div class="coaster-course"><span>COURSE ${this.track.seed.toString(36).toUpperCase().padStart(6, "0")}</span><span>Endless · sky-high climbs & loops</span></div></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
+      `<div class="prompt"><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
     );
   }
   hud() {

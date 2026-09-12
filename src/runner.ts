@@ -18,16 +18,6 @@ export function mountGame(
 
   root.innerHTML = `
     <div class="game-page container standalone-game">
-      <div class="game-title-row">
-        <div>
-          <div class="eyebrow">KEEP YOUR TRAIN ROLLING</div>
-          <h1>Tiny Tracks</h1>
-        </div>
-        <div class="game-toolbar">
-          <button id="restart-game" class="icon-button" aria-label="Restart game" title="Restart">↻</button>
-          <button id="pause-game" class="icon-button" aria-label="Pause game" title="Pause (P)">Ⅱ</button>
-        </div>
-      </div>
       <div class="play-zone">
         <div class="game-stage" style="--game-color:#d6e8d9">
           <canvas class="game-canvas" width="${W}" height="${H}" aria-label="Tiny Tracks game world"></canvas>
@@ -46,7 +36,7 @@ export function mountGame(
   const controls = root.querySelector<HTMLElement>(".play-controls")!;
   const hud = root.querySelector<HTMLElement>(".game-hud")!;
   const feedback = root.querySelector<HTMLElement>(".game-feedback")!;
-  const pauseButton = root.querySelector<HTMLButtonElement>("#pause-game")!;
+  const pauseButton = document.querySelector<HTMLButtonElement>("#pause-game")!;
   const options = { signal: controller.signal };
   let lastStats = "";
 
@@ -163,7 +153,7 @@ export function mountGame(
   }, options);
 
   pauseButton.addEventListener("click", togglePause, options);
-  root.querySelector("#restart-game")!.addEventListener("click", restart, options);
+  document.querySelector("#restart-game")!.addEventListener("click", restart, options);
 
   window.addEventListener("keydown", (event) => {
     if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement) return;

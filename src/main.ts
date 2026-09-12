@@ -22,28 +22,22 @@ const soundIcon = () =>
 function render() {
   cleanup?.();
   app.innerHTML = `
-    <header class="tiny-header container">
-      <a class="tiny-brand" href="./" aria-label="Restart Tiny Tracks">
-        <span class="tiny-brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span>Tiny Tracks<small>ENDLESS MINI COASTER</small></span>
-      </a>
-      <div class="tiny-settings">
-        <label class="tiny-pace" for="difficulty">
-          <span>PACE</span>
-          <select id="difficulty" aria-label="Difficulty">
-            <option value="easy" ${save.difficulty === "easy" ? "selected" : ""}>Explorer</option>
-            <option value="normal" ${save.difficulty === "normal" ? "selected" : ""}>Rider</option>
-            <option value="hard" ${save.difficulty === "hard" ? "selected" : ""}>Rocket</option>
-          </select>
-        </label>
+    <div class="tiny-utility container">
+      <label class="tiny-pace" for="difficulty">
+        <span>PACE</span>
+        <select id="difficulty" aria-label="Difficulty">
+          <option value="easy" ${save.difficulty === "easy" ? "selected" : ""}>Explorer</option>
+          <option value="normal" ${save.difficulty === "normal" ? "selected" : ""}>Rider</option>
+          <option value="hard" ${save.difficulty === "hard" ? "selected" : ""}>Rocket</option>
+        </select>
+      </label>
+      <div class="tiny-utility-buttons">
+        <button id="restart-game" class="icon-button" aria-label="Restart game" title="Restart">↻</button>
+        <button id="pause-game" class="icon-button" aria-label="Pause game" title="Pause (P)">Ⅱ</button>
         <button id="sound-toggle" class="icon-button" aria-label="${save.muted ? "Turn sound on" : "Mute sound"}" aria-pressed="${!save.muted}" title="${save.muted ? "Turn sound on" : "Mute sound"}">${soundIcon()}</button>
       </div>
-    </header>
-    <main id="main-content"></main>
-    <footer class="tiny-footer container">
-      <span>Little coaster. Endless possibilities.</span>
-      <span>Multiplication keeps the wheels turning.</span>
-    </footer>`;
+    </div>
+    <main id="main-content"></main>`;
 
   app.querySelector<HTMLSelectElement>("#difficulty")!.addEventListener(
     "change",
