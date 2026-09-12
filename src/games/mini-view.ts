@@ -410,7 +410,8 @@ export class MiniView {
         skyline = Math.max(skyline, 4 + (p.y - 4) * influence);
       }
     const baseFocus = new THREE.Vector3(
-      f.position.x + (close ? 3 : 9),
+      // Narrow screens need the train centred, with less empty track ahead.
+      f.position.x + (close ? 3 : 9) * clamp(this.aspect - 1, 0, 1),
       close
         ? Math.max(4.1, f.position.y * 0.78)
         : Math.max(4.1, skyline * 0.43),

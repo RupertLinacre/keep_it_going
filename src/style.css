@@ -35,41 +35,8 @@ body {
   margin-right: auto;
 }
 
-.tiny-pace { gap: 9px; }
-.tiny-pace,
-.tiny-utility-buttons { display: flex; align-items: center; }
-.tiny-utility-buttons { gap: 8px; }
-
-.tiny-pace > span {
-  color: #899383;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-}
-
-.tiny-pace select {
-  border: 1px solid #dce4d5;
-  border-radius: 20px;
-  padding: 8px 30px 8px 13px;
-  background: #f0f4ea;
-  color: #607452;
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .standalone-game { padding-top: 0; }
 
-@media (max-width: 800px) {
-  .tiny-utility { min-height: 56px; }
-  .tiny-pace > span { display: none; }
-}
-
-@media (max-width: 540px) {
-  .tiny-utility { min-height: 50px; gap: 7px; flex-wrap: wrap; justify-content: center; padding-block: 8px; }
-  .game-logo { flex-basis: 100%; height: 50px; margin-right: 0; }
-  .tiny-pace select { max-width: 94px; padding: 7px 24px 7px 10px; font-size: 9px; }
-  .tiny-utility .icon-button { width: 32px; height: 32px; }
-}
 * {
   box-sizing: border-box;
 }
@@ -939,4 +906,80 @@ kbd {
   .mini-feature.jump-metric .mini-feature-value { font-size: 26px; }
   .mini-feature-detail { font-size: 9px; line-height: 1.35; margin-top: 3px; }
   .mini-feature.has-detail:not(.jump-metric) .mini-feature-detail { display: none; }
+}
+
+/* The question is the only live readout on small screens and touch devices. */
+.answer-feedback { display: none; }
+.prompt[data-feedback="incorrect"] .answer-display { color: #ad593e; border-color: #c78068; }
+.prompt[data-feedback="correct"] .answer-display { color: #496b36; border-color: #80a363; }
+.number-pad button:active { background: #dce8c6; transform: translateY(1px); }
+
+@media (max-width: 800px), (hover: none) and (pointer: coarse) {
+  #app {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100svh;
+    min-height: 480px;
+    padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+  .container { width: 100%; }
+  .tiny-utility { min-height: 44px; justify-content: center; }
+  .game-logo { width: 138px; height: 44px; margin: 0; }
+  #main-content, .standalone-game { min-height: 0; height: 100%; padding: 0; }
+  .play-zone { height: 100%; display: flex; flex-direction: column; border-radius: 16px; box-shadow: none; }
+  .game-stage { flex: 1; height: auto; min-height: 0; aspect-ratio: auto; }
+  .game-hud, .mini-readouts, .game-feedback, .camera-switch, .keyboard-hint { display: none; }
+  .play-controls {
+    order: 0;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+    min-height: 0;
+    padding: 14px 16px 16px;
+    border-top: 1px solid #e3e9db;
+    border-bottom: 0;
+    background: #fffffc;
+  }
+  .prompt { min-width: 0; width: 100%; position: relative; padding-bottom: 16px; }
+  .prompt h2 { margin: 0; font-size: clamp(28px, 7.5vw, 38px); font-weight: 500; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .answer-display { min-width: 2.25em; }
+  .prompt .answer-feedback {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    max-width: none;
+    font-size: 11px;
+    line-height: 14px;
+    color: #54723c;
+  }
+  .prompt[data-feedback="incorrect"] .answer-feedback { color: #ad593e; }
+  .coaster-controls { width: min(100%, 420px); gap: 0; }
+  .number-pad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; width: 100%; }
+  .number-pad button { height: clamp(44px, 7svh, 60px); border-radius: 11px; font-size: 25px; font-weight: 500; background: #f2f5eb; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .number-pad button.enter-key { background: #d5e9a5; }
+  .number-pad button:active { background: #dce8c6; }
+  .number-pad button.enter-key:active { background: #bed78a; }
+  .game-overlay { position: fixed; z-index: 10; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+  .overlay-card { max-height: 100%; }
+  .ride-result-grid, .ride-record { display: none; }
+}
+
+/* Keep both the railway and every key visible when a phone is turned sideways. */
+@media (max-height: 540px) and (min-width: 600px) and (max-width: 800px),
+       (max-height: 540px) and (hover: none) and (pointer: coarse) {
+  #app { min-height: 300px; }
+  .tiny-utility { min-height: 32px; }
+  .game-logo { width: 108px; height: 32px; }
+  .play-zone { flex-direction: row; }
+  .game-stage { height: 100%; min-width: 0; }
+  .play-controls { width: clamp(260px, 37vw, 340px); padding: 10px 14px; gap: 7px; border-top: 0; border-left: 1px solid #e3e9db; }
+  .prompt h2 { font-size: 28px; }
+  .number-pad { gap: 5px; }
+  .number-pad button { height: clamp(40px, 11svh, 48px); font-size: 22px; border-radius: 8px; }
 }

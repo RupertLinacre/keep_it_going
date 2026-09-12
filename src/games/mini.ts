@@ -23,6 +23,8 @@ export class Mini extends BaseGame {
   a = 3;
   b = 4;
   answer = "";
+  private answerFeedback = "";
+  private answerFeedbackUntil = 0;
   lock = 0;
   flash = 0;
   close = false;
@@ -70,7 +72,7 @@ export class Mini extends BaseGame {
   }
   panel() {
     this.host.panel(
-      `<div class="prompt"><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2><p class="keyboard-hint">Type your answer · <kbd>Enter</kbd> to boost</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
+      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? "Correct!" : ""}</p><p class="keyboard-hint">Type your answer · <kbd>Enter</kbd> to boost</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
     );
   }
   hud() {
@@ -96,11 +98,18 @@ export class Mini extends BaseGame {
       return;
     }
     if (value === "submit" && this.lock > 0) return;
-    if (/^digit:\d$/.test(value) && this.answer.length < 3)
+    if (/^digit:\d$/.test(value) && this.answer.length < 3) {
       this.answer += value.slice(6);
-    if (value === "back") this.answer = this.answer.slice(0, -1);
+      this.answerFeedback = "";
+    }
+    if (value === "back") {
+      this.answer = this.answer.slice(0, -1);
+      this.answerFeedback = "";
+    }
     if (value === "submit" && this.answer) {
+      this.answerFeedbackUntil = this.elapsed + 0.8;
       if (Number(this.answer) === this.a * this.b) {
+        this.answerFeedback = "correct";
         this.lastImpulse = this.physics.impulse();
         this.flash = 0.5;
         this.good(
@@ -111,6 +120,7 @@ export class Mini extends BaseGame {
         this.lock = 0.18;
         this.next();
       } else {
+        this.answerFeedback = "incorrect";
         this.bad(
           `Try ${this.a} equal groups of ${this.b}. Keep going!`,
         );
@@ -142,6 +152,10 @@ export class Mini extends BaseGame {
   }
   update(dt: number) {
     this.step(dt);
+    if (this.answerFeedback && this.elapsed >= this.answerFeedbackUntil) {
+      this.answerFeedback = "";
+      this.panel();
+    }
     this.lock -= dt;
     this.flash = Math.max(0, this.flash - dt);
     if (this.ended) {

@@ -38,10 +38,6 @@ export function mountGame(
   const controls = root.querySelector<HTMLElement>(".play-controls")!;
   const hud = root.querySelector<HTMLElement>(".game-hud")!;
   const feedback = root.querySelector<HTMLElement>(".game-feedback")!;
-  const pauseButton = document.querySelector<HTMLButtonElement>("#pause-game")!;
-  pauseButton.disabled = false;
-  pauseButton.textContent = "Ⅱ";
-  pauseButton.setAttribute("aria-label", "Pause game");
   const options = { signal: controller.signal };
   let lastStats = "";
 
@@ -71,8 +67,6 @@ export function mountGame(
   const togglePause = () => {
     if (finished) return;
     paused = !paused;
-    pauseButton.textContent = paused ? "▷" : "Ⅱ";
-    pauseButton.setAttribute("aria-label", paused ? "Resume game" : "Pause game");
     if (paused) {
       showOverlay(`
         <span class="overlay-symbol">Ⅱ</span>
@@ -92,7 +86,6 @@ export function mountGame(
     sound,
     finish: (result: Result) => {
       finished = true;
-      pauseButton.disabled = true;
       controls.inert = true;
       feedback.classList.remove("visible");
       const ride = result.ride;
@@ -182,9 +175,6 @@ export function mountGame(
       ((event.clientY - rect.top) / rect.height) * H,
     );
   }, options);
-
-  pauseButton.addEventListener("click", togglePause, options);
-  document.querySelector("#restart-game")!.addEventListener("click", restart, options);
 
   window.addEventListener("keydown", (event) => {
     if (!overlay.hidden && event.key === "Tab") {
