@@ -12,6 +12,8 @@ Water jumps have a real gap in the rails. An approaching-jump preview accounts f
 
 On desktop, type an answer and press **Enter** to boost; **C** changes the view and **P** pauses. Phones and tablets have a touch keypad.
 
+The live score shows your current answer streak. You can type the next answer immediately after a boost, even during its short submission cooldown. If coasting would stop the train within the next few seconds, a momentum warning prompts another answer; slow downhill travel doesn't trigger it. Distance and jump records are saved separately for each difficulty. At the end, a ride card shows your score, distance, longest train, best jump and top speed, with a brief pause to see the splash before the card appears.
+
 The header logo was created with the built-in imagegen tool. Its asset and generation prompt are in `public/images/`.
 
 ## Run locally

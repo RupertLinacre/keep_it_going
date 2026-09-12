@@ -8,6 +8,16 @@ export interface Result {
   message: string;
   correct: number;
   mistakes: number;
+  ride?: {
+    distance: number;
+    bestDistance: number;
+    bestJump: number;
+    longestTrain: number;
+    peakSpeed: number;
+    bestStreak: number;
+    newDistanceRecord: boolean;
+    newScoreRecord: boolean;
+  };
 }
 
 export interface Host {

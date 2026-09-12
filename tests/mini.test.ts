@@ -9,7 +9,7 @@ import {
   MINI_VISIBLE_CARTS,
   MINI_CART_SPACING,
 } from "../src/games/mini-config.ts";
-import type { Host } from "../src/types.ts";
+import type { Host, Result } from "../src/types.ts";
 
 const slopeRail = (grade: number): MiniRail => ({
   slope: () => grade,
@@ -26,7 +26,7 @@ function advance(
   for (let i = 0; i < Math.round(seconds * fps); i++) physics.update(1 / fps);
 }
 const harness = () => {
-  const finishes: unknown[] = [];
+  const finishes: Result[] = [];
   const host: Host = {
     difficulty: "normal",
     stage: {} as HTMLElement,
@@ -180,6 +180,8 @@ test("stopping ends the ride once and no input can restart a finished train", ()
   advance(game, 60);
   assert.ok(game.ended);
   assert.equal(finishes.length, 1);
+  assert.equal(finishes[0].ride?.distance, game.travelled);
+  assert.ok(finishes[0].ride!.longestTrain >= 6);
   const at = game.physics.distance, score = game.score;
   answer(game); advance(game, 10);
   assert.equal(game.physics.distance, at);
@@ -230,7 +232,7 @@ test("one answer clears a loop from a stall without repeated little pushes", () 
   }
 });
 
-test("answers boost speed without instantly adding coaches, and locked inputs add nothing", () => {
+test("answers boost speed without instantly adding coaches, and locked submissions add nothing", () => {
   const game = new HeadlessMini(harness().host, 16);
   for (let n = 1; n <= 3; n++) {
     answer(game);
@@ -240,7 +242,28 @@ test("answers boost speed without instantly adding coaches, and locked inputs ad
     assert.equal(game.physics.velocity, speed);
     assert.equal(game.cartCount, 6);
     advance(game, 0.2);
+    while (game.answer) game.key("Backspace");
   }
+});
+
+test("typing the next answer during a boost cooldown preserves every digit without applying a second impulse", () => {
+  const game = new HeadlessMini(harness().host, 42);
+  answer(game);
+  const speed = game.physics.velocity, nextAnswer = String(game.a * game.b);
+  for (const digit of nextAnswer) game.key(digit);
+  assert.equal(game.answer, nextAnswer);
+  game.key("Enter");
+  assert.equal(game.physics.velocity, speed);
+  assert.equal(game.correct, 1);
+  advance(game, 0.2);
+  game.key("Enter");
+  assert.equal(game.correct, 2);
+  assert.equal(game.combo, 2);
+  assert.equal(game.bestStreak, 2);
+  advance(game, 0.2);
+  game.key("0"); game.key("Enter");
+  assert.equal(game.combo, 0);
+  assert.equal(game.bestStreak, 2, "A mistake resets the live streak but keeps the ride's best");
 });
 
 test("the visible train tail stays on retained rail even on a long endless ride", () => {
@@ -441,4 +464,19 @@ test("a jump that reaches the far bank below rail height is a miss, never an und
     assert.equal(p.jumps, 0, `Speed ${speed} should miss the landing lip`);
     assert.ok(p.crashed || p.held);
   }
+});
+
+test("restarting keeps a completed jump and the current distance as personal records", () => {
+  const host = { ...harness().host, difficulty: "hard" as const };
+  const game = new HeadlessMini(host, 42);
+  const jump = game.track.sections.find(s => s.kind === "jump")!;
+  game.physics.distance = jump.takeoff - 0.01; game.physics.velocity = 25;
+  advance(game, 2.1);
+  assert.equal(game.physics.jumps, 1);
+  game.destroy();
+  const next = new HeadlessMini(host, 42);
+  assert.ok(next.personalBest.distance >= game.travelled);
+  assert.ok(next.personalBest.jump >= game.physics.bestJump);
+  assert.ok(next.personalBest.score >= game.score);
+  assert.equal(next.physics.bestJump, 0, "The new ride still has its own separate statistics");
 });

@@ -3,14 +3,14 @@ import { MiniTrack } from "./mini-track";
 import { MiniPhysics } from "./mini-physics";
 import { MiniView } from "./mini-view";
 import { MiniReadouts } from "./mini-readouts";
-import { jumpApproach, type JumpApproach } from "./mini-guide";
+import { approachingStall, jumpApproach, type JumpApproach } from "./mini-guide";
 import { MiniCarriages } from "./mini-carriages";
 import { numberPad } from "./input";
 import { multiplication } from "../math";
 import { gradient, line, roundRect, circle } from "../draw";
-import { record } from "../storage";
+import { bestRide, record, recordRide } from "../storage";
 import {
-  isParcelWagon, parcelPresentation,
+  isParcelWagon, parcelPresentation, MINI_STARTING_CARTS,
 } from "./mini-config";
 import type { Host } from "../types";
 import { Vector3 } from "three";
@@ -27,6 +27,11 @@ export class Mini extends BaseGame {
   flash = 0;
   close = false;
   lastImpulse = 0;
+  bestStreak = 0;
+  longestTrain = MINI_STARTING_CARTS;
+  readonly personalBest;
+  private stalling = false;
+  private guideAt = 0;
   private hudAt = 0;
   private recordedAt = 0;
   private jumpBonusUntil = 0;
@@ -35,6 +40,7 @@ export class Mini extends BaseGame {
   private readouts?: MiniReadouts;
   constructor(host: Host, seed?: number) {
     super(host);
+    this.personalBest = bestRide(host.difficulty);
     this.track = new MiniTrack(seed);
     this.physics = new MiniPhysics(this.track);
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
@@ -68,12 +74,18 @@ export class Mini extends BaseGame {
     );
   }
   hud() {
+    const bestJump = Math.max(this.personalBest.jump, this.physics.bestJump);
     this.approach = this.ended ? undefined : jumpApproach(this.track, this.physics);
+    if (this.ended) this.stalling = false;
+    else if (this.elapsed >= this.guideAt) {
+      this.stalling = approachingStall(this.physics);
+      this.guideAt = this.elapsed + 0.25;
+    }
     this.host.stats([
       { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
       { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
       { label: "YOUR TRAIN", value: `${this.cartCount} ${this.cartCount === 1 ? "coach" : "coaches"}` },
-      { label: "BEST JUMP", value: this.physics.bestJump ? `${this.physics.bestJump.toFixed(1)} m` : "—" },
+      { label: "BEST JUMP", value: bestJump ? `${bestJump.toFixed(1)} m` : "—" },
     ]);
   }
   action(value: string) {
@@ -83,7 +95,7 @@ export class Mini extends BaseGame {
       this.panel();
       return;
     }
-    if (this.lock > 0) return;
+    if (value === "submit" && this.lock > 0) return;
     if (/^digit:\d$/.test(value) && this.answer.length < 3)
       this.answer += value.slice(6);
     if (value === "back") this.answer = this.answer.slice(0, -1);
@@ -94,6 +106,8 @@ export class Mini extends BaseGame {
         this.good(
           `${this.a} × ${this.b} = ${this.a * this.b}. Big forward boost!`,
         );
+        this.bestStreak = Math.max(this.bestStreak, this.combo);
+        this.guideAt = 0;
         this.lock = 0.18;
         this.next();
       } else {
@@ -118,7 +132,13 @@ export class Mini extends BaseGame {
     if (water) this.carriages.splash(this.physics.sample(this.physics.distance));
     this.host.sound("bad");
     record("mini", this.host.difficulty, this.score);
-    this.finish(false, `${water ? "Splash! Build more speed before the water jump." : "The train stopped. Keep solving to keep it going!"} You travelled ${Math.floor(this.travelled)} m${this.physics.bestJump ? ` and jumped ${this.physics.bestJump.toFixed(1)} m` : ""}.`);
+    recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
+    this.finish(false, water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.", {
+      distance: this.travelled, bestDistance: Math.max(this.personalBest.distance, this.travelled),
+      bestJump: this.physics.bestJump, longestTrain: this.longestTrain, peakSpeed: this.physics.peakSpeed,
+      bestStreak: this.bestStreak, newDistanceRecord: this.travelled > this.personalBest.distance,
+      newScoreRecord: this.score > this.personalBest.score,
+    });
   }
   update(dt: number) {
     this.step(dt);
@@ -137,6 +157,7 @@ export class Mini extends BaseGame {
     const previousBestJump = this.physics.bestJump;
     this.physics.update(dt, (step) => {
       shed = this.carriages.update(step, this.physics.distance, this.physics.velocity) || shed;
+      this.longestTrain = Math.max(this.longestTrain, this.cartCount);
       if (this.physics.crashed || this.physics.held) {
         this.endRide(this.physics.crashed);
         return false;
@@ -148,7 +169,9 @@ export class Mini extends BaseGame {
       const bonus = Math.round(distance * 10);
       this.score += bonus;
       this.jumpBonusUntil = this.elapsed + 4;
-      this.jumpWasRecord = distance > previousBestJump + 0.05;
+      this.jumpWasRecord = distance > Math.max(previousBestJump, this.personalBest.jump) + 0.05;
+      record("mini", this.host.difficulty, this.score);
+      recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
       this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
       this.host.sound("win");
     } else if (shed) {
@@ -167,6 +190,7 @@ export class Mini extends BaseGame {
     }
     if (this.elapsed >= this.recordedAt + 10) {
       record("mini", this.host.difficulty, this.score);
+      recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
       this.recordedAt = this.elapsed;
     }
   }
@@ -191,6 +215,11 @@ export class Mini extends BaseGame {
         ? { distance: this.physics.flight.position.x - this.physics.flight.startX, landed: false, record: false }
         : this.elapsed < this.jumpBonusUntil ? { distance: this.physics.lastJumpDistance, landed: true, record: this.jumpWasRecord } : undefined,
       correct: this.correct,
+      score: this.score,
+      streak: this.combo,
+      personalBest: this.personalBest.distance,
+      distance: this.travelled,
+      stalling: this.stalling,
       approach: this.approach,
       cargo: this.carriages.coaches.reduce((sum, coach) => sum + coach.cargo, 0),
       refillIn: reloading.length ? Math.min(...reloading.map(coach => coach.refill)) : undefined,
@@ -304,6 +333,7 @@ export class Mini extends BaseGame {
   }
   destroy() {
     record("mini", this.host.difficulty, this.score);
+    recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
     this.readouts?.destroy();
     this.view?.destroy();
   }

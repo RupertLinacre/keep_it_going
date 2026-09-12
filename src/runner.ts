@@ -16,6 +16,7 @@ export function mountGame(
   let finished = false;
   let lastTime = 0;
   let feedbackUntil = 0;
+  let resultTimer: ReturnType<typeof setTimeout> | undefined;
 
   root.innerHTML = `
     <div class="game-page container standalone-game">
@@ -58,6 +59,11 @@ export function mountGame(
   const showOverlay = (content: string) => {
     overlay.hidden = false;
     overlay.innerHTML = `<div class="overlay-card" role="dialog" aria-modal="true">${content}</div>`;
+    const heading = overlay.querySelector("h2");
+    if (heading) {
+      heading.id = "ride-dialog-title";
+      overlay.querySelector("[role=dialog]")!.setAttribute("aria-labelledby", heading.id);
+    }
     controls.inert = true;
     overlay.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
   };
@@ -87,13 +93,24 @@ export function mountGame(
     finish: (result: Result) => {
       finished = true;
       pauseButton.disabled = true;
+      controls.inert = true;
       feedback.classList.remove("visible");
-      showOverlay(`
+      const ride = result.ride;
+      const content = `
         <div class="eyebrow">RIDE COMPLETE</div>
         <h2>${result.message.startsWith("Splash!") ? "Into the drink!" : "Keep it going?"}</h2>
         <p>${result.message}</p>
         <div class="result-score">${result.score.toLocaleString()} <span>points · ${result.correct} ${result.correct === 1 ? "boost" : "boosts"}</span></div>
-        <button class="primary-button full-button" data-overlay="restart">Ride again →</button>`);
+        ${ride ? `<div class="ride-result-grid">
+          <div><span>Distance</span><strong>${Math.floor(ride.distance).toLocaleString()} <small>m</small></strong></div>
+          <div><span>Longest train</span><strong>${ride.longestTrain} <small>coaches</small></strong></div>
+          <div><span>Best jump</span><strong>${ride.bestJump ? `${ride.bestJump.toFixed(1)} <small>m</small>` : "—"}</strong></div>
+          <div><span>Top speed</span><strong>${Math.round(ride.peakSpeed * 3.6)} <small>km/h</small></strong></div>
+        </div>
+        <p class="ride-record${ride.newDistanceRecord || ride.newScoreRecord ? " is-new" : ""}">${ride.newDistanceRecord ? "New distance record!" : ride.newScoreRecord ? "New score record!" : `Best run · ${Math.floor(ride.bestDistance).toLocaleString()} m`}${ride.bestStreak >= 2 ? ` · ${ride.bestStreak} answers in a row` : ""}</p>` : ""}
+        <button class="primary-button full-button" data-overlay="restart">Ride again →</button>`;
+      // Keep the splash visible briefly; input is already locked and effects continue.
+      resultTimer = setTimeout(() => { if (!disposed) showOverlay(content); }, result.message.startsWith("Splash!") ? 850 : 200);
     },
     panel: (html) => {
       const active =
@@ -126,7 +143,6 @@ export function mountGame(
 
   try {
     game = new Mini(host);
-    unlockAudio();
     const frame = (now: number) => {
       if (disposed) return;
       const dt = lastTime ? Math.min((now - lastTime) / 1000, 0.05) : 0;
@@ -171,6 +187,15 @@ export function mountGame(
   document.querySelector("#restart-game")!.addEventListener("click", restart, options);
 
   window.addEventListener("keydown", (event) => {
+    if (!overlay.hidden && event.key === "Tab") {
+      const buttons = [...overlay.querySelectorAll<HTMLButtonElement>("button")];
+      const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (buttons.length) {
+        event.preventDefault();
+        buttons[(current + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+      }
+      return;
+    }
     if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement) return;
     if (event.repeat) return;
     if (["Enter", " "].includes(event.key) && event.target instanceof HTMLElement && event.target.closest("button, a")) return;
@@ -193,6 +218,7 @@ export function mountGame(
 
   return () => {
     disposed = true;
+    clearTimeout(resultTimer);
     controller.abort();
     cancelAnimationFrame(raf);
     game?.destroy?.();

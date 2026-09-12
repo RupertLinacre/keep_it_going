@@ -4,9 +4,11 @@ interface Save {
   difficulty: Difficulty;
   muted: boolean;
   best: Record<string, number>;
+  rides: Partial<Record<Difficulty, { distance: number; jump: number }>>;
 }
 
-const defaults: Save = { difficulty: "normal", muted: false, best: {} };
+const defaults: Save = { difficulty: "normal", muted: false, best: {}, rides: {} };
+const validRecord = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 
 function read(): Save {
   try {
@@ -18,9 +20,13 @@ function read(): Save {
       muted: saved.muted === true,
       best:
         typeof saved.best === "object" && saved.best !== null ? saved.best : {},
+      rides: Object.fromEntries((["easy", "normal", "hard"] as const).map(difficulty => [difficulty, {
+        distance: validRecord(saved.rides?.[difficulty]?.distance),
+        jump: validRecord(saved.rides?.[difficulty]?.jump),
+      }])),
     };
   } catch {
-    return { ...defaults, best: {} };
+    return { ...defaults, best: {}, rides: {} };
   }
 }
 
@@ -36,8 +42,20 @@ export function persist() {
 
 export function record(id: GameId, difficulty: Difficulty, score: number) {
   const key = `${id}:${difficulty}`;
-  const previous = save.best[key] || 0;
-  save.best[key] = Math.max(previous, score);
+  const previous = validRecord(save.best[key]);
+  save.best[key] = Math.max(previous, validRecord(score));
   persist();
-  return score > previous;
+  return validRecord(score) > previous;
+}
+
+export function bestRide(difficulty: Difficulty) {
+  return { score: validRecord(save.best[`mini:${difficulty}`]),
+    distance: validRecord(save.rides[difficulty]?.distance), jump: validRecord(save.rides[difficulty]?.jump) };
+}
+
+export function recordRide(difficulty: Difficulty, distance: number, jump: number) {
+  const previous = bestRide(difficulty);
+  save.rides[difficulty] = { distance: Math.max(previous.distance, validRecord(distance)),
+    jump: Math.max(previous.jump, validRecord(jump)) };
+  persist();
 }

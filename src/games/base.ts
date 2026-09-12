@@ -1,4 +1,4 @@
-import type { Game, Host } from "../types";
+import type { Game, Host, Result } from "../types";
 import { circle } from "../draw";
 export abstract class BaseGame implements Game {
   score = 0;
@@ -61,7 +61,7 @@ export abstract class BaseGame implements Game {
     this.host.feedback(message, false);
     this.host.sound("bad");
   }
-  finish(won: boolean, message: string) {
+  finish(won: boolean, message: string, ride?: Result["ride"]) {
     if (this.ended) return;
     this.ended = true;
     this.host.finish({
@@ -70,6 +70,7 @@ export abstract class BaseGame implements Game {
       message,
       correct: this.correct,
       mistakes: this.mistakes,
+      ride,
     });
   }
 }

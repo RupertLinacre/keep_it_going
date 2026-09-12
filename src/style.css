@@ -289,10 +289,17 @@ h2 {
 .mini-run {
   left: 20px;
   bottom: 20px;
-  width: 280px;
+  width: 310px;
   max-width: calc(100% - 40px);
   padding: 14px 16px;
 }
+.mini-score-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.mini-score-line p { white-space: nowrap; color: #38564f; }
+.mini-score-line p > span { font-size: 12px; color: #74877c; }
+.mini-score { font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.7px; }
+.mini-streak { padding: 4px 7px; border-radius: 5px; font-size: 11px; background: #edf5d8; color: #56733d; white-space: nowrap; }
+.mini-streak:empty { display: none; }
+.mini-run.needs-boost { border-color: #e7c78a; background: #fff3e1; color: #98602f; }
 .mini-run-title {
   font-size: 11px;
   font-weight: 600;
@@ -497,7 +504,12 @@ kbd {
 }
 .overlay-card > .primary-button {
   margin-top: 5px;
+  background: #d5e9a5;
+  color: #375337;
+  border-color: #c1d68f;
 }
+.overlay-card > .primary-button:hover { background: #c6df8f; }
+.overlay-card button:focus-visible { outline-color: #638748; outline-offset: 4px; }
 .overlay-card > .text-button {
   margin-top: 12px;
   display: flex;
@@ -900,8 +912,27 @@ kbd {
 .overlay-card > p { color: #6c8178; line-height: 1.6; margin: 12px 0 20px; }
 .result-score { color: #4e7564; font: 700 32px "Outfit", sans-serif; margin-bottom: 24px; }
 .result-score span { display: block; font: 500 14px "DM Sans", sans-serif; margin-top: 4px; }
+.ride-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+.ride-result-grid > div { background: #eff3e9; border: 1px solid #e4eadc; border-radius: 10px; padding: 12px 14px; }
+.ride-result-grid span { display: block; color: #738275; font-size: 10px; }
+.ride-result-grid strong { display: block; color: #38564f; font: 600 24px/1.3 "Outfit", sans-serif; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.ride-result-grid small { font-size: 11px; font-weight: 400; }
+.overlay-card > .ride-record { font-size: 12px; margin: 14px 0; }
+.overlay-card > .ride-record.is-new { color: #56733d; background: #edf5d8; border-radius: 7px; padding: 8px; }
 
 @media (max-width: 600px) {
+  .game-overlay { position: fixed; z-index: 10; padding: 18px; }
+  .overlay-card { max-height: calc(100svh - 36px); }
+  .mini-score-line { margin-bottom: 5px; gap: 10px; }
+  .mini-score { font-size: 20px; }
+  .mini-score-line p > span { font-size: 10px; }
+  .mini-streak { padding: 3px 5px; font-size: 9px; }
+  .mini-run-title { font-size: 9px; }
+  .mini-run-summary { font-size: 10px; }
+  .ride-result-grid { gap: 7px; }
+  .ride-result-grid > div { padding: 9px 10px; }
+  .ride-result-grid strong { font-size: 20px; }
+  .result-score { margin-bottom: 14px; }
   .mini-feature.has-detail { min-width: 0; max-width: 190px; padding: 8px 10px; }
   .mini-feature-kicker { font-size: 8px; letter-spacing: 0.5px; }
   .mini-feature.has-detail .mini-feature-value { margin-top: 3px; font-size: 16px; }

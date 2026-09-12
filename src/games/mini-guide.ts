@@ -1,10 +1,23 @@
-import type { MiniPhysics } from "./mini-physics";
+import { MiniPhysics } from "./mini-physics";
 import type { MiniTrack } from "./mini-track";
 
 export interface JumpApproach {
   distance: number;
   clearance: number;
   ready: boolean;
+}
+
+/** Warn only if coasting would actually stop the train in the next few seconds. */
+export function approachingStall(physics: MiniPhysics): boolean {
+  if (physics.held || physics.crashed || physics.flight || physics.velocity > 30) return false;
+  const coast = new MiniPhysics(physics.track, { ...physics.options,
+    initialDistance: physics.distance, initialSpeed: physics.velocity });
+  for (let i = 0; i < 35; i++) {
+    coast.update(0.1);
+    if (coast.flight || coast.crashed) return false;
+    if (coast.held) return true;
+  }
+  return false;
 }
 
 /** Coasting prediction: include hills and drag before estimating height at the far lip. */
