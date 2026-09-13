@@ -319,6 +319,33 @@ test("keyboard and touch digits only auto-accept a complete correct answer", () 
   }
 });
 
+test("accepted answers stay visible briefly without delaying boosts or losing new input", () => {
+  for (const touch of [false, true]) {
+    const { host } = harness();
+    let html = "";
+    host.panel = content => { html = content; };
+    const game = new HeadlessMini(host, 42);
+    game.a = 12; game.b = 12;
+    const digit = (d: string) => touch ? game.action(`digit:${d}`) : game.key(d);
+    const speed = game.physics.velocity;
+    for (const d of "144") digit(d);
+    assert.equal(game.correct, 1);
+    assert.ok(game.physics.velocity > speed, "The boost is immediate");
+    assert.match(html, /12 × 12 = <span[^>]*>144<\/span>/);
+    advance(game, 0.2);
+    game.key("Enter");
+    assert.equal(game.correct, 1, "Displaying the answer doesn't let it score twice");
+    assert.match(html, /12 × 12 = <span[^>]*>144<\/span>/);
+    advance(game, 0.2);
+    assert.match(html, /class="answer-display"[^>]*>\?<\/span>/);
+    for (const d of String(game.a * game.b)) digit(d);
+    assert.equal(game.correct, 2);
+    digit("0");
+    assert.equal(game.answer, "0", "Typing early goes to the next question");
+    assert.match(html, /class="answer-display"[^>]*>0<\/span>/);
+  }
+});
+
 test("the visible train tail stays on retained rail even on a long endless ride", () => {
   const track = new MiniTrack(77);
   for (let distance = 8; distance < 10000; distance += 37) {

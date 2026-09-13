@@ -25,6 +25,7 @@ export class Mini extends BaseGame {
   b = 4;
   answer = "";
   private answerFeedback = "";
+  private acceptedAnswer?: { a: number; b: number; answer: string; until: number };
   private answerFeedbackUntil = 0;
   lock = 0;
   flash = 0;
@@ -74,8 +75,9 @@ export class Mini extends BaseGame {
     this.panel();
   }
   panel() {
+    const shown = this.acceptedAnswer ?? this;
     this.host.panel(
-      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? "Correct!" : ""}</p><p class="keyboard-hint">Type the correct answer to boost automatically</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
+      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${shown.a} × ${shown.b} = <span class="answer-display" role="status">${shown.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? "Correct!" : ""}</p><p class="keyboard-hint">Type the correct answer to boost automatically</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
     );
   }
   hud() {
@@ -102,6 +104,8 @@ export class Mini extends BaseGame {
       return;
     }
     if (value === "submit" && this.lock > 0) return;
+    // Let fast typists move on early without dropping their next digit.
+    if (/^digit:\d$/.test(value) || value === "back") this.acceptedAnswer = undefined;
     if (/^digit:\d$/.test(value) && this.answer.length < 3) {
       this.answer += value.slice(6);
       this.answerFeedback = "";
@@ -125,6 +129,9 @@ export class Mini extends BaseGame {
         this.bestStreak = Math.max(this.bestStreak, this.combo);
         this.guideAt = 0;
         this.lock = 0.18;
+        // Boost now, but briefly show the complete equation before revealing
+        // the next question. This is presentation only, not an input lock.
+        this.acceptedAnswer = { a: this.a, b: this.b, answer: this.answer, until: this.elapsed + 0.35 };
         this.next();
       } else {
         this.answerFeedback = "incorrect";
@@ -159,6 +166,10 @@ export class Mini extends BaseGame {
   }
   update(dt: number) {
     this.step(dt);
+    if (this.acceptedAnswer && this.elapsed >= this.acceptedAnswer.until) {
+      this.acceptedAnswer = undefined;
+      this.panel();
+    }
     if (this.answerFeedback && this.elapsed >= this.answerFeedbackUntil) {
       this.answerFeedback = "";
       this.panel();

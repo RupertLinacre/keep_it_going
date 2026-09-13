@@ -14,13 +14,15 @@ Water jumps have a real gap in the rails. The first gap is shorter so an early h
 
 On desktop, type the correct answer to boost automatically; **C** changes the view and **P** pauses. Phones and tablets use a large three-column touch keypad with delete and submit keys. The mobile layout fits the viewport in portrait and landscape, showing only the coaster, question and keypad during play. Brief answer feedback appears beside the question; stats, track labels, physics messages and the camera control are hidden. The header contains just the logo on all devices. An amber answer underline warns of an imminent stall without adding text. On enormous structures, the camera follows the train upward instead of making it a dot in the distance.
 
-On desktop, the live score shows your current answer streak. Correct answers are accepted immediately on both keyboard and touch input, including right after a boost. Partial answers and typos remain editable; use Backspace or the delete key to correct them. If coasting would stop the train within the next few seconds, a momentum warning prompts another answer; slow downhill travel doesn't trigger it. Distance and jump records are saved separately for each difficulty. At the end, a ride card shows your score and a replay button, with detailed ride statistics on desktop and a brief pause to see the splash before the card appears.
+On desktop, the live score shows your current answer streak. Correct answers boost immediately on both keyboard and touch input. The completed equation stays visible for 350 ms before the next question appears; typing early moves on without losing the new digit. Partial answers and typos remain editable; use Backspace or the delete key to correct them. If coasting would stop the train within the next few seconds, a momentum warning prompts another answer; slow downhill travel doesn't trigger it. Distance and jump records are saved separately for each difficulty. At the end, a ride card shows your score and a replay button, with detailed ride statistics on desktop and a brief pause to see the splash before the card appears.
 
 The header logo was created with the built-in imagegen tool. Its asset and generation prompt are in `public/images/`.
 
 Airborne action can widen the camera to at most three times the normal view size. The train stays in view; objects flung beyond that limit can leave the screen. The camera eases back after the action settles. This limit also applies to the fallback renderer.
 
 See [the live performance measurements](docs/performance.md) for the rendering changes, frame-timing results and repeatable browser profiling commands.
+
+Google Analytics uses the same `G-94373ZKHEE` setup as `country_quiz` on the game and track gallery. Tracking is disabled on `localhost` and `127.0.0.1`.
 
 ## Run locally
 
