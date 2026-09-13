@@ -15,7 +15,7 @@ export const WORLDS: readonly AdventureWorld[] = [
     sky: "#becfdf", ground: "#9aaea5", earth: "#777f8c", rail: "#edb451", light: "#e5efff", ambient: "#cbd9ed", darkness: .12, maxHeight: 38,
     challenges: ["mountainpass", "tunnel", "ascendinghelix", "skyhill", "jump", "mountainpass"] },
   { id: "night", name: "Starlight Carnival", icon: "✦", invitation: "Follow the lights to the stars!", start: 1900, end: 3000,
-    sky: "#17213d", ground: "#344e61", earth: "#253246", rail: "#70e5df", light: "#bdceff", ambient: "#8b9fc9", darkness: 1, maxHeight: 38,
+    sky: "#17213d", ground: "#344e61", earth: "#253246", rail: "#70e5df", light: "#bdceff", ambient: "#b2c5e6", darkness: 1, maxHeight: 38,
     challenges: ["lanternrun", "noninvertingloop", "corkscrew", "interlockingloops", "helix", "lanternrun"] },
   { id: "halloween", name: "Pumpkin Party", icon: "☾", invitation: "Friendly frights. Pumpkin delights!", start: 3000, end: 4200,
     sky: "#352440", ground: "#625571", earth: "#403548", rail: "#ffb35d", light: "#f0c1f5", ambient: "#b2a0cd", darkness: .85, maxHeight: 40,

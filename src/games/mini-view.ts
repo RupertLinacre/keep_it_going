@@ -818,10 +818,13 @@ export class MiniView {
       fog.color.copy(this.scene.background as THREE.Color);
       this.material("#d5e3c3").color.lerp(ground,blend);
       this.material("#cfae8c").color.lerp(new THREE.Color(world.earth),blend);
+      this.material("#ffffff").emissive.set("#d5e2f5");
+      this.material("#ffffff").emissiveIntensity=dark*.14;
+      this.lamp.intensity += dark*22; this.lamp.distance=dark?12:8;
       this.sunlight!.color.lerp(new THREE.Color(world.light),blend);
       this.sunlight!.intensity += ((2.5-dark*1.3)-this.sunlight!.intensity)*blend;
       this.skylight!.color.lerp(new THREE.Color(world.ambient),blend);
-      this.skylight!.intensity += ((2-dark*.6)-this.skylight!.intensity)*blend;
+      this.skylight!.intensity += ((2-dark*.2)-this.skylight!.intensity)*blend;
       if(!this.multiplayer) {
         this.railMaterial(0).color.lerp(new THREE.Color(world.rail),blend);
         this.railMaterial(1).color.lerp(new THREE.Color(dark?"#a2efdf":"#ffe4a1"),blend);
