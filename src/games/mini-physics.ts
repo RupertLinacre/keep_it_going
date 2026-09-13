@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { RailFrame } from "./mini-rail";
 import type { MiniSection, MiniRail } from "./mini-track";
 import { MINI_BOOST_ENERGY, MINI_START_SPEED } from "./mini-config";
+import { tiltedGravity } from "./mini-tilt";
 
 export interface MiniPhysicsOptions {
   gravity: number;
@@ -10,6 +11,22 @@ export interface MiniPhysicsOptions {
   rolling: number;
   initialSpeed: number;
   initialDistance: number;
+  tailwind: number;
+  worldTilt: number;
+}
+
+export function railDrag(track: MiniRail, distance: number, drag: number) {
+  return drag + .008 * Math.min(1, (track.waterDepth?.(distance) ?? 0) / .55);
+}
+export function railAcceleration(track: MiniRail, s: number, v: number,
+  options: Pick<MiniPhysicsOptions, "gravity" | "drag" | "rolling" | "tailwind"> & { worldTilt?: number }) {
+  const angle = options.worldTilt;
+  let slope: number;
+  if (angle) {
+    const t = track.sample(s).tangent;
+    slope = Math.cos(angle)*t.y - Math.sin(angle)*t.x;
+  } else slope = track.slope(s);
+  return options.tailwind - options.gravity*slope - railDrag(track, s, options.drag)*v*v - options.rolling*Math.tanh(v*5);
 }
 
 /** Metres, seconds, kilograms. A one-way catch supplies the constraint force at rest.
@@ -70,22 +87,29 @@ export class MiniPhysics {
     this.launched.add(section.id);
     this.distance = section.takeoff;
     const frame = section.sample(section.takeoff - 0.05);
-    frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
+    if (section.revision) frame.position.copy(section.sample(section.takeoff).position);
+    else frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
     frame.tangent.copy(section.launchTangent);
     this.flight = { section, position: frame.position.clone(), velocity: frame.tangent.clone().multiplyScalar(this.velocity), startX: frame.position.x };
     this.traces.push({ start: this.distance, end: this.distance, points: [{ distance: this.distance, frame: this.airFrame() }] });
   }
   private stepJump(h: number) {
     const flight = this.flight!;
+    // The lead coach's jump guide remains magnetic during gravity flip. Loose
+    // cargo still floats upward; the train gets a short, readable landing arc.
+    const { down: gravity, x: gravityX } = tiltedGravity(this.options.gravity < 0 ? 9.81 : this.options.gravity, this.options.worldTilt);
     const previous = flight.position.clone();
-    if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h >= flight.section.landingX) {
-      const crossingTime = (flight.section.landingX - previous.x) / flight.velocity.x;
-      const crossingHeight = previous.y + flight.velocity.y * crossingTime - 0.5 * this.options.gravity * crossingTime ** 2;
-      flight.missed = crossingHeight < flight.section.origin.y;
+    if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h + .5 * gravityX * h*h >= flight.section.landingX) {
+      const dx = flight.section.landingX - previous.x, vx = flight.velocity.x;
+      const crossingTime = 2*dx / (vx + Math.sqrt(vx*vx + 2*gravityX*dx));
+      const crossingHeight = previous.y + flight.velocity.y * crossingTime - 0.5 * gravity * crossingTime ** 2;
+      flight.missed = crossingHeight < flight.section.height(flight.section.distanceAtX(flight.section.landingX));
     }
     flight.position.addScaledVector(flight.velocity, h);
-    flight.position.y -= 0.5 * this.options.gravity * h * h;
-    flight.velocity.y -= this.options.gravity * h;
+    flight.position.x += 0.5 * gravityX * h * h;
+    flight.position.y -= 0.5 * gravity * h * h;
+    flight.velocity.x += gravityX * h;
+    flight.velocity.y -= gravity * h;
     const endX = flight.section.origin.x + flight.section.span;
     this.distance = this.track.distanceAtWorldX?.(flight.position.x, this.distance) ?? (flight.position.x <= endX
       ? flight.section.distanceAtX(flight.position.x)
@@ -121,6 +145,8 @@ export class MiniPhysics {
       rolling: 0.06,
       initialSpeed: MINI_START_SPEED,
       initialDistance: track.startDistance ?? 8,
+      tailwind: 0,
+      worldTilt: 0,
       ...options,
     };
     this.distance = this.options.initialDistance;
@@ -141,12 +167,12 @@ export class MiniPhysics {
     this.peakSpeed = Math.max(this.peakSpeed, this.velocity);
     return this.velocity - before;
   }
+  dragAt(distance: number) {
+    // Water resistance belongs to submerged railway, independent of timed powers.
+    return railDrag(this.track, distance, this.options.drag);
+  }
   private force(s: number, v: number) {
-    return (
-      -this.options.gravity * this.track.slope(s) -
-      this.options.drag * v * v -
-      this.options.rolling * Math.tanh(v * 5)
-    );
+    return railAcceleration(this.track, s, v, this.options);
   }
   update(dt: number, afterStep?: (dt: number) => boolean | void) {
     if (!Number.isFinite(dt) || dt <= 0) return;
@@ -175,13 +201,18 @@ export class MiniPhysics {
         continue;
       }
       // Clamp RK stages to nonnegative speed: the safety catch cannot do forward work.
+      const travel = (at: number, speed: number) => speed / (this.track.metric?.(at) ?? 1);
+      const k1 = travel(s, v);
+      const s2 = s + k1*h/2;
       const v2 = Math.max(0, v + (a1 * h) / 2),
-        a2 = this.force(s + (v * h) / 2, v2);
+        a2 = this.force(s2, v2);
+      const k2 = travel(s2, v2), s3 = s + k2*h/2;
       const v3 = Math.max(0, v + (a2 * h) / 2),
-        a3 = this.force(s + (v2 * h) / 2, v3);
+        a3 = this.force(s3, v3);
+      const k3 = travel(s3, v3), s4 = s + k3*h;
       const v4 = Math.max(0, v + a3 * h),
-        a4 = this.force(s + v3 * h, v4);
-      this.distance += (h / 6) * (v + 2 * v2 + 2 * v3 + v4);
+        a4 = this.force(s4, v4);
+      this.distance += (h / 6) * (k1 + 2 * k2 + 2 * k3 + travel(s4, v4));
       this.velocity = Math.max(0, v + (h / 6) * (a1 + 2 * a2 + 2 * a3 + a4));
       if (this.velocity < 0.05 && a1 <= 0) this.velocity = 0;
       const jump = this.track.jumpAt?.(this.distance);
@@ -200,10 +231,13 @@ export class MiniPhysics {
     }
   }
   get energy() {
+    const angle = this.options.worldTilt;
+    const p = angle ? this.flight?.position ?? this.track.sample(this.distance).position : undefined;
+    const height = p ? Math.cos(angle)*p.y - Math.sin(angle)*p.x : this.flight?.position.y ?? this.track.height(this.distance);
     return (
       this.options.mass *
       (0.5 * this.velocity ** 2 +
-        this.options.gravity * (this.flight?.position.y ?? this.track.height(this.distance)))
+        this.options.gravity * height)
     );
   }
 }

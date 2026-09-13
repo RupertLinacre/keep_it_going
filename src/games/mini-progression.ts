@@ -27,6 +27,7 @@ export const ELEMENT_NAMES: Record<MiniKind, string> = {
   station: "BREATHER", firsthill: "FIRST DROP", hill: "AIRTIME HILL", skyhill: "SKY-HIGH CLIMB",
   dip: "VALLEY RUN", loop: "VERTICAL LOOP", corkscrew: "CORKSCREW", helix: "HELIX",
   triplehelix: "HELTER SKELTER", invertedhill: "INVERTED CREST", verticalhill: "VERTICAL CLIMB", jump: "WATER JUMP",
+  splash: "SPLASH ZONE",
   heartline: "HEARTLINE ROLL", zerogstall: "ZERO-G STALL", waveturn: "WAVE TURN", doubledip: "DOUBLE DIP",
   tophat: "TOP HAT", immelmann: "IMMELMANN & TURN", diveloop: "DIVE LOOP", ascendinghelix: "SKY SPIRAL",
   interlockingloops: "INTERLOCKING LOOPS", nestedloop: "LOOP WITHIN A LOOP",

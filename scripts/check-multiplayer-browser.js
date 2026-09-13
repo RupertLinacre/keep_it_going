@@ -20,7 +20,7 @@ async (page) => {
     return value;
   };
   try {
-    await page.goto(base);
+    await page.goto(base+"?mode=classic");
     assert(await page.locator("#ride-difficulty option").count() === 5, "Five difficulty levels are available");
     await page.locator("#ride-difficulty").selectOption("very-easy");
     await page.locator('.table-settings summary').click();

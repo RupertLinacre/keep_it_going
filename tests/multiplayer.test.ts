@@ -207,3 +207,17 @@ test("identity colours match across screens independently of foreground placemen
   assert.equal(riderColorIndex("host"), riderColorIndex("guest", true));
   assert.equal(riderColorIndex("guest"), riderColorIndex("host", true));
 });
+
+test('host selects Remix and course seed even when the guest joins from Classic; rematches preserve mode',async()=>{
+  const {factory}=peers(),a=new RaceSession(factory),b=new RaceSession(factory);
+  try{
+    await a.open('host','Parent',[7],'','hard',{remixMode:true,seed:0});await until(()=>a.phase==='waiting');
+    await b.open('guest','Child',[2],a.code,'very-easy');await until(()=>b.phase==='ready');
+    assert.equal(b.remixMode,true);assert.equal(b.difficulty,'very-easy');assert.equal(b.opponentDifficulty,'hard');
+    a.on('prepare',()=>a.ready());b.on('prepare',()=>b.ready());a.start();await until(()=>b.phase==='countdown');
+    assert.equal(a.round!.mode,'remix');assert.equal(a.round!.seed,0);assert.deepEqual(a.round,b.round);
+    a.begin();b.begin();a.finish({distance:50,correct:2,score:100,water:false});b.finish({distance:40,correct:1,score:90,water:false});await until(()=>a.phase==='complete'&&b.phase==='complete');
+    const old=a.round!.id;a.rematch();b.rematch();await until(()=>b.phase==='countdown');
+    assert.notEqual(a.round!.id,old);assert.equal(a.round!.mode,'remix');assert.equal(a.round!.seed,0);assert.deepEqual(a.round,b.round);
+  }finally{a.close();b.close();}
+});

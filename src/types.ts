@@ -1,5 +1,5 @@
 export type Difficulty = "very-easy" | "easy" | "normal" | "hard" | "very-hard";
-export type GameId = "mini";
+export type GameId = "mini" | "height" | "remix";
 export type Stat = { label: string; value: string | number };
 
 export interface Result {

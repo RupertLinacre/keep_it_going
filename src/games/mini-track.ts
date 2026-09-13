@@ -7,10 +7,11 @@ import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
   "station" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
-  | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | SpecialKind;
+  | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
 export const isHump = (kind: MiniKind) =>
   ["firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
 export interface MiniRail {
+  metric?(distance: number): number;
   readonly startDistance?: number;
   jumpAt?(distance: number): MiniSection | undefined;
   hasRail?(distance: number): boolean;
@@ -18,6 +19,7 @@ export interface MiniRail {
   sample(distance: number): RailFrame;
   slope(distance: number): number;
   height(distance: number): number;
+  waterDepth?(distance: number): number;
 }
 const smooth = (t: number) => t * t * t * (10 + t * (-15 + 6 * t));
 
@@ -46,6 +48,8 @@ function verticalHill(t: number, width: number, height: number) {
 
 /** One immutable, metre-scale piece. Its rail frames are shared by rendering and physics. */
 export class MiniSection implements MiniRail {
+  revision = 0;
+  launchLiftSlope = 0;
   readonly frames: RailFrame[] = [];
   readonly distances: number[] = [];
   readonly length: number;
@@ -77,6 +81,8 @@ export class MiniSection implements MiniRail {
         z = shift * ease;
       if (kind === "firsthill" || kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "splash")
+        y = -amplitude * smooth(Math.min(1, t / .24)) * smooth(Math.min(1, (1 - t) / .24));
       if (kind === "jump") {
         // The middle is a virtual distance guide only: neither rails nor sleepers span the water.
         const takeoff = width * 0.2, landing = width * 0.64;
@@ -197,9 +203,18 @@ export class MiniSection implements MiniRail {
     return this.start + THREE.MathUtils.lerp(this.distances[i], this.distances[i + 1], t - i);
   }
   /** Exact tangent of the quadratic launch ramp, independent of mesh sampling. */
-  get launchTangent() { return new THREE.Vector3(1, 10 * this.amplitude / this.width, 0).normalize(); }
+  get launchTangent() {
+    const tangent = new THREE.Vector3(1, 10 * this.amplitude / this.width, 0).normalize();
+    tangent.y += this.launchLiftSlope;
+    return tangent.normalize();
+  }
   get takeoff() { return this.distanceAtX(this.origin.x + this.width * 0.2); }
   get landingX() { return this.origin.x + this.width * 0.64; }
+  get waterLevel() { return this.origin.y - this.amplitude + .55; }
+  waterDepth(distance: number) {
+    return this.kind === "splash" && distance >= this.start && distance <= this.end
+      ? Math.max(0, this.waterLevel - this.height(distance)) : 0;
+  }
   hasRail(distance: number) {
     return this.kind !== "jump" || distance < this.takeoff - 0.02
       || this.sample(distance).position.x >= this.landingX;
@@ -231,8 +246,14 @@ export class MiniSection implements MiniRail {
     const { a, b } = this.indices(distance);
     return (
       (this.frames[b].position.y - this.frames[a].position.y) /
-      (this.distances[b] - this.distances[a])
+      ((this.distances[b] - this.distances[a]) * this.metric(distance))
     );
+  }
+  /** Physical metres per route metre; only a raised track changes this ratio. */
+  metric(distance: number) {
+    if (!this.revision) return 1;
+    const { a, b } = this.indices(distance);
+    return this.frames[b].position.distanceTo(this.frames[a].position) / (this.distances[b] - this.distances[a]);
   }
   sample(distance: number): RailFrame {
     const { a, b, blend } = this.indices(distance),
@@ -252,7 +273,7 @@ export class MiniSection implements MiniRail {
 
 /** Shared piece factory for the game and the track gallery. */
 export function createMiniSection(kind: MiniKind, start: number, origin: THREE.Vector3,
-  generated: number, random: () => number): MiniSection {
+  generated: number, random: () => number, varied = false): MiniSection {
     const r = (min: number, max: number) => min + random() * (max - min);
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
@@ -296,6 +317,10 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
       amplitude = 3.8;
       shift = 0;
     }
+    if (kind === "splash") {
+      width = r(66, 88) * Math.min(1.35, 1 + (scale - 1) * .08);
+      amplitude = r(2.6, 2.9); shift = 0;
+    }
     if (kind === "triplehelix") {
       width = r(48, 55);
       amplitude = r(21, 23);
@@ -312,13 +337,27 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     if (kind === "noninvertingloop") { amplitude = r(20, 24); width = amplitude * 0.9; shift = 0; }
     if (kind === "cobraroll" || kind === "pretzelknot") { amplitude = r(22, 26); width = amplitude * (kind === "pretzelknot" ? 4.5 : 3.8); shift = 0; }
     if (kind === "nestedloop") { amplitude = r(30, 34); width = amplitude * 0.9; shift = 0; }
-    if (!["station", "dip", "heartline", "jump", "corkscrew"].includes(kind)) {
+    if (!["station", "dip", "heartline", "jump", "splash", "corkscrew"].includes(kind)) {
       const recovery = RECOVERY.includes(kind);
       const growth = recovery ? 1 + (scale - 1) * 0.25 : scale;
       amplitude *= growth * (kind === "ascendinghelix" ? 1 + (turns - 2) * 0.18 : 1);
       // Preserve the proportions of inversions; make hills increasingly steep.
       const round = ["loop", "interlockingloops", "nestedloop", "noninvertingloop", "cobraroll", "pretzelknot"].includes(kind);
       width *= round ? growth : Math.sqrt(growth);
+    }
+    if (varied) {
+      // Keep the clearance/proportions of compound inversions, while allowing
+      // much broader silhouettes and hill steepness than the classic course.
+      const opening = start < 350 && !RECOVERY.includes(kind) ? .72 : 1;
+      const size = r(.76, 1.3) * opening;
+      if (kind !== "station" && kind !== "jump" && kind !== "splash") {
+        amplitude *= size;
+        const round = ["loop", "interlockingloops", "nestedloop", "noninvertingloop", "cobraroll", "pretzelknot", "helix", "ascendinghelix"].includes(kind);
+        width *= round ? size : Math.sqrt(size) * r(.95, 1.15);
+        if (kind === "verticalhill") amplitude = Math.max(amplitude, width * .58);
+      }
+      if (kind === "ascendinghelix") turns = Math.min(8, Math.max(2, turns + Math.floor(r(-1, 2))));
+      if (kind === "station") width = r(10, 20);
     }
     return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
 }
@@ -332,7 +371,7 @@ export class MiniTrack implements MiniRail {
   private random: () => number;
   private bag: MiniKind[] = [];
   private bags = 0;
-  constructor(seed = Math.floor(Math.random() * 0xffffffff)) {
+  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean } = {}) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
     // Retain real rail behind the six coaches on the opening hill.
@@ -348,21 +387,27 @@ export class MiniTrack implements MiniRail {
         1,
       ),
     );
-    const firstHill = new MiniSection(-1, "firsthill", 0, new THREE.Vector3(0, 4, 0), 90, 22, 0, 1);
+    const firstHill = new MiniSection(-1, "firsthill", 0, new THREE.Vector3(0, 4, 0),
+      options.generative ? 80 + this.random()*28 : 90, options.generative ? 22 + this.random()*6 : 22, 0, 1);
     this.sections.push(firstHill);
     // Just over the broad crest: a gentle roll immediately gains speed from gravity.
     this.startDistance = firstHill.start + firstHill.length / 2 + 2;
     this.append("station");
-    this.append("hill");
-    this.append("loop");
-    this.append("skyhill");
-    this.append("corkscrew");
-    this.append("helix");
-    this.append("dip");
-    this.append("jump");
-    this.append("invertedhill");
-    this.append("verticalhill");
-    this.append("triplehelix");
+    if (options.generative) {
+      const gentle: MiniKind[] = ["hill", "dip", "heartline", "corkscrew", "waveturn"];
+      this.append(gentle[Math.floor(this.random()*gentle.length)]);
+    } else {
+      this.append("hill");
+      this.append("loop");
+      this.append("skyhill");
+      this.append("corkscrew");
+      this.append("helix");
+      this.append("dip");
+      this.append("jump");
+      this.append("invertedhill");
+      this.append("verticalhill");
+      this.append("triplehelix");
+    }
     this.ensure(this.startDistance);
   }
   get end() {
@@ -372,7 +417,7 @@ export class MiniTrack implements MiniRail {
     const previous = this.sections.at(-1);
     this.sections.push(createMiniSection(kind, previous?.end ?? 0,
       previous ? previous.frames.at(-1)!.position.clone() : new THREE.Vector3(0, 4, 0),
-      this.generated++, this.random));
+      this.generated++, this.random, !!this.options.generative));
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
@@ -386,11 +431,18 @@ export class MiniTrack implements MiniRail {
           return result;
         };
         const { chapter } = rideProgress(this.end);
-        const challenges = shuffle(CHALLENGES[chapter]);
+        const challenges = shuffle(this.options.generative
+          ? ["loop", "helix", "skyhill", "invertedhill", "verticalhill", "triplehelix", "jump",
+            "ascendinghelix", "zerogstall", "immelmann", "noninvertingloop", "interlockingloops", "diveloop",
+            "tophat", "cobraroll", "pretzelknot", ...(chapter > 0 ? ["nestedloop" as const] : [])] as MiniKind[]
+          : CHALLENGES[chapter]).filter(kind => !this.options.generative || this.end >= 350 || kind !== "jump").slice(0, 6);
+        if (this.options.generative) challenges[1 + Math.floor(this.random() * 5)] = "splash";
         const recovery = shuffle(RECOVERY);
         // A tower or water jump is an occasional event, followed by a breather.
-        if (++this.bags % 2 === 0) challenges[4] = "jump";
-        if (this.bags % 2 === 1) challenges[5] = "triplehelix";
+        if (!this.options.generative) {
+          if (++this.bags % 2 === 0) challenges[4] = "jump";
+          if (this.bags % 2 === 1) challenges[5] = "triplehelix";
+        }
         const sequence = challenges.flatMap((kind, i) => [recovery[i], kind]);
         this.bag = sequence.reverse();
       }
@@ -420,6 +472,7 @@ export class MiniTrack implements MiniRail {
     return Math.max(after, last.end + x - last.frames.at(-1)!.position.x);
   }
   hasRail(distance: number) { return this.sectionAt(distance).hasRail(distance); }
+  waterDepth(distance: number) { return this.sectionAt(distance).waterDepth(distance); }
   jumpAt(distance: number) {
     const section = this.sectionAt(distance);
     return section.kind === "jump" && distance >= section.takeoff && distance < section.end
@@ -436,6 +489,8 @@ export class MiniTrack implements MiniRail {
   slope(distance: number) {
     return this.sectionAt(distance).slope(distance);
   }
+  metric(distance: number) { return this.sectionAt(distance).metric(distance); }
+  followerDistance(distance: number, offset: number) { return distance - offset; }
   height(distance: number) {
     return this.sectionAt(distance).height(distance);
   }

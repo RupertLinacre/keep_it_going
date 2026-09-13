@@ -12,6 +12,7 @@ import {
 } from "./games/mini-track";
 import { ELEMENT_NAMES } from "./games/mini-progression";
 import { seededRandom } from "./games/mini-rail";
+import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
@@ -37,6 +38,7 @@ const descriptions: Record<MiniKind, string> = {
   invertedhill: "The rail rolls upside down across the crown of a tall hill.",
   verticalhill: "Straight vertical faces connected by rounded transitions.",
   jump: "A launch ramp over water, followed by a short landing section. The gap has no rail.",
+  splash: "A shallow flooded trough with continuous rails. The train throws up a huge bow splash and loses speed while submerged, then climbs back out. This is a permanent track feature, independent of power-ups.",
   heartline:
     "A complete roll around a point above the track, keeping the twist compact.",
   zerogstall:
@@ -113,6 +115,7 @@ const materials = {
   coach: new THREE.MeshStandardMaterial({ color: "#d74e50" }),
   roof: new THREE.MeshStandardMaterial({ color: "#fff5d8" }),
 };
+const floodMaterials = new Map<string, THREE.MeshStandardMaterial>();
 const coach = new THREE.Group();
 const body = new THREE.Mesh(
   new THREE.BoxGeometry(1.25, 0.8, 2),
@@ -257,6 +260,14 @@ function rebuild() {
     );
     water.position.set(section.width * 0.42, -2.7, 0);
     group.add(water);
+  }
+  if (kind === "splash") {
+    group.add(floodedPool(section, color => {
+      if (!floodMaterials.has(color)) floodMaterials.set(color, new THREE.MeshStandardMaterial({ color, roughness: .4 }));
+      return floodMaterials.get(color)!;
+    }));
+    bounds.expandByPoint(new THREE.Vector3(section.width/2, section.waterLevel + 1.8, 8));
+    bounds.expandByPoint(new THREE.Vector3(section.width/2, section.waterLevel - .7, -8));
   }
   $("#piece-title").textContent = title(kind);
   $("#description").textContent = descriptions[kind];

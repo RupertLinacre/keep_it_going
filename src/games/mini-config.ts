@@ -22,11 +22,12 @@ export const MINI_COACH_HOP_DURATION = 0.8;
 export const MINI_COUPLING_LOAD_THRESHOLD = 150;
 // Only the tail drawbar can break; the remaining chain stays tethered to the engine.
 export const MINI_COUPLING_STRENGTH = 250;
-export const parcelOffsets = (count: number) => Array.from({ length: Math.min(count, MINI_PARCELS_PER_WAGON) }, (_, i) => ({
+export const MINI_POWER_PARCELS = 8;
+export const parcelOffsets = (count: number, limit = MINI_PARCELS_PER_WAGON) => Array.from({ length: Math.min(count, limit) }, (_, i) => ({
   x: 0, y: 1 + Math.floor(i / 2) * 0.7, z: i % 2 ? 0.47 : -0.47,
 }));
 /** A short staggered drop as fresh parcels settle into their wagon. */
-export const parcelPresentation = (count: number, age: number) => parcelOffsets(count).map((offset, i) => {
+export const parcelPresentation = (count: number, age: number, limit = MINI_PARCELS_PER_WAGON) => parcelOffsets(count, limit).map((offset, i) => {
   const delay = count > 1 ? i / (count - 1) * 0.14 : 0;
   const t = Math.min(1, Math.max(0, (age - delay) / 0.38));
   const scale = Math.min(1, t * 4);

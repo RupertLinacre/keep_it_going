@@ -1,6 +1,7 @@
 import { Quaternion, Vector3 } from "three";
 import { clamp } from "../math";
-import { rideResistance } from "../difficulty";
+import { powerPhysics, type RacePowerState } from "../games/ride-powerups";
+import { railAcceleration } from "../games/mini-physics";
 import type { Difficulty } from "../types";
 import type { MiniTrack } from "../games/mini-track";
 import type { Body, Motion, Quat, RideState, Vec } from "./protocol";
@@ -21,17 +22,24 @@ function motion<T extends Motion>(a: T, b: T, span: number, t: number): T {
     : lerpVec(a.position, b.position, t);
   return { ...a, position, rotation: lerpQuat(a.rotation, b.rotation, t) };
 }
-function drift<T extends Motion>(body: T, dt: number): T {
+function drift<T extends Motion>(body: T, dt: number, gravity = 9.81): T {
   if (!body.velocity) return body;
   const position = body.position.map((v, i) => v + body.velocity![i]*dt) as Vec;
   // Only predict airborne motion briefly. The next authoritative state handles contact.
-  position[1] = Math.max(.15, position[1] - 4.905*dt*dt);
+  const g = gravity < 0 && body.id?.startsWith("coach-") ? 9.81 : gravity;
+  position[1] = Math.max(.15, position[1] - .5*g*dt*dt);
   const rotation = new Quaternion(...body.rotation);
   if (body.spin) {
     const spin = new Vector3(...body.spin), rate = spin.length();
     if (rate) rotation.premultiply(new Quaternion().setFromAxisAngle(spin.divideScalar(rate), rate*dt));
   }
   return { ...body, position, rotation: rotation.toArray() };
+}
+
+function powerAt(power: RacePowerState | undefined, dt: number) {
+  if (!power?.active) return power;
+  const remaining = Math.max(0, power.remaining - dt);
+  return { ...power, remaining, age: Math.min(20, power.age+dt), active: remaining ? power.active : undefined };
 }
 
 /** Display the opponent on their simulation clock, independent of packet arrivals.
@@ -91,14 +99,16 @@ export class OpponentGhost {
   }
   private blend(a: RideState, b: RideState, t: number): RideState {
     const span = b.time - a.time;
+    const gravity = powerPhysics(a.power?.active, this.difficulty).gravity;
     const next = new Map(b.bodies.map(body => [body.id, body]));
     const parcels = new Map(b.parcels.filter(p => p.id).map(p => [p.id, p]));
     return {
       ...a, time: lerp(a.time, b.time, t),
+      power: powerAt(a.power, span*t),
       distance: curve(a.distance, b.distance, a.speed, b.speed, span, t), speed: lerp(a.speed, b.speed, t),
       bodies: a.bodies.map(body => {
         const end = next.get(body.id);
-        if (!end) return drift(body, span*t);
+        if (!end) return drift(body, span*t, gravity);
         let blended = { ...motion(body, end, span, t), cargoAge: lerp(body.cargoAge, end.cargoAge, t) };
         if (body.rail && end.rail) blended = { ...blended, rail: { ...body.rail,
           distance: curve(body.rail.distance, end.rail.distance, body.rail.speed, end.rail.speed, span, t),
@@ -116,7 +126,7 @@ export class OpponentGhost {
       }),
       parcels: a.parcels.map(p => {
         const end = p.id ? parcels.get(p.id) : undefined;
-        return end ? motion(p, end, span, t) : drift(p, span*t);
+        return end ? motion(p, end, span, t) : drift(p, span*t, gravity);
       }),
       links: a.links.map((link, i) => ({ ...link,
         start: b.links[i] ? lerpVec(link.start, b.links[i].start, t) : link.start,
@@ -126,23 +136,24 @@ export class OpponentGhost {
   private predict(state: RideState, ahead: number): RideState {
     if (state.ended || ahead <= 0) return state;
     const dt = .2 * (1 - Math.exp(-ahead / .2));
-    const resistance = rideResistance(this.difficulty);
+    const resistance = powerPhysics(state.power?.active, this.difficulty);
     const bodies = state.bodies.map(body => {
-      if (!body.rail || !this.track) return drift(body, dt);
+      if (!body.rail || !this.track) return drift(body, dt, resistance.gravity);
       let distance = body.rail.distance, speed = body.rail.speed;
       if (distance < this.track.sections[0].start || distance > this.track.end) return drift(body, dt);
       for (let elapsed = 0; elapsed < dt;) {
         const h = Math.min(1/120, dt - elapsed);
-        const nextSpeed = Math.max(0, speed + h * (-9.81*this.track.slope(distance) - resistance.drag*speed*speed - resistance.rolling));
-        const nextDistance = distance + (speed + nextSpeed)*.5*h;
+        const options = state.power?.active && elapsed >= state.power.remaining ? powerPhysics(undefined,this.difficulty) : resistance;
+        const nextSpeed = Math.max(0, speed + h * railAcceleration(this.track, distance, speed, options));
+        const nextDistance = distance + (speed + nextSpeed)*.5*h / this.track.metric(distance);
         if (!this.track.hasRail(nextDistance) || nextDistance > this.track.end) break;
         distance = nextDistance; speed = nextSpeed; elapsed += h;
       }
       return this.railBody({ ...body, rail: { ...body.rail, distance, speed,
         lift: Math.max(0, body.rail.lift + body.rail.liftSpeed*dt - 15*dt*dt) } });
     });
-    return { ...state, distance: state.distance + state.speed*dt, bodies,
-      parcels: state.parcels.map(p => drift(p, dt)) };
+    return { ...state, time: state.time+dt, distance: state.distance + state.speed*dt, bodies, power: powerAt(state.power, dt),
+      parcels: state.parcels.map(p => drift(p, dt, resistance.gravity)) };
   }
   private evaluate(): RideState {
     const cursor = this.cursor ?? this.samples[0].time;

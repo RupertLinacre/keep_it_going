@@ -73,3 +73,27 @@ export function railGeometries(section: MiniSection, from: number, to: number) {
     return geometry;
   });
 }
+
+/** Update existing buffers while the height experiment moves the rails. */
+export function refreshRails(section: MiniSection, from: number, to: number, rails: THREE.BufferGeometry[]) {
+  const segments = rails[0].getAttribute("position").count / 7 - 1;
+  for (let i = 0; i <= segments; i++) {
+    const f = section.sample(from + (to - from) * i / segments);
+    for (let j = 0; j <= 6; j++) {
+      const c = Math.cos(j / 6 * Math.PI * 2), s = Math.sin(j / 6 * Math.PI * 2);
+      const nx = f.right.x*c + f.up.x*s, ny = f.right.y*c + f.up.y*s, nz = f.right.z*c + f.up.z*s;
+      for (let r = 0; r < 2; r++) {
+        const geometry = rails[r], offset = r ? .57 : -.57, at = i*7 + j;
+        geometry.getAttribute("position").setXYZ(at, f.position.x - section.origin.x + f.right.x*offset + nx*.095,
+          f.position.y - section.origin.y + f.right.y*offset + ny*.095,
+          f.position.z - section.origin.z + f.right.z*offset + nz*.095);
+        geometry.getAttribute("normal").setXYZ(at, nx, ny, nz);
+      }
+    }
+  }
+  for (const geometry of rails) {
+    geometry.getAttribute("position").needsUpdate = true;
+    geometry.getAttribute("normal").needsUpdate = true;
+    geometry.computeBoundingSphere();
+  }
+}
