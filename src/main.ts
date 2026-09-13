@@ -39,7 +39,7 @@ function solo(tables: number[], difficulty: Difficulty) {
 }
 function race(round: Round) {
   unlockAudio();
-  cleanup = mountGame(shell(true), round.difficulty, () => {}, { tables: round.tables, network: session, round, menu });
+  cleanup = mountGame(shell(true), session?.role === "guest" ? round.guestDifficulty : round.difficulty, () => {}, { tables: round.tables, network: session, round, menu });
 }
 function menu() {
   if (app.querySelector(".standalone-game")) {

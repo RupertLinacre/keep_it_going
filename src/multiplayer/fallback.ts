@@ -1,3 +1,4 @@
+import { riderColor } from "./identity";
 import { Quaternion, Vector3 } from "three";
 import { gradient, line, roundRect, circle } from "../draw";
 import { clamp } from "../math";
@@ -45,7 +46,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
       const forward = new Vector3(0, 0, -1).applyQuaternion(rival ? mirrorRotation(rotation) : rotation);
       ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(-forward.y + forward.z * .38, forward.x - forward.z * .17)); ctx.scale(scale / 19, scale / 19);
       const open = isParcelWagon(body.color);
-      roundRect(ctx, -18, open ? -14 : -25, 36, open ? 11 : 22, 4, rival ? "#e48670" : "#68bdb0", "#6c8e80");
+      roundRect(ctx, -18, open ? -14 : -25, 36, open ? 11 : 22, 4, riderColor(game.riderRole, rival), "#6c8e80");
       if (!open) roundRect(ctx, -19, -28, 38, 5, 2, "#fff0ca");
       for (const parcel of parcelPresentation(body.cargo, body.cargoAge)) {
         const px = parcel.z > 0 ? 2 : -15, py = -27 - (parcel.y - 1) * 20;
@@ -62,7 +63,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
       for (const p of impact.particles) {
         const [x, y] = project(new Vector3(...p.position), rival);
         const size = p.size * scale * 2 * Math.max(0, 1 - impact.age / 2);
-        roundRect(ctx, x - size / 2, y - size / 2, size, size, 1, impact.water ? "#58b9c9" : "#e9a06f");
+        roundRect(ctx, x - size / 2, y - size / 2, size, size, 1, impact.water ? "#58b9c9" : riderColor(game.riderRole, rival));
       }
     }
     for (const parcel of state.parcels) {

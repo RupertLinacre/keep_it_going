@@ -1,3 +1,4 @@
+import { riderColor } from "./multiplayer/identity";
 import { sound, unlockAudio } from "./audio";
 import { H, W } from "./draw";
 import { Mini } from "./games/mini";
@@ -18,6 +19,10 @@ export function mountGame(
   let raf = 0;
   let game: Mini | undefined;
   const network = settings.network;
+  if (network) {
+    root.style.setProperty("--rider-color", riderColor(network.role));
+    root.style.setProperty("--opponent-color", riderColor(network.role, true));
+  }
   const ghost = network ? new OpponentGhost() : undefined;
   const subscriptions: (() => void)[] = [];
   let countdown = Infinity;
@@ -199,7 +204,7 @@ export function mountGame(
   }
 
   try {
-    game = new Mini(host, settings.round?.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed, multiplayer: !!network });
+    game = new Mini(host, settings.round?.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed, multiplayer: !!network, riderRole: network?.role });
     game.opponent = ghost;
     if (network) { ghost!.push(snapshotRide(game, 0)); syncRaceOverlay(); network.ready(); }
     const frame = (now: number) => {

@@ -1,3 +1,4 @@
+import { riderColor, riderColorIndex } from "../src/multiplayer/identity.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
@@ -146,7 +147,7 @@ test("invite, shared start, independent inputs, pause, final results and mutual 
     assert.equal(host.opponent, "Bob"); assert.equal(guest.opponent, "Alice"); assert.deepEqual(guest.tables, [7]);
     host.on("prepare", () => host.ready()); guest.on("prepare", () => guest.ready());
     host.start(); await until(() => guest.phase === "countdown");
-    assert.equal(guest.difficulty, "very-easy"); assert.equal(guest.round!.difficulty, "very-easy");
+    assert.equal(guest.difficulty, "normal"); assert.equal(host.opponentDifficulty, "normal"); assert.equal(guest.opponentDifficulty, "very-easy"); assert.equal(guest.round!.guestDifficulty, "normal"); assert.equal(guest.round!.difficulty, "very-easy");
     assert.deepEqual(host.round, guest.round); assert.ok(Math.abs(host.startsAt - guest.startsAt) < 50);
     host.begin(); guest.begin();
     let remote: RideState | undefined; guest.on("state", state => { remote = state; });
@@ -202,4 +203,12 @@ test("countdown waits until both games have loaded and completed results survive
     assert.equal(guest.phase, "complete"); assert.equal(guest.localResult!.distance, 27);
     assert.equal(guest.remoteResult!.distance, 25); guest.rematch(); assert.equal(guest.localRematch, false);
   } finally { host.close(); guest.close(); }
+});
+
+test("identity colours match across screens independently of foreground placement", () => {
+  assert.equal(riderColor("host"), riderColor("guest", true));
+  assert.equal(riderColor("guest"), riderColor("host", true));
+  assert.notEqual(riderColor("host"), riderColor("guest"));
+  assert.equal(riderColorIndex("host"), riderColorIndex("guest", true));
+  assert.equal(riderColorIndex("guest"), riderColorIndex("host", true));
 });

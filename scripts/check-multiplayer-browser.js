@@ -55,16 +55,24 @@ async (page) => {
     await mobile.goto(`${base}?join=${code}`);
     assert(await mobile.getByRole('textbox', { name: 'Their four-character code' }).inputValue() === code, 'Invite link prefills the code');
     await mobile.getByRole('textbox', { name: 'Your name (optional)' }).fill('Bob');
+    await mobile.locator('#multiplayer-difficulty').selectOption('easy');
     await mobile.screenshot({ path: `output/playwright/multiplayer-phone-join${suffix}.png`, scale: 'css' });
     await mobile.getByRole('button', { name: 'Join →', exact: true }).click();
     await page.getByRole('button', { name: 'Start the race →' }).waitFor({ timeout: 25000 });
     await mobile.getByText('You’re connected. Your friend will start the ride.', { exact: true }).waitFor({ timeout: 25000 });
     assert((await mobile.locator('.lobby-tables').innerText()).endsWith('· 7'), 'Host selection is shared');
     check('Real PeerJS invite/link joining succeeds; host tables apply on both devices.');
-    assert((await mobile.locator('.lobby-tables').innerText()).includes('Very easy'), 'Host difficulty is shared with mobile guest');
+    assert((await mobile.locator('.lobby-riders').innerText()).includes('(you) · Easy'), 'Guest keeps their own difficulty');
+    assert((await page.locator('.lobby-riders').innerText()).includes('(you) · Very easy'), 'Host keeps their own difficulty');
+    const dots = async (p, selector) => p.locator(selector).evaluateAll(elements => elements.map(e => getComputedStyle(e).backgroundColor));
+    const hostColors = await dots(page, '.lobby-riders .rider-dot');
+    const guestColors = await dots(mobile, '.lobby-riders .rider-dot');
+    assert(hostColors[0] === guestColors[1] && hostColors[1] === guestColors[0] && hostColors[0] !== hostColors[1], 'Player colours agree in both lobbies');
     await page.getByRole('button', { name: 'Start the race →' }).click();
     await waitFor(page, '.game-overlay[hidden]'); await waitFor(mobile, '.game-overlay[hidden]');
     assert(await visible(mobile, '.number-pad'), 'Mobile has the touch keypad');
+    assert(JSON.stringify(await dots(page, '.race-hud .rider-dot')) === JSON.stringify(hostColors), 'Host HUD retains identity colours');
+    assert(JSON.stringify(await dots(mobile, '.race-hud .rider-dot')) === JSON.stringify(guestColors), 'Guest HUD retains identity colours');
     if (softwareRenderer) assert(await mobile.locator('.mini-canvas').count() === 0, 'WebGL is unavailable and the software renderer is being used');
     assert(await page.locator('.prompt h2').innerText() === await mobile.locator('.prompt h2').innerText(), 'Both players start with the same question');
     // Capture actual frame intervals while the two clients are running together.

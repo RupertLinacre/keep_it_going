@@ -1,3 +1,4 @@
+import type { RiderRole } from "../multiplayer/identity";
 import { rideResistance } from "../difficulty";
 import { BaseGame } from "./base";
 import { MiniTrack } from "./mini-track";
@@ -50,8 +51,10 @@ export class Mini extends BaseGame {
   private readonly compactHud = typeof window !== "undefined" ? window.matchMedia("(max-width: 800px), (hover: none) and (pointer: coarse)") : undefined;
   private nextQuestion?: () => [number, number];
   opponent?: OpponentGhost;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean } = {}) {
+  riderRole: RiderRole = "host";
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole } = {}) {
     super(host);
+    this.riderRole = options.riderRole ?? "host";
     this.personalBest = bestRide(host.difficulty);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
     this.track = new MiniTrack(seed);
@@ -62,7 +65,7 @@ export class Mini extends BaseGame {
     this.hud();
     try {
       this.setup();
-      if (options.multiplayer && this.view) this.view.multiplayer = true;
+      if (options.multiplayer && this.view) { this.view.multiplayer = true; this.view.riderRole = this.riderRole; }
     } catch (error) {
       console.warn("WebGL unavailable; using the miniature side view.", error);
     }

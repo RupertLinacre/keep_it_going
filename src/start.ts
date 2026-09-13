@@ -1,3 +1,4 @@
+import { riderColor } from "./multiplayer/identity";
 import { DIFFICULTIES, DIFFICULTY_LABELS, normalizeDifficulty } from "./difficulty";
 import type { Difficulty } from "./types";
 import { ALL_TABLES, DEFAULT_TABLES, normalizeTables } from "./questions";
@@ -35,7 +36,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <span class="start-kicker">ALL ABOARD</span><h2>Choose your ride</h2>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
           <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">Easier rides keep momentum longer, so you can answer less often. The host chooses for both riders.</p>
+          <p class="difficulty-help" id="difficulty-help">Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty.</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
             <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
@@ -52,6 +53,9 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <button class="text-button back-button" data-back>← Back</button>
           <span class="start-kicker">BETTER TOGETHER</span><h2>Bring a friend</h2>
           <p class="setup-copy">Two tracks. The same questions.<br>Whoever travels furthest wins.</p>
+          <label class="setup-label" for="multiplayer-difficulty">Your difficulty</label>
+          <select class="setup-input difficulty-select" id="multiplayer-difficulty">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
+          <p class="difficulty-help">Choose a challenge that suits you. Your friend can choose a different level.</p>
           <label class="setup-label" for="rider-name">Your name <span>(optional)</span></label>
           <input class="setup-input" id="rider-name" maxlength="18" autocomplete="nickname" placeholder="Rider" value="${escape(settings.name)}">
           <button class="primary-button full-button create-invite" data-create>Create an invite →</button>
@@ -86,13 +90,15 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     const ready = session.phase === "ready";
     const error = session.phase === "error";
     const inviteReady = host && ["waiting", "ready"].includes(session.phase);
+    q("[data-lobby]").style.setProperty("--rider-color", riderColor(session.role));
+    q("[data-lobby]").style.setProperty("--opponent-color", riderColor(session.role, true));
     q("[data-lobby]").innerHTML = `
       <button class="text-button back-button" data-lobby-back>← ${error ? "Try again" : "Leave lobby"}</button>
       <span class="start-kicker">${error ? "LET’S TRY THAT AGAIN" : ready ? "TWO RIDERS, READY" : "YOUR PRIVATE RIDE"}</span>
       <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : "Joining your friend"}</h2>
       ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>2 players</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
       <p class="lobby-status ${error ? "is-error" : ""}" role="status">${escape(session.status)}</p>
-      ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you)</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)}</span></div><p class="lobby-tables">${DIFFICULTY_LABELS[session.difficulty]} · Shared times tables · ${session.tables.join(", ")}</p>` : ""}
+      ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you) · ${DIFFICULTY_LABELS[session.difficulty]}</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)} <small>${DIFFICULTY_LABELS[session.opponentDifficulty]}</small></span></div><p class="lobby-tables">Shared times tables · ${session.tables.join(", ")}</p>` : ""}
       ${host && !error ? `<button class="primary-button full-button" data-start-race ${ready ? "" : "disabled"}>${ready ? "Start the race →" : "Waiting for your friend…"}</button>` : ""}
       <p class="copy-status" data-copy-status role="status"></p>`;
   };
@@ -111,7 +117,12 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   };
   root.addEventListener("change", event => {
     const input = event.target as HTMLInputElement;
-    if (input.id === "ride-difficulty") { persist(); return; }
+    if (["ride-difficulty", "multiplayer-difficulty"].includes(input.id)) {
+      const level = normalizeDifficulty(input.value);
+      q<HTMLSelectElement>("#ride-difficulty").value = level;
+      q<HTMLSelectElement>("#multiplayer-difficulty").value = level;
+      persist(); return;
+    }
     if (input.name !== "table") return;
     input.checked ? selected.add(Number(input.value)) : selected.delete(Number(input.value));
     updateTables();

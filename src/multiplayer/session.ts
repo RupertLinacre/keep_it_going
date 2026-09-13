@@ -24,6 +24,7 @@ export class RaceSession {
   opponent = "Friend";
   tables: number[] = normalizeTables(undefined);
   difficulty: Difficulty = "normal";
+  opponentDifficulty: Difficulty = "normal";
   status = "";
   connected = false;
   round?: Round;
@@ -115,7 +116,7 @@ export class RaceSession {
     connection.on("open", () => {
       if (attempt !== this.attempt) return;
       this.lastActivity = performance.now();
-      if (this.role === "guest") this.send({ kind: "hello", version: PROTOCOL, name: this.name });
+      if (this.role === "guest") this.send({ kind: "hello", version: PROTOCOL, name: this.name, difficulty: this.difficulty });
       clearInterval(this.heartbeat);
       this.heartbeat = setInterval(() => {
         if (performance.now() - this.lastActivity > 15000) {
@@ -149,13 +150,14 @@ export class RaceSession {
         this.send({ kind: "error", message: "You’re using different game versions. Both refresh the page, then create a new invite." });
         this.fail("Your friend is using a different version. Both refresh the page and try again."); return;
       }
+      this.opponentDifficulty = message.difficulty;
       this.opponent = cleanName(message.name); this.connected = true; this.phase = "ready";
       this.status = "You’re both here. Ready to ride!";
       clearTimeout(this.timeout);
       this.send({ kind: "lobby", name: this.name, tables: this.tables, difficulty: this.difficulty }); this.change(); return;
     }
     if (message.kind === "lobby" && this.role === "guest" && this.phase === "opening") {
-      this.opponent = message.name; this.tables = message.tables; this.difficulty = message.difficulty; this.connected = true; this.phase = "ready";
+      this.opponent = message.name; this.tables = message.tables; this.opponentDifficulty = message.difficulty; this.connected = true; this.phase = "ready";
       this.status = "You’re connected. Your friend will start the ride.";
       clearTimeout(this.timeout); this.change(); return;
     }
@@ -181,7 +183,7 @@ export class RaceSession {
   start() {
     if (this.role !== "host" || !this.connected || !["ready", "complete"].includes(this.phase)) return;
     const seed = crypto.getRandomValues(new Uint32Array(2));
-    const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: seed[0], questionSeed: seed[1], tables: [...this.tables], difficulty: this.difficulty };
+    const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: seed[0], questionSeed: seed[1], tables: [...this.tables], difficulty: this.difficulty, guestDifficulty: this.opponentDifficulty };
     this.send({ kind: "prepare", round }); this.prepare(round);
   }
   private prepare(round: Round) {

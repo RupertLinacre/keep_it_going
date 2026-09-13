@@ -18,11 +18,15 @@ test("five levels retain successively less momentum with identical launch and bo
   assert.equal(normalizeDifficulty("invalid"), "normal");
 });
 
-test("multiplayer requires a valid shared difficulty", () => {
+test("multiplayer requires valid individual difficulties", () => {
   for (const difficulty of DIFFICULTIES) {
-    const round = { id: "test", seed: 42, questionSeed: 9, tables: [7], difficulty };
+    const round = { id: "test", seed: 42, questionSeed: 9, tables: [7], difficulty, guestDifficulty: "easy" };
     assert.ok(parseWire({ kind: "prepare", round }));
     assert.ok(parseWire({ kind: "lobby", name: "Sam", tables: [7], difficulty }));
   }
   assert.equal(parseWire({kind: "prepare", round: { id: "test", seed: 42, questionSeed: 9, tables: [7], difficulty: "impossible" }}), undefined);
 });
+
+ test("rounds reject a missing or invalid guest difficulty", () => {
+   for (const guestDifficulty of [undefined, "impossible", 2]) assert.equal(parseWire({kind: "prepare", round: { id: "test", seed: 42, questionSeed: 9, tables: [7], difficulty: "normal", guestDifficulty }}), undefined);
+ });

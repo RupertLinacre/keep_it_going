@@ -1,3 +1,4 @@
+import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
 import * as THREE from "three";
 import { mergeStaticMeshes, railGeometries } from "./mini-mesh";
 import { MiniTrack, type MiniSection } from "./mini-track";
@@ -26,6 +27,7 @@ export class MiniView {
   readonly renderer: THREE.WebGLRenderer;
   readonly train: THREE.InstancedMesh[] = [];
   multiplayer = false;
+  riderRole: RiderRole = "host";
   private laneOffset = 0;
   private laneGeneration = -1;
   private readonly opponentPieces = new Map<number, THREE.Group>();
@@ -485,13 +487,13 @@ export class MiniView {
     const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
       if (isParcelWagon(index)) {
-        open.push(matrix); openColors.push(this.multiplayer ? (rival ? -1 : -2) : index);
+        open.push(matrix); openColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index);
         if (loaded) for (const offset of parcelPresentation(loaded, cargoAge)) {
           if (offset.scale <= 0) continue;
           cargo.push(matrix.clone().multiply(new THREE.Matrix4().compose(
             new THREE.Vector3(offset.x, offset.y, offset.z), new THREE.Quaternion(), new THREE.Vector3().setScalar(offset.scale))));
         }
-      } else { closed.push(matrix); closedColors.push(this.multiplayer ? (rival ? -1 : -2) : index); }
+      } else { closed.push(matrix); closedColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index); }
     };
     const attached = poses ?? Array.from({ length: count }, (_, index) => ({
       frame: this.track.sample(distance - index * MINI_CART_SPACING), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0, cargoAge: 1 },
@@ -565,7 +567,7 @@ export class MiniView {
         dummy.scale.setScalar(particle.size * 2 * Math.max(0, 1 - explosion.age / 2));
         dummy.updateMatrix();
         this.debris.setMatrixAt(chunks, dummy.matrix);
-        this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : i % 3 ? CART_COLORS[explosion.colorIndex % CART_COLORS.length] : new THREE.Color("#ffa451"));
+        this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : i % 3 ? (this.multiplayer ? new THREE.Color(riderColor(this.riderRole, !!explosion.rival)) : CART_COLORS[explosion.colorIndex % CART_COLORS.length]) : new THREE.Color("#ffa451"));
       }
       dummy.position.copy(lane(explosion.position, explosion.rival)); dummy.position.x -= anchor;
       dummy.rotation.set(0, 0, 0);

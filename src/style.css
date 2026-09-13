@@ -1053,8 +1053,8 @@ kbd {
 .lobby-riders { display: grid; gap: 12px; padding: 17px; border-radius: 12px; background: #f3f6ee; margin: 18px 0 12px; font-size: 14px; }
 .lobby-riders > span { display: flex; align-items: center; gap: 9px; }
 .lobby-riders small { color: #94a08f; }
-.rider-dot { display: inline-block; background: #68bdb0; width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.rider-dot.opponent { background: #e48670; }
+.rider-dot { display: inline-block; background: var(--rider-color, #68bdb0); width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.rider-dot.opponent { background: var(--opponent-color, #e48670); }
 .lobby-tables { font-size: 11px; color: #819080; line-height: 1.5; margin-bottom: 20px; }
 .copy-status { font-size: 11px; text-align: center; color: #65866a; margin-top: 12px; }
 .copy-status:empty { display: none; }
