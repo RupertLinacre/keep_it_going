@@ -9,7 +9,7 @@ import "@fontsource/dm-sans/latin-600.css";
 import "@fontsource/dm-sans/latin-700.css";
 import "./style.css";
 import { mountGame } from "./runner";
-import { save } from "./storage";
+import type { Difficulty } from "./types";
 import { mountStart } from "./start";
 import { unlockAudio } from "./audio";
 import type { RaceSession } from "./multiplayer/session";
@@ -33,13 +33,13 @@ function shell(playing: boolean) {
   app.querySelector("[data-menu]")?.addEventListener("click", menu);
   return app.querySelector<HTMLElement>("#main-content")!;
 }
-function solo(tables: number[]) {
+function solo(tables: number[], difficulty: Difficulty) {
   unlockAudio();
-  cleanup = mountGame(shell(true), save.difficulty, () => solo(tables), { tables, menu });
+  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty), { tables, menu });
 }
 function race(round: Round) {
   unlockAudio();
-  cleanup = mountGame(shell(true), "normal", () => {}, { tables: round.tables, network: session, round, menu });
+  cleanup = mountGame(shell(true), round.difficulty, () => {}, { tables: round.tables, network: session, round, menu });
 }
 function menu() {
   if (app.querySelector(".standalone-game")) {

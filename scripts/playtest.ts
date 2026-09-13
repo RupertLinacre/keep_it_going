@@ -1,3 +1,5 @@
+import { rideResistance } from "../src/difficulty.ts";
+import type { Difficulty } from "../src/types.ts";
 /** Reproducible balancing harness using the game's real fixed-step physics and
  * seeded track director. Intervals include thinking, typing, and submitting.
  * These are design assumptions, not measurements of children or players. */
@@ -14,8 +16,8 @@ export const PLAYER_PROFILES: readonly PlayerProfile[] = [
   { name: "Fluent", seconds: 2, jitter: 0.18, accuracy: 0.97, hesitateEvery: 20 },
   { name: "Expert", seconds: 1.25, jitter: 0.15, accuracy: 0.99, hesitateEvery: 25 },
 ];
-export function simulateRide(seed: number, profile: PlayerProfile, limit = 600) {
-  const track = new MiniTrack(seed), physics = new MiniPhysics(track);
+export function simulateRide(seed: number, profile: PlayerProfile, limit = 600, difficulty: Difficulty = "normal") {
+  const track = new MiniTrack(seed), physics = new MiniPhysics(track, rideResistance(difficulty));
   const random = seededRandom(seed ^ 0x5eed1234);
   let next = profile.seconds, answers = 0, attempts = 0, retry = false, lowSeconds = 0;
   let maximumSections = track.sections.length, maximumFrames = 0, maximumHeight = 0;

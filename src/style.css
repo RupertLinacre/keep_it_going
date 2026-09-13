@@ -1122,3 +1122,6 @@ kbd {
   .start-screen.showing-setup .start-intro { display: none; }
   .start-screen.showing-setup .start-card { margin-top: 0; }
 }
+
+.difficulty-select { width: 100%; margin-bottom: 0; }
+.difficulty-help { font-size: 12px; line-height: 1.5; color: #687e70; margin: 8px 0 20px; }

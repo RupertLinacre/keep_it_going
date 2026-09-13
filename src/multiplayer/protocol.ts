@@ -1,6 +1,8 @@
+import { isDifficulty } from "../difficulty";
+import type { Difficulty } from "../types";
 import { normalizeTables } from "../questions";
 
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];
@@ -13,10 +15,10 @@ export type RideState = {
   ended: boolean; impacts: Impact[]; bodies: Body[]; parcels: { position: Vec; rotation: Quat }[]; links: Link[];
 };
 export type RaceResult = { distance: number; correct: number; score: number; water: boolean };
-export type Round = { id: string; seed: number; questionSeed: number; tables: number[] };
+export type Round = { id: string; seed: number; questionSeed: number; tables: number[]; difficulty: Difficulty };
 export type Wire =
   | { kind: "hello"; version: number; name: string }
-  | { kind: "lobby"; name: string; tables: number[] }
+  | { kind: "lobby"; name: string; tables: number[]; difficulty: Difficulty }
   | { kind: "prepare"; round: Round }
   | { kind: "ready"; round: string }
   | { kind: "go"; round: string; delay: number }
@@ -65,9 +67,9 @@ export function parseWire(value: unknown): Wire | undefined {
   if (["ready", "go", "state", "finish", "pause", "rematch"].includes(String(v.kind)) && !text(v.round, 64)) return;
   switch (v.kind) {
     case "hello": if (Number.isInteger(v.version) && text(v.name, 80)) return v as Wire; break;
-    case "lobby": if (text(v.name, 80) && tables(v.tables)) return { kind: "lobby", name: cleanName(v.name), tables: normalizeTables(v.tables) }; break;
+    case "lobby": if (text(v.name, 80) && tables(v.tables) && isDifficulty(v.difficulty)) return { kind: "lobby", name: cleanName(v.name), tables: normalizeTables(v.tables), difficulty: v.difficulty }; break;
     case "prepare": if (object(v.round) && text(v.round.id, 64) && Number.isInteger(v.round.seed) && number(v.round.seed, 0, 0xffffffff)
-      && Number.isInteger(v.round.questionSeed) && number(v.round.questionSeed, 0, 0xffffffff) && tables(v.round.tables)) return v as Wire; break;
+      && Number.isInteger(v.round.questionSeed) && number(v.round.questionSeed, 0, 0xffffffff) && tables(v.round.tables) && isDifficulty(v.round.difficulty)) return v as Wire; break;
     case "ready": case "rematch": case "leave": return v as Wire;
     case "go": if (number(v.delay, 0, 5000)) return v as Wire; break;
     case "state": if (validRideState(v.state)) return v as Wire; break;

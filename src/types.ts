@@ -1,4 +1,4 @@
-export type Difficulty = "easy" | "normal" | "hard";
+export type Difficulty = "very-easy" | "easy" | "normal" | "hard" | "very-hard";
 export type GameId = "mini";
 export type Stat = { label: string; value: string | number };
 

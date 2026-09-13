@@ -74,3 +74,9 @@ npm run deploy
 ```
 
 The command builds both pages and pushes the contents of `dist/` to the `gh-pages` branch on `origin`. GitHub Pages serves that branch’s root. You need Git push access to `RupertLinacre/keep_it_going`. Source code stays on `main`; commit and push source changes separately. Deployment is manual, so pushing `main` alone does not publish. Generated recordings in `output/` stay local.
+
+### Ride difficulty
+
+Choose Very easy, Easy, Medium, Hard or Very hard on the start screen. Medium retains the original balance; momentum loss is respectively 0.3×, 0.55×, 1×, 1.5× and 2.1×. Gravity, starting speed, boost strength and selected times tables stay the same. The setting is remembered, solo replays retain it, and a multiplayer host chooses it for both riders (including rematches). Best scores remain separate by difficulty.
+
+A seeded balance check over eight tracks, with one answer every 3.2 seconds, 20% timing variation, 95% accuracy and a two-minute limit, averaged 4,934 / 4,004 / 3,222 / 2,747 / 1,794 metres from Very easy to Very hard. These are simulated answering assumptions rather than measured player data. `simulateRide` in `scripts/playtest.ts` accepts a difficulty as its fourth argument.

@@ -1,3 +1,5 @@
+import { normalizeDifficulty } from "../difficulty";
+import type { Difficulty } from "../types";
 import type Peer from "peerjs";
 import type { DataConnection } from "peerjs";
 import { normalizeTables } from "../questions";
@@ -21,6 +23,7 @@ export class RaceSession {
   name = "Rider";
   opponent = "Friend";
   tables: number[] = normalizeTables(undefined);
+  difficulty: Difficulty = "normal";
   status = "";
   connected = false;
   round?: Round;
@@ -58,9 +61,10 @@ export class RaceSession {
     clearTimeout(this.timeout); clearInterval(this.heartbeat);
     this.change();
   }
-  async open(role: "host" | "guest", name: string, tables: number[], code = "") {
+  async open(role: "host" | "guest", name: string, tables: number[], code = "", difficulty: Difficulty = "normal") {
     this.close();
     const attempt = ++this.attempt;
+    this.difficulty = normalizeDifficulty(difficulty);
     this.role = role; this.name = cleanName(name); this.tables = normalizeTables(tables);
     this.code = role === "host" ? inviteCode() : cleanCode(code);
     this.phase = "opening";
@@ -148,10 +152,10 @@ export class RaceSession {
       this.opponent = cleanName(message.name); this.connected = true; this.phase = "ready";
       this.status = "You’re both here. Ready to ride!";
       clearTimeout(this.timeout);
-      this.send({ kind: "lobby", name: this.name, tables: this.tables }); this.change(); return;
+      this.send({ kind: "lobby", name: this.name, tables: this.tables, difficulty: this.difficulty }); this.change(); return;
     }
     if (message.kind === "lobby" && this.role === "guest" && this.phase === "opening") {
-      this.opponent = message.name; this.tables = message.tables; this.connected = true; this.phase = "ready";
+      this.opponent = message.name; this.tables = message.tables; this.difficulty = message.difficulty; this.connected = true; this.phase = "ready";
       this.status = "You’re connected. Your friend will start the ride.";
       clearTimeout(this.timeout); this.change(); return;
     }
@@ -177,7 +181,7 @@ export class RaceSession {
   start() {
     if (this.role !== "host" || !this.connected || !["ready", "complete"].includes(this.phase)) return;
     const seed = crypto.getRandomValues(new Uint32Array(2));
-    const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: seed[0], questionSeed: seed[1], tables: [...this.tables] };
+    const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: seed[0], questionSeed: seed[1], tables: [...this.tables], difficulty: this.difficulty };
     this.send({ kind: "prepare", round }); this.prepare(round);
   }
   private prepare(round: Round) {

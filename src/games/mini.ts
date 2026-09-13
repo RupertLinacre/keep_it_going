@@ -1,3 +1,4 @@
+import { rideResistance } from "../difficulty";
 import { BaseGame } from "./base";
 import { MiniTrack } from "./mini-track";
 import { MiniPhysics } from "./mini-physics";
@@ -54,7 +55,7 @@ export class Mini extends BaseGame {
     this.personalBest = bestRide(host.difficulty);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
     this.track = new MiniTrack(seed);
-    this.physics = new MiniPhysics(this.track);
+    this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => this.physics.sample(distance);
     this.next();

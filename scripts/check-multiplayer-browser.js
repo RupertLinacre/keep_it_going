@@ -21,6 +21,8 @@ async (page) => {
   };
   try {
     await page.goto(base);
+    assert(await page.locator("#ride-difficulty option").count() === 5, "Five difficulty levels are available");
+    await page.locator("#ride-difficulty").selectOption("very-easy");
     await page.locator('.table-settings summary').click();
     await page.getByRole('button', { name: 'Clear', exact: true }).click();
     assert(await page.locator('[data-single]').isDisabled(), 'An empty table selection cannot start a solo ride');
@@ -32,6 +34,7 @@ async (page) => {
     assert((await page.locator('.answer-display').innerText()) === value, 'Complete accepted answer remains briefly visible');
     check('One player starts directly; selected table, keyboard acceptance and brief answer display work.');
     await page.getByRole('button', { name: 'Start screen', exact: true }).click();
+    assert(await page.locator('#ride-difficulty').inputValue() === 'very-easy', 'Difficulty persists after a solo ride');
     await page.getByRole('button', { name: '2 players Invite a friend to race' }).click();
     await page.getByRole('textbox', { name: 'Your name (optional)' }).fill('Alice');
     await page.getByRole('button', { name: 'Create an invite →' }).click();
@@ -58,6 +61,7 @@ async (page) => {
     await mobile.getByText('You’re connected. Your friend will start the ride.', { exact: true }).waitFor({ timeout: 25000 });
     assert((await mobile.locator('.lobby-tables').innerText()).endsWith('· 7'), 'Host selection is shared');
     check('Real PeerJS invite/link joining succeeds; host tables apply on both devices.');
+    assert((await mobile.locator('.lobby-tables').innerText()).includes('Very easy'), 'Host difficulty is shared with mobile guest');
     await page.getByRole('button', { name: 'Start the race →' }).click();
     await waitFor(page, '.game-overlay[hidden]'); await waitFor(mobile, '.game-overlay[hidden]');
     assert(await visible(mobile, '.number-pad'), 'Mobile has the touch keypad');

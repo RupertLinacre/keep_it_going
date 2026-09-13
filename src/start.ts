@@ -1,14 +1,16 @@
+import { DIFFICULTIES, DIFFICULTY_LABELS, normalizeDifficulty } from "./difficulty";
+import type { Difficulty } from "./types";
 import { ALL_TABLES, DEFAULT_TABLES, normalizeTables } from "./questions";
 import { RaceSession } from "./multiplayer/session";
 import { cleanCode, validCode } from "./multiplayer/protocol";
 
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-function readSettings(): { tables: number[]; name: string } {
-  try { const v = JSON.parse(localStorage.getItem("keep-going-setup") || "{}"); return { tables: normalizeTables(v.tables), name: typeof v.name === "string" ? v.name.slice(0, 18) : "" }; }
-  catch { return { tables: [...DEFAULT_TABLES], name: "" }; }
+function readSettings(): { tables: number[]; name: string; difficulty: Difficulty } {
+  try { const v = JSON.parse(localStorage.getItem("keep-going-setup") || "{}"); return { difficulty: normalizeDifficulty(v.difficulty), tables: normalizeTables(v.tables), name: typeof v.name === "string" ? v.name.slice(0, 18) : "" }; }
+  catch { return { tables: [...DEFAULT_TABLES], name: "", difficulty: "normal" }; }
 }
 
-export function mountStart(root: HTMLElement, play: (tables: number[]) => void, connect: (session: RaceSession) => void) {
+export function mountStart(root: HTMLElement, play: (tables: number[], difficulty: Difficulty) => void, connect: (session: RaceSession) => void) {
   const controller = new AbortController();
   const settings = readSettings();
   const selected = new Set(settings.tables);
@@ -31,6 +33,9 @@ export function mountStart(root: HTMLElement, play: (tables: number[]) => void, 
       <div class="start-card">
         <div data-choose>
           <span class="start-kicker">ALL ABOARD</span><h2>Choose your ride</h2>
+          <label class="setup-label" for="ride-difficulty">Difficulty</label>
+          <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
+          <p class="difficulty-help" id="difficulty-help">Easier rides keep momentum longer, so you can answer less often. The host chooses for both riders.</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
             <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
@@ -59,6 +64,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[]) => void, 
     </section>`;
   const q = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
   const persist = () => {
+    settings.difficulty = normalizeDifficulty(q<HTMLSelectElement>("#ride-difficulty").value);
     settings.tables = [...selected].sort((a, b) => a - b);
     settings.name = q<HTMLInputElement>("#rider-name").value;
     try { localStorage.setItem("keep-going-setup", JSON.stringify(settings)); } catch {}
@@ -86,7 +92,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[]) => void, 
       <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : "Joining your friend"}</h2>
       ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>2 players</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
       <p class="lobby-status ${error ? "is-error" : ""}" role="status">${escape(session.status)}</p>
-      ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you)</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)}</span></div><p class="lobby-tables">Shared times tables · ${session.tables.join(", ")}</p>` : ""}
+      ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you)</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)}</span></div><p class="lobby-tables">${DIFFICULTY_LABELS[session.difficulty]} · Shared times tables · ${session.tables.join(", ")}</p>` : ""}
       ${host && !error ? `<button class="primary-button full-button" data-start-race ${ready ? "" : "disabled"}>${ready ? "Start the race →" : "Waiting for your friend…"}</button>` : ""}
       <p class="copy-status" data-copy-status role="status"></p>`;
   };
@@ -101,10 +107,11 @@ export function mountStart(root: HTMLElement, play: (tables: number[]) => void, 
     session = new RaceSession(); connect(session);
     off = session.on("change", renderLobby);
     show("lobby");
-    void session.open(role, settings.name, [...selected], code);
+    void session.open(role, settings.name, [...selected], code, settings.difficulty);
   };
   root.addEventListener("change", event => {
     const input = event.target as HTMLInputElement;
+    if (input.id === "ride-difficulty") { persist(); return; }
     if (input.name !== "table") return;
     input.checked ? selected.add(Number(input.value)) : selected.delete(Number(input.value));
     updateTables();
@@ -112,7 +119,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[]) => void, 
   root.addEventListener("click", async event => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
     if (!button || button.disabled) return;
-    if (button.hasAttribute("data-single")) { persist(); play([...selected]); }
+    if (button.hasAttribute("data-single")) { persist(); play([...selected], settings.difficulty); }
     if (button.hasAttribute("data-two")) { show("join-setup"); }
     if (button.hasAttribute("data-back")) show("choose");
     if (button.hasAttribute("data-lobby-back")) { off?.(); session?.close(); show("join-setup"); }

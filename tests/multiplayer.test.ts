@@ -141,11 +141,12 @@ test("invite, shared start, independent inputs, pause, final results and mutual 
   const { factory, registry } = peers();
   const host = new RaceSession(factory), guest = new RaceSession(factory);
   try {
-    await host.open("host", "Alice", [7]); await until(() => host.phase === "waiting");
+    await host.open("host", "Alice", [7], "", "very-easy"); await until(() => host.phase === "waiting");
     await guest.open("guest", "Bob", [2], host.code); await until(() => guest.phase === "ready");
     assert.equal(host.opponent, "Bob"); assert.equal(guest.opponent, "Alice"); assert.deepEqual(guest.tables, [7]);
     host.on("prepare", () => host.ready()); guest.on("prepare", () => guest.ready());
     host.start(); await until(() => guest.phase === "countdown");
+    assert.equal(guest.difficulty, "very-easy"); assert.equal(guest.round!.difficulty, "very-easy");
     assert.deepEqual(host.round, guest.round); assert.ok(Math.abs(host.startsAt - guest.startsAt) < 50);
     host.begin(); guest.begin();
     let remote: RideState | undefined; guest.on("state", state => { remote = state; });

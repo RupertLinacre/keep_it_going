@@ -1,3 +1,4 @@
+import { DIFFICULTIES, normalizeDifficulty } from "./difficulty";
 import type { Difficulty, GameId } from "./types";
 
 interface Save {
@@ -14,13 +15,11 @@ function read(): Save {
   try {
     const saved = JSON.parse(localStorage.getItem("tiny-tracks-v1") || "{}");
     return {
-      difficulty: ["easy", "normal", "hard"].includes(saved.difficulty)
-        ? saved.difficulty
-        : "normal",
+      difficulty: normalizeDifficulty(saved.difficulty),
       muted: saved.muted === true,
       best:
         typeof saved.best === "object" && saved.best !== null ? saved.best : {},
-      rides: Object.fromEntries((["easy", "normal", "hard"] as const).map(difficulty => [difficulty, {
+      rides: Object.fromEntries(DIFFICULTIES.map(difficulty => [difficulty, {
         distance: validRecord(saved.rides?.[difficulty]?.distance),
         jump: validRecord(saved.rides?.[difficulty]?.jump),
       }])),
