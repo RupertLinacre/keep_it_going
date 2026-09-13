@@ -108,7 +108,7 @@ async (page) => {
     }
     await mobile.setViewportSize({ width: 390, height: 844 });
     check('Small-phone and landscape layouts keep all keys visible.');
-    await page.keyboard.press('Escape');
+    await page.keyboard.press('p');
     await mobile.getByRole('heading', { name: 'Alice paused.' }).waitFor();
     await page.waitForTimeout(250);
     const before = await Promise.all([page.locator('[data-your-distance]').innerText(), mobile.locator('[data-your-distance]').innerText()]);

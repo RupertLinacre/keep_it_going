@@ -114,6 +114,13 @@ export class Mini extends BaseGame {
       this.panel();
       return;
     }
+    if (value === "clear") {
+      this.answer = "";
+      this.acceptedAnswer = undefined;
+      this.answerFeedback = "";
+      this.panel();
+      return;
+    }
     if (value === "submit" && this.lock > 0) return;
     // Let fast typists move on early without dropping their next digit.
     if (/^digit:\d$/.test(value) || value === "back") this.acceptedAnswer = undefined;
@@ -159,6 +166,7 @@ export class Mini extends BaseGame {
   key(key: string) {
     if (/^\d$/.test(key)) this.action(`digit:${key}`);
     if (key === "Enter") this.action("submit");
+    if (key === "Escape") this.action("clear");
     if (key === "Backspace") this.action("back");
     if (key.toLowerCase() === "c") this.action("camera");
   }

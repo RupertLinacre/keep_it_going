@@ -270,12 +270,18 @@ export function mountGame(
     if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement) return;
     if (event.repeat) return;
     if (["Enter", " "].includes(event.key) && event.target instanceof HTMLElement && event.target.closest("button, a")) return;
-    if (event.key === "Escape" || event.key.toLowerCase() === "p") {
+    if (event.key.toLowerCase() === "p") {
       event.preventDefault();
       togglePause();
       return;
     }
     if (blocked() || finished) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      game?.key("Escape");
+      canvas.focus({ preventScroll: true });
+      return;
+    }
     if (/^[0-9c]$/i.test(event.key) || ["Enter", "Backspace"].includes(event.key)) {
       event.preventDefault();
       unlockAudio();
