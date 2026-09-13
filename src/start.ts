@@ -37,7 +37,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Roll into the unexpected." : "Choose your ride"}</h2>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
           <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, seven surprise power-ups, and 20 seconds to make each one count. Correct answers usually boost your speed." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
+          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, six surprise power-ups, and flooded splash zones. Easier rides keep momentum longer, giving you more time between answers." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
             <button class="mode-button mode-duo" data-two ${remixMode ? "hidden" : ""}><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>

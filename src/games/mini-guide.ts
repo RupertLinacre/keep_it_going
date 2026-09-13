@@ -26,13 +26,14 @@ export function jumpApproach(track: MiniTrack, physics: MiniPhysics): JumpApproa
   const jump = track.sections.find(section => section.kind === "jump"
     && section.takeoff > physics.distance && section.takeoff - physics.distance <= 75);
   if (!jump) return;
-  const { gravity, drag, rolling } = physics.options;
+  const { gravity, rolling } = physics.options;
   let speedSquared = physics.velocity ** 2;
   let at = physics.distance;
   let height = track.height(at);
   while (at < jump.takeoff) {
     const step = Math.min(0.25, jump.takeoff - at);
     const nextHeight = track.height(at + step);
+    const drag = physics.dragAt(at + step/2);
     const resistance = gravity * (nextHeight - height) / step + rolling;
     const decay = Math.exp(-2 * drag * step);
     speedSquared = drag > 0

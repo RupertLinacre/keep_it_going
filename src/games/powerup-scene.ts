@@ -4,8 +4,8 @@ import type { RailFrame } from "./mini-rail";
 import { POWERUPS, type PowerKind, type RidePowerups } from "./ride-powerups";
 
 const fract = (n: number) => n - Math.floor(n);
-/** A small, bounded effects layer: one gate, one weather buffer, eight rocks and
- * a strip of water. No per-frame geometry creation or full-screen postprocessing. */
+/** A bounded effects layer: one gate, one weather buffer and eight rocks.
+ * No per-frame geometry creation or full-screen postprocessing. */
 export class PowerupScene {
   readonly group = new THREE.Group();
   private gate = new THREE.Group();
@@ -17,7 +17,6 @@ export class PowerupScene {
   private weather: THREE.LineSegments;
   private weatherPositions = new Float32Array(120 * 2 * 3);
   private rocks = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.6, 0), new THREE.MeshStandardMaterial({ color: "#aaa0c2", roughness: .8 }), 8);
-  private water = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, .13, 3.4), new THREE.MeshStandardMaterial({ color: "#63cadb", transparent: true, opacity: .65, roughness: .2 }), 22);
   private auraMaterial = new THREE.MeshBasicMaterial({ color: "white", transparent: true, opacity: .45 });
   private aura = new THREE.Mesh(new THREE.TorusGeometry(2, .045, 6, 40), this.auraMaterial);
   private dummy = new THREE.Object3D();
@@ -32,10 +31,10 @@ export class PowerupScene {
     this.weatherGeometry.setAttribute("position", new THREE.BufferAttribute(this.weatherPositions, 3).setUsage(THREE.DynamicDrawUsage));
     this.weather = new THREE.LineSegments(this.weatherGeometry, this.weatherMaterial);
     this.weather.frustumCulled = false;
-    this.rocks.frustumCulled = this.water.frustumCulled = false;
-    this.rocks.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.water.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.rocks.frustumCulled = false;
+    this.rocks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.aura.rotation.x = Math.PI/2;
-    this.group.add(this.gate, this.weather, this.rocks, this.water, this.aura);
+    this.group.add(this.gate, this.weather, this.rocks, this.aura);
     scene.add(this.group);
   }
   private texture(kind: PowerKind) {
@@ -50,7 +49,7 @@ export class PowerupScene {
     texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     this.textures.set(kind, texture); return texture;
   }
-  render(power: RidePowerups, track: MiniTrack, frame: RailFrame, distance: number, anchor: number, time: number) {
+  render(power: RidePowerups, track: MiniTrack, frame: RailFrame, anchor: number, time: number) {
     const kind = power.active, info = kind ? POWERUPS[kind] : undefined;
     this.group.visible = !!kind || !!power.gate;
     this.gate.visible = !!power.gate;
@@ -68,7 +67,6 @@ export class PowerupScene {
     }
     this.weather.visible = this.aura.visible = !!kind;
     this.rocks.visible = kind === "reverse" || kind === "heavy";
-    this.water.visible = kind === "splash";
     if (!kind || !info) return;
     const strength = Math.min(1, power.age * 3, power.remaining);
     this.weatherMaterial.color.set(kind === "ice" ? "#ffffff" : info.color);
@@ -100,18 +98,6 @@ export class PowerupScene {
         this.rocks.setMatrixAt(i, this.dummy.matrix);
       }
       this.rocks.instanceMatrix.needsUpdate = true;
-    }
-    if (this.water.visible) {
-      let count = 0;
-      for (let i = 0; i < 22; i++) {
-        const at = distance - 24 + i*2;
-        if (!track.hasRail(at)) continue;
-        const f = track.sample(at);
-        this.dummy.position.copy(f.position).addScaledVector(f.up, -.25); this.dummy.position.x -= anchor;
-        this.dummy.quaternion.copy(f.rotation); this.dummy.scale.set(1, 1, 1); this.dummy.updateMatrix();
-        this.water.setMatrixAt(count++, this.dummy.matrix);
-      }
-      this.water.count = count; this.water.instanceMatrix.needsUpdate = true;
     }
     this.aura.position.set(cx, frame.position.y + .15, frame.position.z);
     this.aura.scale.setScalar(1 + Math.sin(time*3)*.12);

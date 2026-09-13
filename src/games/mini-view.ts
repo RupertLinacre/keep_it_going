@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { mergeStaticMeshes, railGeometries, refreshRails } from "./mini-mesh";
 import { HeightTrack } from "./height-track";
 import { PowerupScene } from "./powerup-scene";
+import { floodedPool, splashFanGeometry } from "./flooded-track";
 import { POWERUPS, type RidePowerups } from "./ride-powerups";
 import { MiniTrack, type MiniSection } from "./mini-track";
 import {
@@ -42,6 +43,8 @@ export class MiniView {
   private parcelParts: ModelPart[];
   private dynamiteParts?: ModelPart[];
   private powerScene?: PowerupScene;
+  private splashSheets: THREE.InstancedMesh;
+  private waterDroplets: THREE.InstancedMesh;
   readonly debris: THREE.InstancedMesh;
   readonly couplings: THREE.InstancedMesh;
   readonly impactFlashes: THREE.InstancedMesh;
@@ -109,7 +112,15 @@ export class MiniView {
     this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#ffffff", 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS));
     this.debris = this.instances(new THREE.BoxGeometry(1, 1, 1), "#ffffff", 2 * MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
     this.impactFlashes = this.instances(new THREE.IcosahedronGeometry(1, 1), "#ffe6a6", 2 * MINI_MAX_EXPLOSIONS);
-    this.impactRings = this.instances(new THREE.TorusGeometry(1, 0.035, 6, 40), "#f6ad62", 2 * MINI_MAX_EXPLOSIONS);
+    this.impactRings = this.instances(new THREE.TorusGeometry(1, 0.035, 6, 40), "#ffffff", 2 * MINI_MAX_EXPLOSIONS);
+    const sprayMaterial = this.material("#bdeef3");
+    sprayMaterial.transparent = true; sprayMaterial.opacity = .48; sprayMaterial.depthWrite = false; sprayMaterial.side = THREE.DoubleSide;
+    sprayMaterial.emissive.set("#8adbe6"); sprayMaterial.emissiveIntensity = .3;
+    this.splashSheets = this.instances(splashFanGeometry(), "#bdeef3", MINI_MAX_EXPLOSIONS * 2);
+    this.splashSheets.castShadow = this.splashSheets.receiveShadow = false;
+    this.waterDroplets = this.instances(new THREE.IcosahedronGeometry(1, 0), "#ffffff", 2 * MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
+    this.waterDroplets.setColorAt(0, new THREE.Color("#8adbe6"));
+    this.waterDroplets.castShadow = false;
     this.scene.add(this.lamp);
     this.resize = new ResizeObserver(() => {
       const w = stage.clientWidth,
@@ -124,6 +135,8 @@ export class MiniView {
     this.renderer.setSize(stage.clientWidth, stage.clientHeight);
     this.aspect = stage.clientWidth / stage.clientHeight;
     this.render(track.startDistance, MINI_START_SPEED, 0, false);
+    // Compile the water materials during setup, so the first entry splash is smooth.
+    void this.renderer.compileAsync(this.scene, this.camera).catch(() => {});
   }
   private instances(geometry: THREE.BufferGeometry, color: string, capacity: number) {
     const mesh = new THREE.InstancedMesh(geometry, this.material(color), capacity);
@@ -384,6 +397,7 @@ export class MiniView {
         flag.position.set(x + 0.28, height - section.origin.y - 0.2, z); group.add(flag);
       }
     }
+    if (section.kind === "splash") group.add(floodedPool(section, color => this.material(color)));
     // Little model trees and paving give the track a tangible tabletop scale.
     const random = (n: number) =>
       (Math.sin(section.id * 93.17 + n * 71.43 + this.track.seed) * 4159.93 +
@@ -395,7 +409,8 @@ export class MiniView {
     for (let i = 0; i < trees; i++) {
       const x = (Math.max(3, section.span) * (i + 0.5)) / trees;
       const side = ["helix", "triplehelix", "ascendinghelix", "immelmann", "diveloop", "nestedloop", "interlockingloops"].includes(section.kind) ? -section.hand : i % 2 ? 1 : -1;
-      const z = side * (8.3 + random(i) * 2.5) - section.origin.z;
+      const z = section.kind === "splash" ? side * (9 + random(i) * 2.5)
+        : side * (8.3 + random(i) * 2.5) - section.origin.z;
       const tree = new THREE.Group();
       const trunk = this.mesh(trunkGeo, "#b99c82");
       trunk.position.y = 0.5;
@@ -630,19 +645,35 @@ export class MiniView {
     this.couplings.count = links.length;
     this.couplings.instanceMatrix.needsUpdate = true;
     if (this.couplings.instanceColor) this.couplings.instanceColor.needsUpdate = true;
-    let chunks = 0, flashes = 0, rings = 0;
+    let chunks = 0, flashes = 0, rings = 0, sheets = 0, drops = 0;
     const allExplosions = [
       ...explosions.map(explosion => ({ ...explosion, rival: false })),
       ...(opponent?.impacts ?? []).filter(e => Math.abs(e.position[0] - f.position.x) < 130).map(e => ({
-        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true, dynamite: false,
+        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true, dynamite: false, flood: undefined,
         particles: e.particles.map(p => ({ position: new THREE.Vector3(...p.position), size: p.size })),
       })),
     ];
     for (const explosion of allExplosions) {
+      if (explosion.flood && explosion.age < 1.1) {
+        const rise = Math.sin(Math.PI * Math.min(1, explosion.age / 1.1));
+        for (const side of [-1, 1]) {
+          dummy.position.copy(explosion.position); dummy.position.x -= anchor;
+          dummy.quaternion.copy(explosion.flood.rotation);
+          dummy.scale.set(side * (2 + explosion.age * 10) * explosion.flood.strength,
+            rise * 7 * explosion.flood.strength, 6);
+          dummy.updateMatrix(); this.splashSheets.setMatrixAt(sheets++, dummy.matrix);
+        }
+      }
       for (const [i, particle] of explosion.particles.entries()) {
         dummy.position.copy(lane(particle.position, explosion.rival)); dummy.position.x -= anchor;
         dummy.rotation.set(explosion.age * 3 + i, explosion.age * 2, i * 0.7);
         dummy.scale.setScalar(particle.size * 2 * Math.max(0, 1 - explosion.age / 2));
+        if (explosion.water) {
+          dummy.scale.y *= 1.45;
+          dummy.updateMatrix(); this.waterDroplets.setMatrixAt(drops, dummy.matrix);
+          this.waterDroplets.setColorAt(drops++, new THREE.Color(i % 3 ? "#8adbe6" : "#e9ffff"));
+          continue;
+        }
         dummy.updateMatrix();
         this.debris.setMatrixAt(chunks, dummy.matrix);
         this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : explosion.dynamite ? new THREE.Color(["#e96732", "#ffd36a", "#554137"][i%3]) : i % 3 ? (this.multiplayer ? new THREE.Color(riderColor(this.riderRole, !!explosion.rival)) : CART_COLORS[explosion.colorIndex % CART_COLORS.length]) : new THREE.Color("#ffa451"));
@@ -660,7 +691,11 @@ export class MiniView {
         this.impactRings.setMatrixAt(rings++, dummy.matrix);
       }
     }
-    for (const [mesh, count] of [[this.debris, chunks], [this.impactFlashes, flashes], [this.impactRings, rings]] as const) {
+    if (this.splashSheets) {
+      this.splashSheets.count = sheets; this.splashSheets.visible = sheets > 0;
+      this.splashSheets.instanceMatrix.needsUpdate = true;
+    }
+    for (const [mesh, count] of [[this.debris, chunks], [this.waterDroplets, drops], [this.impactFlashes, flashes], [this.impactRings, rings]] as const) {
       mesh.count = count; mesh.visible = count > 0;
       if (!mesh.visible) continue;
       mesh.instanceMatrix.clearUpdateRanges(); mesh.instanceMatrix.addUpdateRange(0, count * 16);
@@ -675,13 +710,13 @@ export class MiniView {
     this.board.scale.set((earth.max.x - earth.min.x)/170, 1, (earth.max.z - earth.min.z)/26.8);
     if (powerups) {
       this.powerScene ??= new PowerupScene(this.scene);
-      this.powerScene.render(powerups, this.track, f, distance, anchor, time);
+      this.powerScene.render(powerups, this.track, f, anchor, time);
       const active = powerups.active, info = active ? POWERUPS[active] : undefined;
       const blend = 1 - Math.exp(-dt*3);
       (this.scene.background as THREE.Color).lerp(new THREE.Color(info?.sky ?? "#e6eee8"), blend);
       fog.color.copy(this.scene.background as THREE.Color);
       for (let i = 0; i < 3; i++) this.railMaterial(i).color.lerp(new THREE.Color(info ? i === 1 ? "#fff1bf" : info.color : ["#e89983", "#f5d16f", "#64988e"][i]), blend);
-      this.material("#d5e3c3").color.lerp(new THREE.Color(active === "ice" ? "#e3eced" : active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : active === "splash" ? "#c5ded5" : "#d5e3c3"), blend);
+      this.material("#d5e3c3").color.lerp(new THREE.Color(active === "ice" ? "#e3eced" : active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : "#d5e3c3"), blend);
     }
     this.renderer.render(this.scene, this.camera);
   }

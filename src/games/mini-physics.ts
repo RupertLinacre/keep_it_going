@@ -147,10 +147,14 @@ export class MiniPhysics {
     this.peakSpeed = Math.max(this.peakSpeed, this.velocity);
     return this.velocity - before;
   }
+  dragAt(distance: number) {
+    // Water resistance belongs to submerged railway, independent of timed powers.
+    return this.options.drag + .008 * Math.min(1, (this.track.waterDepth?.(distance) ?? 0) / .55);
+  }
   private force(s: number, v: number) {
     return (
       this.options.tailwind - this.options.gravity * this.track.slope(s) -
-      this.options.drag * v * v -
+      this.dragAt(s) * v * v -
       this.options.rolling * Math.tanh(v * 5)
     );
   }

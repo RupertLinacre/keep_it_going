@@ -7,7 +7,7 @@ import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
   "station" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
-  | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | SpecialKind;
+  | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
 export const isHump = (kind: MiniKind) =>
   ["firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
 export interface MiniRail {
@@ -19,6 +19,7 @@ export interface MiniRail {
   sample(distance: number): RailFrame;
   slope(distance: number): number;
   height(distance: number): number;
+  waterDepth?(distance: number): number;
 }
 const smooth = (t: number) => t * t * t * (10 + t * (-15 + 6 * t));
 
@@ -80,6 +81,8 @@ export class MiniSection implements MiniRail {
         z = shift * ease;
       if (kind === "firsthill" || kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "splash")
+        y = -amplitude * smooth(Math.min(1, t / .24)) * smooth(Math.min(1, (1 - t) / .24));
       if (kind === "jump") {
         // The middle is a virtual distance guide only: neither rails nor sleepers span the water.
         const takeoff = width * 0.2, landing = width * 0.64;
@@ -207,6 +210,11 @@ export class MiniSection implements MiniRail {
   }
   get takeoff() { return this.distanceAtX(this.origin.x + this.width * 0.2); }
   get landingX() { return this.origin.x + this.width * 0.64; }
+  get waterLevel() { return this.origin.y - this.amplitude + .55; }
+  waterDepth(distance: number) {
+    return this.kind === "splash" && distance >= this.start && distance <= this.end
+      ? Math.max(0, this.waterLevel - this.height(distance)) : 0;
+  }
   hasRail(distance: number) {
     return this.kind !== "jump" || distance < this.takeoff - 0.02
       || this.sample(distance).position.x >= this.landingX;
@@ -309,6 +317,10 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
       amplitude = 3.8;
       shift = 0;
     }
+    if (kind === "splash") {
+      width = r(66, 88) * Math.min(1.35, 1 + (scale - 1) * .08);
+      amplitude = r(2.6, 2.9); shift = 0;
+    }
     if (kind === "triplehelix") {
       width = r(48, 55);
       amplitude = r(21, 23);
@@ -325,7 +337,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     if (kind === "noninvertingloop") { amplitude = r(20, 24); width = amplitude * 0.9; shift = 0; }
     if (kind === "cobraroll" || kind === "pretzelknot") { amplitude = r(22, 26); width = amplitude * (kind === "pretzelknot" ? 4.5 : 3.8); shift = 0; }
     if (kind === "nestedloop") { amplitude = r(30, 34); width = amplitude * 0.9; shift = 0; }
-    if (!["station", "dip", "heartline", "jump", "corkscrew"].includes(kind)) {
+    if (!["station", "dip", "heartline", "jump", "splash", "corkscrew"].includes(kind)) {
       const recovery = RECOVERY.includes(kind);
       const growth = recovery ? 1 + (scale - 1) * 0.25 : scale;
       amplitude *= growth * (kind === "ascendinghelix" ? 1 + (turns - 2) * 0.18 : 1);
@@ -338,7 +350,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
       // much broader silhouettes and hill steepness than the classic course.
       const opening = start < 350 && !RECOVERY.includes(kind) ? .72 : 1;
       const size = r(.76, 1.3) * opening;
-      if (kind !== "station" && kind !== "jump") {
+      if (kind !== "station" && kind !== "jump" && kind !== "splash") {
         amplitude *= size;
         const round = ["loop", "interlockingloops", "nestedloop", "noninvertingloop", "cobraroll", "pretzelknot", "helix", "ascendinghelix"].includes(kind);
         width *= round ? size : Math.sqrt(size) * r(.95, 1.15);
@@ -424,6 +436,7 @@ export class MiniTrack implements MiniRail {
             "ascendinghelix", "zerogstall", "immelmann", "noninvertingloop", "interlockingloops", "diveloop",
             "tophat", "cobraroll", "pretzelknot", ...(chapter > 0 ? ["nestedloop" as const] : [])] as MiniKind[]
           : CHALLENGES[chapter]).filter(kind => !this.options.generative || this.end >= 350 || kind !== "jump").slice(0, 6);
+        if (this.options.generative) challenges[1 + Math.floor(this.random() * 5)] = "splash";
         const recovery = shuffle(RECOVERY);
         // A tower or water jump is an occasional event, followed by a breather.
         if (!this.options.generative) {
@@ -459,6 +472,7 @@ export class MiniTrack implements MiniRail {
     return Math.max(after, last.end + x - last.frames.at(-1)!.position.x);
   }
   hasRail(distance: number) { return this.sectionAt(distance).hasRail(distance); }
+  waterDepth(distance: number) { return this.sectionAt(distance).waterDepth(distance); }
   jumpAt(distance: number) {
     const section = this.sectionAt(distance);
     return section.kind === "jump" && distance >= section.takeoff && distance < section.end

@@ -58,10 +58,10 @@ test("varied course pieces join and retain finite orthonormal geometry across ma
   }
 });
 
-test("power-up bags are seeded, include all seven, and never cut another effect short", () => {
+test("power-up bags are seeded, include all six, and never cut another effect short", () => {
   const sequence = (seed: number) => {
     const { track, physics, carriages, power } = rig(seed), kinds: string[] = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 12; i++) {
       power.update(3, track, physics, carriages);
       assert.ok(power.gate);
       const kind = power.gate.kind;
@@ -73,7 +73,8 @@ test("power-up bags are seeded, include all seven, and never cut another effect 
       power.update(19.9, track, physics, carriages); assert.equal(power.active, kind);
       power.update(.11, track, physics, carriages); assert.equal(power.active, undefined);
     }
-    assert.equal(new Set(kinds.slice(0,7)).size, 7);
+    assert.equal(new Set(kinds.slice(0,6)).size, 6);
+    assert.ok(!kinds.includes("splash"));
     return kinds;
   };
   assert.deepEqual(sequence(42), sequence(42)); assert.notDeepEqual(sequence(42), sequence(18));
@@ -105,13 +106,6 @@ test("normal remix answers boost; Sky lift raises the rail; expiration restores 
   answer(game); assert.equal(game.physics.velocity, speed); assert.equal(track.lifts.length, 1);
   game.powerups!.update(20, track, game.physics, game.carriages);
   answer(game); assert.ok(game.physics.velocity > speed);
-});
-
-test("splash zones slow the train and emit water without ending the ride", () => {
-  const { power, physics, carriages } = rig(); physics.velocity = 30;
-  power.activate("splash", physics, carriages);
-  assert.equal(physics.velocity, 25.2); assert.equal(physics.crashed, false);
-  assert.ok(carriages.explosions.some(e => e.water)); assert.ok(physics.options.drag > .004);
 });
 
 test("cargo carnival temporarily doubles slots and dynamite detonates on impact", () => {

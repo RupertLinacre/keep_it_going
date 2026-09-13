@@ -29,6 +29,7 @@ export interface FlyingParcel extends FlyingBody {
 }
 export interface Explosion {
   water?: boolean;
+  flood?: { rotation: THREE.Quaternion; strength: number };
   dynamite?: boolean;
   position: THREE.Vector3;
   age: number;
@@ -102,6 +103,10 @@ export class MiniCarriages {
   lost = 0;
   spilled = 0;
   impacts = 0;
+  floodEntries = 0;
+  private inFlood = false;
+  private wakeTravel = 0;
+  private sprayCount = 0;
   readonly flights: FlyingCart[] = [];
   readonly parcels: FlyingParcel[] = [];
   readonly explosions: Explosion[] = [];
@@ -183,6 +188,26 @@ export class MiniCarriages {
     for (const p of this.explosions.at(-1)!.particles) { p.velocity.multiplyScalar(strength); p.size *= Math.sqrt(strength); }
   }
 
+  private floodSplash(frame: RailFrame, level: number, speed: number, entry: boolean) {
+    const random = seededRandom(this.track.seed ^ (++this.sprayCount * 104729));
+    const position = frame.position.clone(); position.y = level;
+    const strength = THREE.MathUtils.clamp(speed / 28, .55, 1.6) * (entry ? 1 : .55);
+    const right = frame.right.clone().setY(0).normalize();
+    const forward = frame.tangent.clone().setY(0).normalize();
+    const particles = Array.from({ length: MINI_EXPLOSION_PARTICLES * (entry ? 2 : 1) }, (_, i) => {
+      const side = i % 2 ? -1 : 1;
+      return {
+        position: position.clone().addScaledVector(right, side * .65),
+        velocity: right.clone().multiplyScalar(side * (4 + random()*8)*strength)
+          .addScaledVector(forward, speed*(.15 + random()*.2)).setY((7 + random()*11)*strength),
+        size: (.12 + random()*.23) * (entry ? 1.3 : 1),
+      };
+    });
+    if (this.explosions.length >= MINI_MAX_EXPLOSIONS) this.explosions.shift();
+    this.explosions.push({ position, particles, age: 0, colorIndex: 0, water: true,
+      flood: { rotation: frame.rotation.clone(), strength } });
+  }
+
   private explode(cart: FlyingCart) {
     this.impacts++;
     const random = seededRandom(this.track.seed ^ (this.impacts * 7919));
@@ -239,7 +264,10 @@ export class MiniCarriages {
         particle.position.addScaledVector(particle.velocity, dt);
         particle.position.y -= 0.5 * this.gravity * dt * dt;
         particle.velocity.y -= this.gravity * dt;
-        if (particle.position.y < particle.size + 0.075) {
+        if (explosion.flood && particle.velocity.y < 0 && particle.position.y < explosion.position.y) {
+          particle.position.y = explosion.position.y;
+          particle.velocity.set(0, 0, 0); particle.size *= Math.exp(-dt * 14);
+        } else if (particle.position.y < particle.size + 0.075) {
           particle.position.y = particle.size + 0.075;
           particle.velocity.y = Math.abs(particle.velocity.y) * 0.2;
           particle.velocity.x *= 0.8;
@@ -322,6 +350,19 @@ export class MiniCarriages {
       }
     }
     const frames = this.coaches.map(coach => this.sample(this.track.followerDistance(distance, coach.offset)));
+    const wet = !frames[0].airborne && this.track.waterDepth(distance) > .035;
+    const tailAt = this.track.followerDistance(distance, this.coaches.at(-1)!.offset);
+    const trailing = !frames.at(-1)!.airborne && this.track.waterDepth(tailAt) > .035;
+    if (wet && !this.inFlood) this.floodEntries++;
+    if ((wet || trailing) && speed > 1) {
+      this.wakeTravel += speed * dt;
+      if ((wet && !this.inFlood) || this.wakeTravel >= 6) {
+        const at = wet ? distance : tailAt;
+        this.floodSplash(wet ? frames[0] : frames.at(-1)!, this.track.sectionAt(at).waterLevel, speed, wet && !this.inFlood);
+        this.wakeTravel = 0;
+      }
+    } else this.wakeTravel = 6;
+    this.inFlood = wet;
     const outward = frames.map((frame, index) => {
       const section = this.track.sectionAt(this.track.followerDistance(distance, this.coaches[index].offset));
       return isHump(section.kind) && section.kind !== "invertedhill"

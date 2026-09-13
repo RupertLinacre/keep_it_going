@@ -259,6 +259,7 @@ export class Mini extends BaseGame {
     let shed = false;
     const previousSpills = this.carriages.spilled;
     const previousImpacts = this.carriages.impacts;
+    const previousFloods = this.carriages.floodEntries;
     const previousArrivals = this.carriages.arrived;
     const previousJumps = this.physics.jumps;
     const previousBestJump = this.physics.bestJump;
@@ -281,6 +282,9 @@ export class Mini extends BaseGame {
       recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
       this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
       this.host.sound("win");
+    } else if (this.carriages.floodEntries > previousFloods) {
+      this.host.feedback("Splash zone! Keep answering to push through the water.");
+      this.host.sound("jump");
     } else if (shed) {
       this.host.feedback("The tail coupling snapped! One coach broke away.", false);
       this.host.sound("bad");
@@ -391,8 +395,14 @@ export class Mini extends BaseGame {
         const [x, y] = project(section.origin.x + section.width * 0.2, 0.4);
         roundRect(ctx, x, y, section.width * 0.44 * scale, 18, 4, "#58b9c9");
       }
+      if (section.kind === "splash") {
+        const [x, y] = project(section.origin.x + section.width * .14, section.waterLevel);
+        roundRect(ctx, x - 4, y - 2, section.width * .72 * scale + 8, .65*scale, 7, "#d7c7a3");
+        roundRect(ctx, x, y, section.width * .72 * scale, .52*scale, 5, "#55bccc");
+        for (let i = 0; i < 14; i++) line(ctx, [[x + i * section.width*.05*scale, y + 3], [x + (i * section.width*.05 + 1.5)*scale, y + 3]], "#c5f4f1", 2);
+      }
       let points: [number, number][] = [];
-      const drawRail = () => { if (points.length > 1) { line(ctx, points, theme?.color ?? "#78a296", power === "splash" ? 13 : 8); line(ctx, points, "#f3d68f", 3); } points = []; };
+      const drawRail = () => { if (points.length > 1) { line(ctx, points, theme?.color ?? "#78a296", 8); line(ctx, points, "#f3d68f", 3); } points = []; };
       for (let i = 0; i < section.frames.length; i += 3) {
         if (!section.hasRail(section.start + section.distances[i])) { drawRail(); continue; }
         const f = section.frames[i]; points.push(project(f.position.x, f.position.y));
@@ -453,6 +463,17 @@ export class Mini extends BaseGame {
       ctx.restore();
     }
     for (const explosion of this.carriages.explosions) {
+      if (explosion.flood && explosion.age < 1.1) {
+        const [x, y] = project(explosion.position.x, explosion.position.y);
+        const rise = Math.sin(Math.PI * explosion.age/1.1) * explosion.flood.strength;
+        ctx.save(); ctx.globalAlpha = .5; ctx.fillStyle = "#bdeef3";
+        for (const side of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x + side*2*scale, y - rise*10*scale, x + side*6*scale, y);
+          ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+      }
       if (explosion.age < 0.3 && !explosion.water) {
         const [x, y] = project(explosion.position.x, explosion.position.y);
         circle(ctx, x, y, 2.2 * scale * (1 - explosion.age / 0.3), "#ffe6a6");

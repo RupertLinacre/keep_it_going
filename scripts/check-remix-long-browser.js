@@ -45,6 +45,6 @@ async (page) => {
       overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight+1 };
   });
   await page.keyboard.press('p');
-  if (seen.length !== 7 || errors.length || result.overflow) throw new Error(JSON.stringify({ seen, errors, result }));
+  if (seen.length !== 6 || errors.length || result.overflow) throw new Error(JSON.stringify({ seen, errors, result }));
   return { ...result, seen, errors };
 }

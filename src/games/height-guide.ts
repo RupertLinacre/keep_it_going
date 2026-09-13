@@ -14,7 +14,7 @@ export function heightGuide(track: HeightTrack, physics: MiniPhysics) {
   for (let s = physics.distance; s < next.end;) {
     const end = Math.min(s + 1, next.end), nextY = track.height(end);
     const ds = (end - s) * track.metric((s + end) / 2);
-    const drag = physics.options.drag, rolling = physics.options.rolling / physics.options.gravity;
+    const drag = physics.dragAt((s + end) / 2), rolling = physics.options.rolling / physics.options.gravity;
     const resistance = (nextY - y) / ds + rolling;
     budget = drag > 0 ? budget * Math.exp(-2*drag*ds) - resistance * -Math.expm1(-2*drag*ds)/(2*drag)
       : budget - (nextY - y) - rolling*ds;

@@ -1,6 +1,6 @@
 # Keep it going
 
-**This branch defaults to the solo Remix:** fresh, seeded courses assembled from the existing elements, with varied sizes and proportions. Correct answers boost speed. Collect coloured gates to activate one of seven 20-second effects: Ice glide, Gravity flip, Cargo carnival, Splash zone, Sky lift, Heavy metal and Tailwind. **Sky lift** temporarily makes correct answers raise the occupied track section by 30 metres instead of boosting speed.
+**This branch defaults to the solo Remix:** fresh, seeded courses assembled from the existing elements, with varied sizes and proportions. Correct answers boost speed. Collect coloured gates to activate one of six 20-second effects: Ice glide, Gravity flip, Cargo carnival, Sky lift, Heavy metal and Tailwind. Flooded splash zones are permanent track pieces: the rails dip through water that slows the train and throws up a large bow splash and wake. **Sky lift** temporarily makes correct answers raise the occupied track section by 30 metres instead of boosting speed.
 
 Leave the optional course seed blank for a fresh ride on every restart, or enter a number or word to replay a course and its power-up order. **Copy ride** creates a link to the current seed. The old `?mode=height` URL also opens Remix. The original solo and multiplayer game remains available at `?mode=classic`, linked from the start screen. Remix records are separate; this branch remains a solo experiment and has not replaced the live game. See [the Remix notes](docs/remix.md) for power-up rules, balancing and verification.
 
@@ -65,7 +65,7 @@ GitHub Pages serves the `gh-pages` branch. No repository-name configuration is r
 
 ### Track gallery
 
-Open `tracks.html` (or use **Track gallery** above the game) to browse all 25 elements. Drag to orbit, scroll or pinch to zoom, and use the side/top presets to inspect inversions and crossings. The distance slider previews the shared game generation rules from the opening scale to 20 km. Each selection has a reusable URL. The animated coach shows direction only; it does not simulate ride physics.
+Open `tracks.html` (or use **Track gallery** above the game) to browse all 26 elements. Drag to orbit, scroll or pinch to zoom, and use the side/top presets to inspect inversions and crossings. The distance slider previews the shared game generation rules from the opening scale to 20 km. Each selection has a reusable URL. The animated coach shows direction only; it does not simulate ride physics.
 
 ### Deploy to GitHub Pages
 
