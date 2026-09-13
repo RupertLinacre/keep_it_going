@@ -168,6 +168,7 @@ export function mountGame(
   const syncRaceOverlay = () => {
     if (!network) return;
     const sharedPause = network.localPaused || network.remotePaused;
+    ghost?.setPaused(sharedPause || network.phase !== "racing");
     if (sharedPause && !wasSharedPause && game) network.sendState(snapshotRide(game, ++seq));
     wasSharedPause = sharedPause;
     let key = "", content = "";
@@ -206,6 +207,7 @@ export function mountGame(
   try {
     game = new Mini(host, settings.round?.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed, multiplayer: !!network, riderRole: network?.role });
     game.opponent = ghost;
+    ghost?.configure(game.track, network?.opponentDifficulty ?? "normal");
     if (network) { ghost!.push(snapshotRide(game, 0)); syncRaceOverlay(); network.ready(); }
     const frame = (now: number) => {
       if (disposed) return;
@@ -252,7 +254,9 @@ export function mountGame(
     const action = (event.target as HTMLElement).closest<HTMLElement>("[data-action]")?.dataset.action;
     if (action && !blocked() && !finished) {
       unlockAudio();
+      const correct = game?.correct;
       game?.action(action);
+      if (network && game && game.correct !== correct) network.sendState(snapshotRide(game, ++seq));
       if (event.detail > 0) canvas.focus({ preventScroll: true });
     }
   }, options);
@@ -285,7 +289,9 @@ export function mountGame(
     if (/^[0-9c]$/i.test(event.key) || ["Enter", "Backspace"].includes(event.key)) {
       event.preventDefault();
       unlockAudio();
+      const correct = game?.correct;
       game?.key(event.key);
+      if (network && game && game.correct !== correct) network.sendState(snapshotRide(game, ++seq));
     }
   }, options);
 

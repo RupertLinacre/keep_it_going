@@ -2,17 +2,19 @@ import { isDifficulty } from "../difficulty";
 import type { Difficulty } from "../types";
 import { normalizeTables } from "../questions";
 
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];
 export type Quat = [number, number, number, number];
-export type Body = { id: string; color: number; cargo: number; cargoAge: number; position: Vec; rotation: Quat };
+export type RailPose = { distance: number; speed: number; lift: number; liftSpeed: number; coupled: boolean };
+export type Motion = { id?: string; velocity?: Vec; spin?: Vec; position: Vec; rotation: Quat };
+export type Body = Motion & { id: string; color: number; cargo: number; cargoAge: number; rail?: RailPose };
 export type Link = { start: Vec; end: Vec; stress: number };
 export type Impact = { id: number; position: Vec; age: number; color: number; water: boolean; particles: { position: Vec; size: number }[] };
 export type RideState = {
   seq: number; time: number; distance: number; speed: number; correct: number;
-  ended: boolean; impacts: Impact[]; bodies: Body[]; parcels: { position: Vec; rotation: Quat }[]; links: Link[];
+  ended: boolean; impacts: Impact[]; bodies: Body[]; parcels: Motion[]; links: Link[];
 };
 export type RaceResult = { distance: number; correct: number; score: number; water: boolean };
 export type Round = { id: string; seed: number; questionSeed: number; tables: number[]; difficulty: Difficulty; guestDifficulty: Difficulty };
@@ -48,12 +50,16 @@ export function validRideState(v: unknown): v is RideState {
     || !Number.isSafeInteger(v.correct) || !number(v.correct) || typeof v.ended !== "boolean") return false;
   if (!Array.isArray(v.bodies) || !v.bodies.length || v.bodies.length > 25 || !v.bodies.every(b => object(b) && text(b.id, 32)
     && Number.isInteger(b.color) && number(b.color) && Number.isInteger(b.cargo) && number(b.cargo, 0, 4) && number(b.cargoAge)
-    && vector(b.position, 3) && quaternion(b.rotation))) return false;
+    && vector(b.position, 3) && quaternion(b.rotation)
+    && (b.velocity === undefined || vector(b.velocity, 3)) && (b.spin === undefined || vector(b.spin, 3))
+    && (b.rail === undefined || (object(b.rail) && number(b.rail.distance, -1e8) && number(b.rail.speed, 0, 2000)
+      && number(b.rail.lift, 0, 100) && number(b.rail.liftSpeed, -1000, 1000) && typeof b.rail.coupled === "boolean")))) return false;
   if (new Set(v.bodies.map(b => b.id)).size !== v.bodies.length) return false;
   if (!Array.isArray(v.impacts) || v.impacts.length > 6 || !v.impacts.every(e => object(e) && Number.isInteger(e.id) && number(e.id)
     && vector(e.position, 3) && number(e.age, 0, 3) && number(e.color) && typeof e.water === "boolean"
     && Array.isArray(e.particles) && e.particles.length <= 28 && e.particles.every(p => object(p) && vector(p.position, 3) && number(p.size, 0, 2)))) return false;
-  return Array.isArray(v.parcels) && v.parcels.length <= 64 && v.parcels.every(p => object(p) && vector(p.position, 3) && quaternion(p.rotation))
+  return Array.isArray(v.parcels) && v.parcels.length <= 64 && v.parcels.every(p => object(p) && vector(p.position, 3) && quaternion(p.rotation)
+    && (p.id === undefined || text(p.id, 32)) && (p.velocity === undefined || vector(p.velocity, 3)) && (p.spin === undefined || vector(p.spin, 3)))
     && Array.isArray(v.links) && v.links.length <= 10 && v.links.every(l => object(l) && vector(l.start, 3) && vector(l.end, 3) && number(l.stress, 0, 10));
 }
 export function validResult(v: unknown): v is RaceResult {

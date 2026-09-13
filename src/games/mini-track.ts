@@ -374,8 +374,8 @@ export class MiniTrack implements MiniRail {
       previous ? previous.frames.at(-1)!.position.clone() : new THREE.Vector3(0, 4, 0),
       this.generated++, this.random));
   }
-  ensure(distance: number) {
-    while (this.end < distance + 230) {
+  ensure(distance: number, lookahead = 230) {
+    while (this.end < distance + lookahead) {
       if (!this.bag.length) {
         const shuffle = (items: readonly MiniKind[]) => {
           const result = [...items];

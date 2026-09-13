@@ -4,13 +4,13 @@ import { gradient, line, roundRect, circle } from "../draw";
 import { clamp } from "../math";
 import type { Mini } from "../games/mini";
 import { isParcelWagon, parcelPresentation } from "../games/mini-config";
-import { lanePosition, mirrorRotation, raceLaneOffset, snapshotRide } from "./ghost";
+import { lanePosition, mirrorRotation, snapshotRide } from "./ghost";
 
 /** A small software-rendered two-lane view keeps the race playable without WebGL. */
 export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
   gradient(ctx, "#e5eee6", "#f3efd9");
   const lead = game.physics.sample(game.physics.distance).position;
-  const offset = raceLaneOffset(game.track);
+  const offset = game.raceSpacing.updateAt(game.track, game.elapsed);
   const baseScale = game.close ? 28 : 19;
   const scale = clamp(410 / (30 + Math.abs(lead.z + offset) * .8), baseScale / 3, baseScale);
   const centerY = lead.y * .55;
@@ -23,7 +23,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
     for (const section of game.track.sections) {
       let points: [number, number][] = [];
       const flush = () => {
-        if (points.length > 1) { line(ctx, points, rival ? "#c69a82" : "#78a296", 6); line(ctx, points, "#f4d58e", 2); }
+        if (points.length > 1) { line(ctx, points, riderColor(game.riderRole, rival), 6); line(ctx, points, "#fff1cf", 1); }
         points = [];
       };
       for (let i = 0; i < section.frames.length; i += 3) {

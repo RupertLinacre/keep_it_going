@@ -1,3 +1,4 @@
+import { RaceSpacing } from "./mini-world";
 import type { RiderRole } from "../multiplayer/identity";
 import { rideResistance } from "../difficulty";
 import { BaseGame } from "./base";
@@ -52,9 +53,12 @@ export class Mini extends BaseGame {
   private nextQuestion?: () => [number, number];
   opponent?: OpponentGhost;
   riderRole: RiderRole = "host";
+  readonly raceSpacing = new RaceSpacing();
+  readonly multiplayer: boolean;
   constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole } = {}) {
     super(host);
     this.riderRole = options.riderRole ?? "host";
+    this.multiplayer = !!options.multiplayer;
     this.personalBest = bestRide(host.difficulty);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
     this.track = new MiniTrack(seed);
@@ -72,7 +76,7 @@ export class Mini extends BaseGame {
   }
   setup() {
     this.readouts = new MiniReadouts(this.host.stage);
-    this.view = new MiniView(this.host.stage, this.track);
+    this.view = new MiniView(this.host.stage, this.track, { multiplayer: this.multiplayer, role: this.riderRole, spacing: this.raceSpacing });
   }
   get travelled() {
     return this.physics.distance - this.physics.options.initialDistance;
@@ -199,7 +203,8 @@ export class Mini extends BaseGame {
       this.carriages.update(dt, this.physics.distance, 0, false);
       return;
     }
-    this.track.ensure(this.physics.distance + this.physics.velocity * dt);
+    this.track.ensure(this.physics.distance + this.physics.velocity * dt,
+      this.multiplayer ? Math.max(600, this.physics.velocity * 14) : 230);
     let shed = false;
     const previousSpills = this.carriages.spilled;
     const previousImpacts = this.carriages.impacts;

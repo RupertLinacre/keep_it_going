@@ -82,7 +82,7 @@ export class RaceSession {
         if (role === "host") {
           clearTimeout(this.timeout);
           this.phase = "waiting"; this.status = "Invite ready. Waiting for your friend…"; this.change();
-        } else this.attach(peer.connect(`keep-going-v${PROTOCOL}-${this.code.toLowerCase()}`, { reliable: true, serialization: "json" }), attempt);
+        } else this.attach(peer.connect(`keep-going-v${PROTOCOL}-${this.code.toLowerCase()}`, { reliable: true, serialization: "binary" }), attempt);
       });
       peer.on("connection", connection => {
         if (attempt !== this.attempt || role !== "host" || this.connection || this.phase !== "waiting") {

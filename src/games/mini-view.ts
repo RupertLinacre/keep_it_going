@@ -1,3 +1,4 @@
+import { groundBounds, RaceSpacing } from "./mini-world";
 import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
 import * as THREE from "three";
 import { mergeStaticMeshes, railGeometries } from "./mini-mesh";
@@ -13,7 +14,7 @@ import {
 } from "./mini-config";
 import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
-import { lanePosition, mirrorRotation, raceLaneOffset } from "../multiplayer/ghost";
+import { lanePosition, mirrorRotation } from "../multiplayer/ghost";
 import type { RideState } from "../multiplayer/protocol";
 import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
 
@@ -29,7 +30,7 @@ export class MiniView {
   multiplayer = false;
   riderRole: RiderRole = "host";
   private laneOffset = 0;
-  private laneGeneration = -1;
+  private readonly spacing: RaceSpacing;
   private readonly opponentPieces = new Map<number, THREE.Group>();
   cartCount = MINI_STARTING_CARTS;
   renderedCartCount = MINI_STARTING_CARTS;
@@ -53,7 +54,11 @@ export class MiniView {
   constructor(
     readonly stage: HTMLElement,
     readonly track: MiniTrack,
+    options: { multiplayer?: boolean; role?: RiderRole; spacing?: RaceSpacing } = {},
   ) {
+    this.multiplayer = !!options.multiplayer;
+    this.riderRole = options.role ?? "host";
+    this.spacing = options.spacing ?? new RaceSpacing();
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
     this.renderer.shadowMap.enabled = true;
@@ -149,6 +154,17 @@ export class MiniView {
     }
     return parts;
   }
+  private railMaterial(part: number, rival = false) {
+    if (!this.multiplayer) return this.material(["#e89983", "#f5d16f", "#64988e"][part]);
+    const key = `rail:${part}:${rival}`;
+    if (!this.materials.has(key)) {
+      const color = new THREE.Color(riderColor(this.riderRole, rival));
+      if (part === 1) color.lerp(new THREE.Color("#fff4cf"), .28);
+      if (part === 2) color.multiplyScalar(.68);
+      this.materials.set(key, new THREE.MeshStandardMaterial({ color, roughness: .85 }));
+    }
+    return this.materials.get(key)!;
+  }
   private material(color: string) {
     if (!this.materials.has(color))
       this.materials.set(
@@ -231,12 +247,15 @@ export class MiniView {
       ? [[section.start, section.takeoff - 0.03], [section.distanceAtX(section.landingX), section.end]]
       : [[section.start, section.end]];
     for (const [from, to] of ranges)
-      railGeometries(section, from, to).forEach((geometry, i) =>
-        group.add(this.mesh(geometry, i ? "#f5d16f" : "#e89983")));
+      railGeometries(section, from, to).forEach((geometry, i) => {
+        const rail = new THREE.Mesh(geometry, this.railMaterial(i));
+        rail.castShadow = rail.receiveShadow = true;
+        group.add(rail);
+      });
     const count = Math.ceil(section.length / 0.65);
     const sleepers = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.55, 0.13, 0.18),
-      this.material("#64988e"),
+      this.railMaterial(2),
       count,
     );
     sleepers.castShadow = true;
@@ -393,7 +412,8 @@ export class MiniView {
     const state = `${distance}:${velocity}:${flash}:${close}:${cartCount}:${this.track.generated}:${effects?.spilled}:${effects?.refills}:${time}:${flights.map(c => c.age)}:${parcels.map(p => p.age + p.groundedFor)}:${explosions.map(e => e.age)}`;
     if (!this.multiplayer && state === this.lastState && this.cameraRig.settled) return;
     this.lastState = state;
-    const ids = new Set(this.track.sections.map((s) => s.id));
+    const visibleSections = this.track.sections.filter(section => section.start <= distance + 350);
+    const ids = new Set(visibleSections.map((s) => s.id));
     for (const [id, mesh] of this.pieces)
       if (!ids.has(id)) {
         const mirrored = this.opponentPieces.get(id);
@@ -401,15 +421,12 @@ export class MiniView {
         this.release(mesh);
         this.pieces.delete(id);
       }
-    if (this.multiplayer && this.laneGeneration !== this.track.generated) {
-      this.laneOffset = raceLaneOffset(this.track);
-      this.laneGeneration = this.track.generated;
-    }
+    if (this.multiplayer) this.laneOffset = this.spacing.update(this.track, dt);
     const lane = (position: THREE.Vector3, rival = false) => lanePosition(position, this.multiplayer ? this.laneOffset : 0, rival);
     const poses = effects?.poses(distance, alpha);
     const f = poses?.[0]?.frame ?? this.track.sample(distance),
       anchor = Math.floor(f.position.x / 25) * 25;
-    for (const section of this.track.sections) {
+    for (const section of visibleSections) {
       if (!this.pieces.has(section.id)) this.build(section);
       const piece = this.pieces.get(section.id)!;
       if (piece.position.x !== section.origin.x - anchor || piece.position.y !== section.origin.y || piece.position.z !== section.origin.z + this.laneOffset) {
@@ -422,6 +439,12 @@ export class MiniView {
           // Clone transforms and instance buffers; rails reuse their built geometry/materials.
           mirrored = piece.clone(true);
           mirrored.scale.z = -1;
+          if (this.multiplayer) mirrored.traverse(object => {
+            if (!(object instanceof THREE.Mesh)) return;
+            for (let part = 0; part < 3; part++) if (object.material === this.railMaterial(part)) {
+              object.material = this.railMaterial(part, true); break;
+            }
+          });
           this.opponentPieces.set(section.id, mirrored);
           this.scene.add(mirrored);
         }
@@ -592,9 +615,9 @@ export class MiniView {
     this.lamp.position.copy(lane(f.position)).addScaledVector(f.up, 0.6);
     this.lamp.position.x -= anchor;
     this.lamp.intensity = flash > 0 ? flash * 12 : 0;
-    this.board.position.x = focus.x;
-    this.board.position.z = this.cameraRig.focus.z;
-    this.board.scale.set(Math.max(1, height * this.aspect / 150), 1, Math.max(1, height / 40, (Math.abs(f.position.z + this.laneOffset - this.board.position.z) + 12) / 13.5));
+    const earth = groundBounds(this.track, this.laneOffset, this.cameraRig.focus, height, this.aspect);
+    this.board.position.set((earth.min.x + earth.max.x)/2 - anchor, 0, (earth.min.z + earth.max.z)/2);
+    this.board.scale.set((earth.max.x - earth.min.x)/170, 1, (earth.max.z - earth.min.z)/26.8);
     this.renderer.render(this.scene, this.camera);
   }
   private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[]) {

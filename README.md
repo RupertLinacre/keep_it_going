@@ -82,3 +82,11 @@ Choose Very easy, Easy, Medium, Hard or Very hard on the start screen. Medium re
 A seeded balance check over eight tracks, with one answer every 3.2 seconds, 20% timing variation, 95% accuracy and a two-minute limit, averaged 4,934 / 4,004 / 3,222 / 2,747 / 1,794 metres from Very easy to Very hard. These are simulated answering assumptions rather than measured player data. `simulateRide` in `scripts/playtest.ts` accepts a difficulty as its fourth argument.
 
 Multiplayer colours follow identity: the host is teal and the guest coral on both devices, including the lobby, trains, detached coaches, impact debris, HUD and results. Your own track always stays in the foreground. Invite links expose a personal difficulty selector before joining; times tables remain shared.
+
+### Multiplayer rendering
+
+Opponent playback uses the sender’s simulation timestamps rather than packet arrival times. A 150–350 ms adaptive jitter buffer feeds display-rate rail sampling, with the opponent’s own gravity/resistance used to predict brief gaps. Correct answers also send an immediate checkpoint. PeerJS binary serialization provides chunking for snapshots larger than the JSON channel’s 16 KB limit. Late corrections ease along the rail, preserving carriage orientation and coupling alignment; a long gap adds at most 200 ms of predicted travel. Authoritative snapshots and finish messages still decide the race. Stable object IDs prevent flying parcels/coaches from swapping when another disappears.
+
+Rail colours follow the host/guest identity on both devices. Lane spacing plans fourteen seconds ahead, widens smoothly at no more than 6 m/s, and never contracts just because an old section was removed. Distant planning geometry stays out of the rendered scene. The ground covers the actual bounds of all loaded pieces in both lanes, with extra room for scenery and the camera; section bounds are cached to avoid scanning geometry every frame.
+
+`npm test` includes jitter, bounded prediction, curved-rail playback, object identities, paused clocks, ground coverage and fast-rider lane-clearance regressions. `scripts/check-network-browser.js` adds 35–140 ms of uneven receive delay to two real WebRTC peers and reports their display performance; run it via `playwright-cli run-code` against the Vite development server.

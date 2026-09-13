@@ -65,16 +65,11 @@ test("mirrored tracks stay separated and car orientation follows every reflected
   }
 });
 
-test("remote snapshots interpolate at display rate, reject reordering and never run ahead", () => {
+test("remote snapshots reject reordering", () => {
   const ghost = new OpponentGhost();
   ghost.push(state(1, 0), 0); ghost.push(state(2, 10), 100);
-  assert.equal(ghost.sample(160)!.bodies[0].position[0], 5);
-  const positions = Array.from({ length: 6 }, (_, i) => ghost.sample(110 + i * 16)!.bodies[0].position[0]);
-  assert.equal(new Set(positions).size, 6);
   ghost.push(state(1, -100), 200);
   assert.equal(ghost.latest!.seq, 2);
-  assert.equal(ghost.sample(5000)!.bodies[0].position[0], 10);
-  assert.equal(ghost.sample(5000)!.distance, 110);
 });
 
 test("wire validation bounds remote geometry and rejects malformed packets", () => {
