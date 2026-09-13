@@ -15,6 +15,12 @@ import { seededRandom } from "./games/mini-rail";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  noninvertingloop:
+    "A regular loop with a roll on the climb, putting the coach upright at the crown before it unwinds on the descent.",
+  pretzelknot:
+    "A half corkscrew dives into a half loop, then a second half loop climbs into the exit twist. The entrance crosses over the exit; the knot reverses direction before its connecting turn.",
+  cobraroll:
+    "Two half loops and opposing half corkscrews form a cobra hood. A connecting turn returns the route forward.",
   station: "A short, level breather between the bigger challenges.",
   firsthill:
     "The starting hill. The train begins just beyond its crest and picks up speed on the descent.",
@@ -30,7 +36,7 @@ const descriptions: Record<MiniKind, string> = {
     "A climb to a tower, then three descending turns like a helter skelter.",
   invertedhill: "The rail rolls upside down across the crown of a tall hill.",
   verticalhill: "Straight vertical faces connected by rounded transitions.",
-  jump: "A launch ramp over water, followed by a long landing straight. The gap has no rail.",
+  jump: "A launch ramp over water, followed by a short landing section. The gap has no rail.",
   heartline:
     "A complete roll around a point above the track, keeping the twist compact.",
   zerogstall:
@@ -132,7 +138,7 @@ function fit() {
       ? new THREE.Vector3(0, 0, 1)
       : view === "top"
         ? new THREE.Vector3(0, 1, 0)
-        : new THREE.Vector3(-0.65, 0.65, 1);
+        : (kind === "pretzelknot" ? new THREE.Vector3(0.12, 0.28, -1) : new THREE.Vector3(-0.65, 0.65, 1));
   if (view === "top") camera.up.set(0, 0, -1);
   controls.target.copy(center);
   camera.position
@@ -186,9 +192,7 @@ function rebuild() {
           seededRandom(71),
         );
   elapsed = 0;
-  // Hide most of the 320 m landing straight so the water gap remains easy to inspect.
-  const end =
-    kind === "jump" ? section.distanceAtX(section.width + 28) : section.end;
+  const end = section.end;
   const ranges =
     kind === "jump"
       ? [
@@ -255,11 +259,7 @@ function rebuild() {
     group.add(water);
   }
   $("#piece-title").textContent = title(kind);
-  $("#description").textContent =
-    descriptions[kind] +
-    (kind === "jump"
-      ? " The preview crops the far end of the landing straight."
-      : "");
+  $("#description").textContent = descriptions[kind];
   $("#piece-number").textContent =
     `SECTION ${String(kinds.indexOf(kind) + 1).padStart(2, "0")} / ${kinds.length}`;
   $("#height").textContent = `${Math.max(0, bounds.max.y).toFixed(1)} m`;
@@ -334,8 +334,7 @@ renderer.setAnimationLoop((time) => {
   if (playing && !document.hidden)
     elapsed += Math.min((time - last) / 1000, 0.05);
   last = time;
-  const end =
-    kind === "jump" ? section.distanceAtX(section.width + 28) : section.end;
+  const end = section.end;
   const d = section.start + ((elapsed / 14) % 1) * (end - section.start);
   const frame = section.sample(d);
   coach.position.copy(frame.position);

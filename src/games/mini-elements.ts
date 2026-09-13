@@ -2,9 +2,9 @@ import * as THREE from "three";
 import { clamp } from "../math";
 
 export type SpecialKind = "heartline" | "zerogstall" | "waveturn" | "doubledip"
-  | "tophat" | "immelmann" | "diveloop" | "ascendinghelix" | "interlockingloops" | "nestedloop";
+  | "tophat" | "immelmann" | "diveloop" | "ascendinghelix" | "interlockingloops" | "nestedloop" | "noninvertingloop" | "pretzelknot" | "cobraroll";
 export const SPECIAL_KINDS: readonly SpecialKind[] = ["heartline", "zerogstall", "waveturn", "doubledip",
-  "tophat", "immelmann", "diveloop", "ascendinghelix", "interlockingloops", "nestedloop"];
+  "tophat", "immelmann", "diveloop", "ascendinghelix", "interlockingloops", "nestedloop", "noninvertingloop", "pretzelknot", "cobraroll"];
 const TAU = 2 * Math.PI;
 const ease = (t: number) => { t = clamp(t, 0, 1); return t * t * t * (10 + t * (-15 + 6 * t)); };
 const v = (x: number, y: number, z = 0) => new THREE.Vector3(x, y, z);
@@ -20,6 +20,104 @@ export function specialElement(kind: string, width: number, height: number, hand
   const banked = (point: ElementShape["point"], roll: (t: number) => number): ElementShape => ({
     point, up: (t, tangent) => v(0, 1).addScaledVector(tangent, -tangent.y).normalize().applyAxisAngle(tangent, hand * roll(t)),
   });
+  if (kind === "noninvertingloop") {
+    const lead = width * 0.2, advance = width * 0.3, lane = height * 0.32;
+    return {
+      point(t) {
+        if (t < 0.08) return v(lead * t / 0.08, 0);
+        if (t > 0.86) {
+          const u = (t - 0.86) / 0.14;
+          return v(lead + advance + (width - lead - advance) * u, 0, hand * lane * (1 - ease(u)));
+        }
+        const u = (t - 0.08) / 0.78, a = TAU * u;
+        return v(lead + height * 0.5 * Math.sin(a) + advance * ease(u),
+          height * 0.5 * (1 - Math.cos(a)), hand * lane * ease(u));
+      },
+      up(t, tangent) {
+        const u = (t - 0.08) / 0.78;
+        // Roll around the rail on the climb, stay upright at the crown, then
+        // unwind on the descent. The centreline keeps a regular loop silhouette.
+        const roll = Math.PI * (ease((u - 0.14) / 0.24) - ease((u - 0.62) / 0.24));
+        return planarUp(tangent).applyAxisAngle(tangent, hand * roll);
+      },
+    };
+  }
+  if (kind === "pretzelknot") {
+    // Batwing sequence with the entrance crossing OVER the exit:
+    // rising half corkscrew -> descending half loop -> low turn ->
+    // ascending half loop -> descending half corkscrew. The core reverses
+    // direction; a separate low connecting turn restores the game's +X route.
+    const lead = height * 1.5, k = 0.5522847498, radius = 0.5, spread = 0.8;
+    const p = (x: number, y: number, z: number) => v(lead + x * height, y * height, hand * z * height);
+    type Normal = (u: number, tangent: THREE.Vector3) => THREE.Vector3;
+    const upright: Normal = (_u,tangent) => v(0,1).addScaledVector(tangent,-tangent.y).normalize();
+    const roll = (from: number,to: number): Normal => (u,tangent) => upright(u,tangent).applyAxisAngle(tangent,hand*(from+(to-from)*ease(u)));
+    const curves: {curve: THREE.CubicBezierCurve3; normal: Normal}[] = [];
+    const add = (a: THREE.Vector3,b: THREE.Vector3,c: THREE.Vector3,d: THREE.Vector3,normal: Normal=upright) => curves.push({curve:new THREE.CubicBezierCurve3(a,b,c,d),normal});
+    const crossingIn = p(0,.65,-.5), crossingOut = p(0,.3,-.5);
+    const inDirection = v(.35,.18,hand*.18).multiplyScalar(height);
+    const outDirection = v(.35,-.18,-hand*.18).multiplyScalar(height);
+    add(v(0,0),v(height*.1,0),p(-1.3,.1,-.9),p(-1.2,.1,-.9));
+    add(p(-1.2,.1,-.9),p(-.7,.1,-.9),crossingIn.clone().sub(inDirection),crossingIn,roll(0,Math.PI/2));
+    add(crossingIn,crossingIn.clone().add(inDirection),p(spread-.4,1,0),p(spread,1,0),roll(Math.PI/2,Math.PI));
+    const down: Normal = (_u,tangent) => planarUp(tangent).negate();
+    add(p(spread,1,0),p(spread+k*radius,1,0),p(spread+radius,.5+k*radius,0),p(spread+radius,.5,0),down);
+    add(p(spread+radius,.5,0),p(spread+radius,.5-k*radius,0),p(spread+k*radius,0,0),p(spread,0,0),down);
+    // The lobes face outwards, joined by a broad low sweep towards the viewer.
+    add(p(spread,0,0),p(spread-k*spread,0,0),p(k*spread,0,-spread),p(0,0,-spread));
+    add(p(0,0,-spread),p(-k*spread,0,-spread),p(-spread+k*spread,0,0),p(-spread,0,0));
+    const up: Normal = (_u,tangent) => planarUp(tangent).negate();
+    add(p(-spread,0,0),p(-spread-k*radius,0,0),p(-spread-radius,.5-k*radius,0),p(-spread-radius,.5,0),up);
+    add(p(-spread-radius,.5,0),p(-spread-radius,.5+k*radius,0),p(-spread-k*radius,1,0),p(-spread,1,0),up);
+    add(p(-spread,1,0),p(-spread+.4,1,0),crossingOut.clone().sub(outDirection),crossingOut,roll(Math.PI,Math.PI/2));
+    add(crossingOut,crossingOut.clone().add(outDirection),p(1.8,0,-1.2),p(1.2,0,-1.2),roll(Math.PI/2,0));
+    // Keep the U-turn outside the knot, after its reversed exit.
+    const bend=.35;
+    add(p(1.2,0,-1.2),p(1.2-k*bend,0,-1.2),p(1.2-bend,0,-1.2-(1-k)*bend),p(1.2-bend,0,-1.2-bend));
+    add(p(1.2-bend,0,-1.2-bend),p(1.2-bend,0,-1.2-(1+k)*bend),p(1.2-k*bend,0,-1.2-2*bend),p(1.2,0,-1.2-2*bend));
+    add(p(1.2,0,-1.2-2*bend),p(1.7,0,-1.2-2*bend),v(width-height*.5,0),v(width,0));
+    const slot=(t:number)=>{const at=Math.min(curves.length-1,Math.floor(t*curves.length));return {at,u:t*curves.length-at};};
+    return {
+      point(t) {const {at,u}=slot(t);return curves[at].curve.getPoint(u);},
+      up(t,tangent) {const {at,u}=slot(t);return curves[at].normal(u,tangent);},
+    };
+  }
+  if (kind === "cobraroll") {
+    const r = height * 0.5, lead = width * 0.27;
+    const lane = height * 0.7, bend = lane / 2, k = 0.5522847498;
+    type Segment = { curve: THREE.CubicBezierCurve3; normal: (u: number, tangent: THREE.Vector3) => THREE.Vector3 };
+    const segments: Segment[] = [];
+    const upright = (_u: number, tangent: THREE.Vector3) => v(0, 1).addScaledVector(tangent, -tangent.y).normalize();
+    const rolled = (from: number, to: number) => (u: number, tangent: THREE.Vector3) =>
+      upright(u, tangent).applyAxisAngle(tangent, hand * (from + (to - from) * ease(u)));
+    const add = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3,
+      normal: Segment["normal"] = upright) => segments.push({curve: new THREE.CubicBezierCurve3(a,b,c,d),normal});
+    const halfLoop = (x: number, y: number, z: number, forward: number, rising: boolean) => {
+      const dy = rising ? 1 : -1;
+      const normal = (_u: number, tangent: THREE.Vector3) => planarUp(tangent).multiplyScalar(forward * dy);
+      add(v(x,y,z),v(x+forward*k*r,y,z),v(x+forward*r,y+dy*(r-k*r),z),v(x+forward*r,y+dy*r,z),normal);
+      add(v(x+forward*r,y+dy*r,z),v(x+forward*r,y+dy*(r+k*r),z),v(x+forward*k*r,y+dy*2*r,z),v(x,y+dy*2*r,z),normal);
+    };
+    const turn = (x: number, y: number, z: number, radius: number, normal: Segment["normal"]) => {
+      add(v(x,y,z),v(x-k*radius,y,z),v(x-radius,y,z+hand*(radius-k*radius)),v(x-radius,y,z+hand*radius),normal);
+      add(v(x-radius,y,z+hand*radius),v(x-radius,y,z+hand*(radius+k*radius)),v(x-k*radius,y,z+hand*2*radius),v(x,y,z+hand*2*radius),normal);
+    };
+    {
+      add(v(0,0),v(lead/3,0),v(lead*2/3,0),v(lead,0));
+      halfLoop(lead,0,0,1,true);
+      // Opposing half corkscrews across the crown: inverted, upright, inverted.
+      add(v(lead,height),v(lead-k*bend,height),v(lead-bend,height,hand*(bend-k*bend)),v(lead-bend,height,hand*bend),rolled(Math.PI,0));
+      add(v(lead-bend,height,hand*bend),v(lead-bend,height,hand*(bend+k*bend)),v(lead-k*bend,height,hand*lane),v(lead,height,hand*lane),rolled(0,Math.PI));
+      halfLoop(lead,height,hand*lane,1,false);
+      turn(lead,0,hand*lane,bend,(_u,tangent)=>upright(0,tangent));
+      add(v(lead,0,hand*2*lane),v(width*.6,0,hand*2*lane),v(width*.75,0),v(width,0));
+    }
+    const slot = (t: number) => { const at = Math.min(segments.length-1,Math.floor(t*segments.length)); return {segment:segments[at],u:t*segments.length-at}; };
+    return {
+      point(t) { const {segment,u}=slot(t); return segment.curve.getPoint(u); },
+      up(t,tangent) { const {segment,u}=slot(t); return segment.normal(u,tangent); },
+    };
+  }
   if (kind === "heartline") {
     // Rotate around a passenger's heart line, one metre above the rail.
     return banked(t => { const a = TAU * ease(t); return v(width * t, 1 - Math.cos(a), -hand * Math.sin(a)); }, t => TAU * ease(t));

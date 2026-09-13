@@ -11,9 +11,12 @@ export const MINI_PARCELS_PER_WAGON = 4;
 // Quadratic drag per metre; loose boxes have much more area per kilogram than the train.
 export const MINI_PARCEL_DRAG = 0.055;
 export const MINI_COUPLING_SLACK = 0.06;
-export const MINI_COACH_RETENTION = 125;
-export const MINI_COACH_MAX_LIFT = 2;
-export const MINI_COACH_HOP_DURATION = 0.6;
+export const MINI_PARCEL_RETENTION = 110;
+// About 4% more speed than cargo release on the same crest.
+export const MINI_COACH_RETENTION = MINI_PARCEL_RETENTION * 1.08;
+export const MINI_COACH_MAX_LIFT = 3.5;
+export const MINI_COACH_LINK_LIFT = 0.65;
+export const MINI_COACH_HOP_DURATION = 0.8;
 // Lift is easier to trigger than an actual breakaway.
 export const MINI_COUPLING_LOAD_THRESHOLD = 150;
 // Only the tail drawbar can break; the remaining chain stays tethered to the engine.

@@ -31,7 +31,7 @@ The main height multiplier is `1 + 0.22 × kilometres beyond 700 metres`. Hills 
 
 No answer boost is weakened. Each correct answer still supplies 300 joules per kilogram, with smaller speed gains when the train is already fast. Gravity and drag determine whether that stored momentum lasts through a climb. Longer towers require repeated answers; steep top hats and nested loops reward keeping enough energy in reserve.
 
-The first water gap is approximately 26–28 metres rather than the later 31–34 metres. This adjustment followed simulations in which one early mistake could otherwise end a learning-speed run before 20 seconds. A 320-metre flat landing runout follows each jump: fast flights no longer intercept a later climb high above the ground and bypass its challenge. An additional audit covered 728 landings across 40 seeds at four answering rates, including one answer per second; all landed on their runouts.
+The first water gap is approximately 26–28 metres rather than the later 31–34 metres. This adjustment followed simulations in which one early mistake could otherwise end a learning-speed run before 20 seconds. The additional 320-metre runout has now been removed at the player’s request. The original short landing section remains, and faster flights can rejoin a later track element.
 
 ## Answering assumptions and results
 
@@ -61,3 +61,15 @@ Phone checks cover touch input, deleting a digit, submitting, minimal HUD, large
 The production bundle also passed an actual keyboard-input smoke test: eight submitted answers, a completed 94.6-metre jump, and no page errors or failed asset requests. Phone layouts were checked at 320×568, 390×844, 844×390 and 1024×768, with no document overflow.
 
 Automated regressions check position and orientation continuity, finite orthonormal rail frames, forward exits, crossing clearance, actual inversions and vertical sections, conservative gravity when resistance is disabled, progression and recovery order, answer-profile outcomes, bounded track storage, mobile framing, and the existing carriage, parcel, jump, restart and record behavior.
+
+
+## Additional gallery elements
+
+The game and gallery now also include a non-inverting loop, a cobra roll and a pretzel knot. These are original geometry interpretations of [Coasterpedia’s non-inverting loop](https://coasterpedia.net/wiki/Non_inverting_loop), [cobra roll](https://coasterpedia.net/wiki/Cobra_roll) and [pretzel knot](https://coasterpedia.net/wiki/Pretzel_knot). The non-inverting loop keeps a regular loop centreline and rolls around the rail before the crown so the coach is upright at the top. The pretzel knot uses two tall inverted lobes and a low sweeping connection based on the supplied visual reference. Crossing lanes are separated; all complete elements return to the forward corridor. Their dimensions grow proportionally with ride distance.
+
+The balance table above records the v2 layout before these additions and the shorter jump landing sections.
+
+
+### Pretzel knot geometry correction
+
+The initial paired-full-loop interpretation was incorrect. The replacement follows the batwing sequence described by [Coasterpedia](https://coasterpedia.net/wiki/Batwing), with the [pretzel knot’s entrance-over-exit crossing](https://coasterpedia.net/wiki/Pretzel_knot), checked against [CoasterGallery’s Banshee photograph](https://www.coastergallery.com/2000/Kings_Island11.html). It uses a rising half corkscrew, a downward half loop, a low connecting sweep, an upward half loop and a descending half corkscrew. The core exits in the opposite direction; an external turn restores the game’s forward corridor. The crossing has vertical separation of 35% of element height. Regression checks distinguish these half-loop crowns from the previous full loops and verify the overpass and reversed exit.

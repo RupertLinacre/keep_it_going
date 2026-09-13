@@ -15,14 +15,15 @@ export function rideProgress(distance: number) {
 // groups, then alternates demanding pieces and lower recovery elements.
 export const RECOVERY: readonly MiniKind[] = ["hill", "dip", "heartline", "waveturn", "doubledip", "corkscrew"];
 export const CHALLENGES: readonly (readonly MiniKind[])[] = [
-  ["loop", "ascendinghelix", "zerogstall", "immelmann", "skyhill", "interlockingloops"],
-  ["loop", "ascendinghelix", "diveloop", "tophat", "invertedhill", "interlockingloops"],
-  ["nestedloop", "ascendinghelix", "tophat", "immelmann", "interlockingloops", "zerogstall"],
-  ["nestedloop", "ascendinghelix", "verticalhill", "diveloop", "interlockingloops", "invertedhill"],
-  ["nestedloop", "ascendinghelix", "tophat", "verticalhill", "interlockingloops", "diveloop"],
+  ["loop", "ascendinghelix", "zerogstall", "immelmann", "noninvertingloop", "interlockingloops"],
+  ["loop", "ascendinghelix", "diveloop", "tophat", "cobraroll", "interlockingloops"],
+  ["nestedloop", "ascendinghelix", "tophat", "immelmann", "pretzelknot", "zerogstall"],
+  ["nestedloop", "ascendinghelix", "verticalhill", "diveloop", "cobraroll", "invertedhill"],
+  ["nestedloop", "ascendinghelix", "tophat", "verticalhill", "pretzelknot", "noninvertingloop"],
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  noninvertingloop: "NON-INVERTING LOOP", pretzelknot: "PRETZEL KNOT", cobraroll: "COBRA ROLL",
   station: "BREATHER", firsthill: "FIRST DROP", hill: "AIRTIME HILL", skyhill: "SKY-HIGH CLIMB",
   dip: "VALLEY RUN", loop: "VERTICAL LOOP", corkscrew: "CORKSCREW", helix: "HELIX",
   triplehelix: "HELTER SKELTER", invertedhill: "INVERTED CREST", verticalhill: "VERTICAL CLIMB", jump: "WATER JUMP",

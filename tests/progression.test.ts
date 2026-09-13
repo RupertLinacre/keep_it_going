@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { MiniSection, MiniTrack } from "../src/games/mini-track.ts";
+import { MiniSection, MiniTrack, createMiniSection } from "../src/games/mini-track.ts";
 import { MiniPhysics } from "../src/games/mini-physics.ts";
+import { seededRandom } from "../src/games/mini-rail.ts";
 import { SPECIAL_KINDS } from "../src/games/mini-elements.ts";
 import { rideProgress, RECOVERY, ELEMENT_NAMES } from "../src/games/mini-progression.ts";
 import { PLAYER_PROFILES, simulateRide } from "../scripts/playtest.ts";
@@ -42,7 +43,7 @@ test("new track pieces have continuous positions, tangents and upright forward e
 });
 
 test("compound loops and rising spirals provide physical clearance at nonadjacent crossings", () => {
-  for (const s of collect(42).filter(s => ["nestedloop", "interlockingloops", "ascendinghelix"].includes(s.kind))) {
+  for (const s of collect(42).filter(s => ["nestedloop", "interlockingloops", "ascendinghelix", "noninvertingloop", "cobraroll", "pretzelknot"].includes(s.kind))) {
     const samples: THREE.Vector3[] = [];
     for (let at = s.start; at < s.end; at += 1) samples.push(s.sample(at).position);
     for (let i = 0; i < samples.length; i++) for (let j = i + 10; j < samples.length; j++)
@@ -77,7 +78,9 @@ test("the track director grows climbs and turn counts while keeping recovery sec
   const sections = collect(42, 24000);
   for (const kind of ["tophat", "nestedloop", "ascendinghelix", "interlockingloops"] as const) {
     const all = sections.filter(s => s.kind === kind), first = all[0], last = all.at(-1)!;
-    assert.ok(last.amplitude > first.amplitude * 2, `${kind}: substantially taller later`);
+    const early = createMiniSection(kind, 1000, new THREE.Vector3(), 20, seededRandom(42));
+    const late = createMiniSection(kind, 20000, new THREE.Vector3(), 20, seededRandom(42));
+    assert.ok(late.amplitude > early.amplitude * 2, `${kind}: substantially taller later`);
     if (kind === "ascendinghelix") assert.ok(last.turns > first.turns && first.turns === 2, "Spirals grow from two turns toward eight");
   }
   const directed = sections.filter(s => s.id >= 11);
@@ -144,8 +147,8 @@ test("a phone camera stays compact even when the keypad makes its game area wide
   assert.equal(rig.settled, true, "A paused view can stop redrawing even with the engine in its subject list");
 });
 
-test("fast answer-driven water jumps land on a straight runway instead of bypassing a later climb", () => {
-  let landings = 0;
+test("short water jumps allow fast flights to rejoin following track pieces", () => {
+  let landings = 0, beyondRunout = 0;
   for (const seed of [5, 19, 27, 39]) {
     const track = new MiniTrack(seed), physics = new MiniPhysics(track);
     let next = 1;
@@ -156,13 +159,17 @@ test("fast answer-driven water jumps land on a straight runway instead of bypass
       physics.update(1 / 30);
       if (physics.jumps > previous) {
         landings++;
-        assert.equal(track.sectionAt(physics.distance).kind, "jump", `Seed ${seed}: land within the runout`);
-        assert.ok(Math.abs(track.height(physics.distance) - 4) < 1e-8);
-        assert.ok(Math.abs(track.slope(physics.distance)) < 1e-8);
+        assert.ok(track.hasRail(physics.distance), "Rejoin actual rail");
+        assert.ok(Number.isFinite(physics.velocity), "Landing preserves finite motion");
+        if (track.sectionAt(physics.distance).kind !== "jump") beyondRunout++;
       }
     }
   }
   assert.ok(landings >= 15);
+  assert.ok(beyondRunout > 0, "Fast jumps may land beyond the short straight");
+  const jump = new MiniTrack(42).sections.find(s => s.kind === "jump")!;
+  assert.equal(jump.runout, 0);
+  assert.ok(jump.span - (jump.landingX - jump.origin.x) < 30, "Keep the original short landing section");
 });
 
 test("very long rides cap per-piece sampling and discard old rail even during a large seek", () => {
@@ -174,5 +181,43 @@ test("very long rides cap per-piece sampling and discard old rail even during a 
   for (const section of track.sections) {
     assert.ok(section.frames.length <= 16385);
     assert.ok(section.frames.every(f => Number.isFinite(f.position.length() + f.curvature.length())));
+  }
+});
+
+
+test("the non-inverting loop stays upright and both new knots have two inversions", () => {
+  for (const seed of [1,42,71]) for (const distance of [0,20000]) {
+    for (const kind of ["noninvertingloop", "cobraroll", "pretzelknot"] as const) {
+      const s=createMiniSection(kind,distance,new THREE.Vector3(),20,seededRandom(seed));
+      let inverted=false, count=0;
+      for (const f of s.frames) {
+        if (f.up.y < -0.5 && !inverted) {count++; inverted=true;}
+        if (f.up.y > 0.5) inverted=false;
+      }
+      assert.equal(count,kind === "noninvertingloop" ? 0 : 2,kind);
+      if (kind === "noninvertingloop") assert.ok(s.frames.reduce((top,f)=>f.position.y>top.position.y?f:top).up.y>.95, "The roll puts the coach upright at the crown");
+      assert.ok(s.frames.some(f=>f.tangent.x<-.25), "The silhouette turns back on itself");
+    }
+  }
+});
+
+
+test("pretzel knot has crossed half-corkscrews, two half-loops and a reversed core exit", () => {
+  for (const distance of [0, 12000]) {
+    const s = createMiniSection("pretzelknot",distance,new THREE.Vector3(),20,seededRandom(71));
+    const h=s.amplitude, lead=1.5*h;
+    const nearest=(x:number,y:number,z:number)=>s.frames.reduce((a,b)=>
+      a.position.distanceToSquared(new THREE.Vector3(x,y,z))<b.position.distanceToSquared(new THREE.Vector3(x,y,z))?a:b);
+    const hand=s.hand;
+    const entrance=nearest(lead,.65*h,-hand*.5*h), exit=nearest(lead,.3*h,-hand*.5*h);
+    assert.ok(Math.hypot(entrance.position.x-exit.position.x,entrance.position.z-exit.position.z)<.02*h, "Entrance and exit actually cross in plan view");
+    assert.ok(entrance.position.y-exit.position.y>.3*h,"Entrance passes above exit with clearance");
+    for (const x of [lead+.8*h,lead-.8*h]) {
+      const crown=nearest(x,h,0);
+      assert.ok(crown.up.y<-.98 && crown.tangent.x>.98,"Each crown joins an inverted half-corkscrew to a half-loop, not a full loop");
+    }
+    const reversed=nearest(lead+1.2*h,0,-hand*1.2*h);
+    assert.ok(reversed.tangent.x<-.98 && reversed.up.y>.98,"The core exits upright in the opposite direction");
+    assert.ok(s.frames.at(-1)!.tangent.x>.99,"Separate connecting turn returns forward");
   }
 });

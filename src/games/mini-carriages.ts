@@ -5,7 +5,7 @@ import {
   MINI_CART_SPACING, MINI_MAX_FLYING_CARTS, MINI_MAX_FLYING_PARCELS,
   MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS,
   parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
-  MINI_PARCEL_DRAG, MINI_COUPLING_SLACK, MINI_COUPLING_STRENGTH,
+  MINI_PARCEL_DRAG, MINI_PARCEL_RETENTION, MINI_COACH_LINK_LIFT, MINI_COUPLING_STRENGTH,
   MINI_COUPLING_LOAD_THRESHOLD, MINI_COACH_RETENTION, MINI_COACH_MAX_LIFT, MINI_COACH_HOP_DURATION, MINI_PARCELS_PER_WAGON,
 } from "./mini-config";
 
@@ -306,7 +306,7 @@ export class MiniCarriages {
       if (distance - coach.offset < this.track.sections[0].start) continue;
       const index = this.coaches.indexOf(coach);
       if (coach.cargo && coach.grace === 0) {
-        coach.parcelStrain = Math.max(0, coach.parcelStrain + (outward[index] > 110 ? outward[index] / 110 - 1 : -4) * dt);
+        coach.parcelStrain = Math.max(0, coach.parcelStrain + (outward[index] > MINI_PARCEL_RETENTION ? outward[index] / MINI_PARCEL_RETENTION - 1 : -4) * dt);
         if (coach.parcelStrain > 0.035) this.spill(coach, this.frame(coach, distance), speed);
       }
     }
@@ -324,34 +324,33 @@ export class MiniCarriages {
       coach.wheelStrain = Math.max(0, coach.wheelStrain + (outward[i] / MINI_COACH_RETENTION - 1) * dt);
       coach.airTime = Math.min(MINI_COACH_HOP_DURATION, coach.airTime + dt);
       if (i > 0 && retained && coach.airTime >= MINI_COACH_HOP_DURATION
-        && outward[i] > MINI_COACH_RETENTION && coach.wheelStrain > 0.02 && coach.hillId !== section.id) {
+        && outward[i] > MINI_COACH_RETENTION && coach.wheelStrain > 0.035 && coach.hillId !== section.id) {
         coach.hillId = section.id;
         coach.airTime = 0;
         coach.couplingStrain = 0;
-        // A little more lift toward the tail makes one short, controlled wave.
-        coach.liftPeak = Math.min(MINI_COACH_MAX_LIFT, Math.max(0.55, (outward[i] / MINI_COACH_RETENTION - 0.6) * 1.25))
-          * (0.45 + 0.55 * Math.min(i / 5, 1));
+        // A light coach near the engine has little freedom; each successive
+        // drawbar permits a larger arc. Excess speed strengthens the same arc.
+        const strength = Math.min(1.6, 0.85 + (outward[i] / MINI_COACH_RETENTION - 1) * 0.7);
+        coach.liftPeak = Math.min(MINI_COACH_MAX_LIFT, i * 0.6 * strength);
       }
       const t = coach.airTime / MINI_COACH_HOP_DURATION;
-      // Smooth takeoff and landing, with no rebound or repeated hop on this hill.
-      coach.lift = i > 0 && retained ? coach.liftPeak * 16 * t * t * (1 - t) * (1 - t) : 0;
+      // Quick momentum-driven takeoff, followed by a longer, smooth pull-down.
+      // This normalized arc peaks at one third and lands with zero velocity.
+      coach.lift = i > 0 && retained ? coach.liftPeak * 6.75 * t * (1 - t) ** 2 : 0;
       coach.couplingStrain = Math.max(0, coach.couplingStrain
         + (coach.couplingLoad > 0 ? coach.couplingLoad / MINI_COUPLING_STRENGTH : -1) * dt);
       coach.stress = Math.max(Math.min(1, coach.couplingStrain / 0.08), coach.stress * Math.exp(-6 * dt));
       coach.position.copy(frame.position);
     }
-    // Keep the drawbars within their normal reach by reducing excessive lift.
-    // A constraint can only lower a coach; it cannot inject another upward kick.
-    const maxLength = MINI_CART_SPACING + MINI_COUPLING_SLACK;
-    for (let iteration = 0; iteration < 12; iteration++) for (let k = 1; k < coaches.length; k++) {
-      const i = iteration % 2 ? coaches.length - k : k;
-      const a = frames[i - 1].position, b = frames[i].position;
-      const verticalReach = Math.sqrt(Math.max(0, maxLength ** 2 - (b.x - a.x) ** 2 - (b.z - a.z) ** 2));
-      const separation = b.y + coaches[i].lift - a.y - coaches[i - 1].lift;
-      if (separation > verticalReach) coaches[i].lift = Math.max(0, coaches[i].lift - separation + verticalReach);
-      else if (separation < -verticalReach && i > 1)
-        coaches[i - 1].lift = Math.max(0, coaches[i - 1].lift + separation + verticalReach);
-    }
+    // Constrain lift relative to each coach's own rail position, not the chord
+    // between two positions on a steep hill. A rigid world-space length limit
+    // erases the wave on descents. These one-dimensional tethers only lower
+    // excess lift; they cannot swing sideways or pull the lead off its rails.
+    coaches[0].lift = 0;
+    for (let i = 1; i < coaches.length; i++)
+      coaches[i].lift = Math.min(coaches[i].lift, coaches[i - 1].lift + MINI_COACH_LINK_LIFT);
+    for (let i = coaches.length - 2; i > 0; i--)
+      coaches[i].lift = Math.min(coaches[i].lift, coaches[i + 1].lift + MINI_COACH_LINK_LIFT);
     for (let i = 0; i < coaches.length; i++) {
       const coach = coaches[i];
       coach.derailed = coach.lift > 1e-6;

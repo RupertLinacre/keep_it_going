@@ -64,7 +64,7 @@ export class MiniSection implements MiniRail {
     readonly hand: number,
     readonly turns = kind === "triplehelix" ? 3 : 1,
   ) {
-    this.runout = kind === "jump" ? 320 : 0;
+    this.runout = 0;
     const special = specialElement(kind, width, amplitude, hand, turns);
     this.resolution = Math.min(16384, Math.max(kind === "triplehelix" ? 1260 : kind === "verticalhill" ? 600 : special ? 840 : 420,
       kind === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
@@ -309,13 +309,15 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     if (kind === "immelmann" || kind === "diveloop") { width = r(68, 80); amplitude = r(18, 22); shift = 0; }
     if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = progress.turns; shift = 0; }
     if (kind === "interlockingloops") { amplitude = r(21, 25); width = amplitude * 1.3; shift = 0; }
+    if (kind === "noninvertingloop") { amplitude = r(20, 24); width = amplitude * 0.9; shift = 0; }
+    if (kind === "cobraroll" || kind === "pretzelknot") { amplitude = r(22, 26); width = amplitude * (kind === "pretzelknot" ? 4.5 : 3.8); shift = 0; }
     if (kind === "nestedloop") { amplitude = r(30, 34); width = amplitude * 0.9; shift = 0; }
     if (!["station", "dip", "heartline", "jump", "corkscrew"].includes(kind)) {
       const recovery = RECOVERY.includes(kind);
       const growth = recovery ? 1 + (scale - 1) * 0.25 : scale;
       amplitude *= growth * (kind === "ascendinghelix" ? 1 + (turns - 2) * 0.18 : 1);
       // Preserve the proportions of inversions; make hills increasingly steep.
-      const round = ["loop", "interlockingloops", "nestedloop"].includes(kind);
+      const round = ["loop", "interlockingloops", "nestedloop", "noninvertingloop", "cobraroll", "pretzelknot"].includes(kind);
       width *= round ? growth : Math.sqrt(growth);
     }
     return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
