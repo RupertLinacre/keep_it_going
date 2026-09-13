@@ -1,3 +1,5 @@
+import { AdventureScene } from "./adventure-scene";
+import { adventureAt } from "./adventure-worlds";
 import { sailDeployment } from "./tailwind-sails";
 import { groundBounds, RaceSpacing } from "./mini-world";
 import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
@@ -45,6 +47,9 @@ export class MiniView {
   private parcelParts: ModelPart[];
   private sailParts?: ModelPart[];
   private dynamiteParts?: ModelPart[];
+  private adventureScene?: AdventureScene;
+  private sunlight?: THREE.DirectionalLight;
+  private skylight?: THREE.HemisphereLight;
   private powerScene?: PowerupScene;
   private opponentPowerScene?: PowerupScene;
   private splashSheets: THREE.InstancedMesh;
@@ -83,8 +88,10 @@ export class MiniView {
     this.scene.updateMatrix();
     this.scene.background = new THREE.Color("#e6eee8");
     this.scene.fog = new THREE.Fog("#e6eee8", 100, 180);
-    this.scene.add(new THREE.HemisphereLight("#fffbea", "#8bafa6", 2));
+    this.skylight = new THREE.HemisphereLight("#fffbea", "#8bafa6", 2);
+    this.scene.add(this.skylight);
     const sun = new THREE.DirectionalLight("#fff2d5", 2.5);
+    this.sunlight = sun;
     sun.position.set(-18, 44, 28);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -446,7 +453,7 @@ export class MiniView {
       1;
     const trunkGeo = new THREE.CylinderGeometry(0.12, 0.17, 1, 6),
       leafGeo = new THREE.ConeGeometry(0.9, 2.2, 7);
-    const trees = section.runout ? Math.ceil(section.span / 16) : 5;
+    const trees = this.track.options.generative ? 0 : section.runout ? Math.ceil(section.span / 16) : 5;
     for (let i = 0; i < trees; i++) {
       const x = (Math.max(3, section.span) * (i + 0.5)) / trees;
       const side = ["helix", "triplehelix", "ascendinghelix", "immelmann", "diveloop", "nestedloop", "interlockingloops"].includes(section.kind) ? -section.hand : i % 2 ? 1 : -1;
@@ -792,10 +799,37 @@ export class MiniView {
       } else if (this.opponentPowerScene) this.opponentPowerScene.group.visible = false;
       const active = powerups.active, info = active ? POWERUPS[active] : undefined;
       const blend = 1 - Math.exp(-dt*3);
-      (this.scene.background as THREE.Color).lerp(new THREE.Color(info?.sky ?? "#e6eee8"), blend);
+      if (!this.track.options.generative) (this.scene.background as THREE.Color).lerp(new THREE.Color(info?.sky ?? "#e6eee8"), blend);
       fog.color.copy(this.scene.background as THREE.Color);
-      if (!this.multiplayer) for (let i = 0; i < 3; i++) this.railMaterial(i).color.lerp(new THREE.Color(info ? i === 1 ? "#fff1bf" : info.color : ["#e89983", "#f5d16f", "#64988e"][i]), blend);
-      this.material("#d5e3c3").color.lerp(new THREE.Color(active === "ice" ? "#e3eced" : active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : "#d5e3c3"), blend);
+      if (!this.multiplayer && !this.track.options.generative) for (let i = 0; i < 3; i++) this.railMaterial(i).color.lerp(new THREE.Color(info ? i === 1 ? "#fff1bf" : info.color : ["#e89983", "#f5d16f", "#64988e"][i]), blend);
+      if (!this.track.options.generative) this.material("#d5e3c3").color.lerp(new THREE.Color(active === "ice" ? "#e3eced" : active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : "#d5e3c3"), blend);
+    }
+    if (this.track.options.generative) {
+      const world = adventureAt(Math.max(0,this.track.sectionAt(distance).start)).world;
+      this.adventureScene ??= new AdventureScene(this.scene);
+      this.adventureScene.render(this.track,distance,anchor,this.laneOffset,time);
+      const blend=1-Math.exp(-dt*1.5), dark=world.darkness;
+      const sky=new THREE.Color(world.sky), ground=new THREE.Color(world.ground);
+      if(powerups?.active) {
+        sky.lerp(new THREE.Color(POWERUPS[powerups.active].sky),.12);
+        if(powerups.active==="ice")ground.lerp(new THREE.Color("#e3eced"),.5);
+      }
+      (this.scene.background as THREE.Color).lerp(sky,blend);
+      fog.color.copy(this.scene.background as THREE.Color);
+      this.material("#d5e3c3").color.lerp(ground,blend);
+      this.material("#cfae8c").color.lerp(new THREE.Color(world.earth),blend);
+      this.sunlight!.color.lerp(new THREE.Color(world.light),blend);
+      this.sunlight!.intensity += ((2.5-dark*1.3)-this.sunlight!.intensity)*blend;
+      this.skylight!.color.lerp(new THREE.Color(world.ambient),blend);
+      this.skylight!.intensity += ((2-dark*.6)-this.skylight!.intensity)*blend;
+      if(!this.multiplayer) {
+        this.railMaterial(0).color.lerp(new THREE.Color(world.rail),blend);
+        this.railMaterial(1).color.lerp(new THREE.Color(dark?"#a2efdf":"#ffe4a1"),blend);
+      }
+      for(let part=0;part<2;part++)for(const rival of this.multiplayer?[false,true]:[false]) {
+        const material=this.railMaterial(part,rival);
+        material.emissive.copy(material.color);material.emissiveIntensity=dark*.42;
+      }
     }
     this.renderer.render(this.scene, this.camera);
   }
@@ -835,6 +869,7 @@ export class MiniView {
   }
   destroy() {
     this.resize.disconnect();
+    this.adventureScene?.destroy();
     this.powerScene?.destroy();
     this.opponentPowerScene?.destroy();
     // All geometries are owned by this view; shared materials are released once.

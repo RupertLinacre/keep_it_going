@@ -1,3 +1,4 @@
+import { AdventureHud } from "./adventure-hud";
 import { drawTailwindSail, sailDeployment } from "./tailwind-sails";
 import { RaceSpacing } from "./mini-world";
 import { HeightTrack, HEIGHT_PER_ANSWER } from "./height-track";
@@ -66,6 +67,7 @@ export class Mini extends BaseGame {
   readonly heightMode: boolean;
   readonly remixMode: boolean;
   readonly powerups?: RidePowerups;
+  private adventureHud?: AdventureHud;
   private powerHud?: PowerupHud;
   private answerWasLift = false;
   readonly recordId: "mini" | "height" | "remix";
@@ -95,6 +97,7 @@ export class Mini extends BaseGame {
     }
   }
   setup() {
+    if (this.remixMode) this.adventureHud = new AdventureHud(this.host.stage);
     if (!this.heightMode && !this.remixMode) this.readouts = new MiniReadouts(this.host.stage);
     if (this.remixMode && !this.multiplayer) this.powerHud = new PowerupHud(this.host.stage);
     this.view = new MiniView(this.host.stage, this.track, { multiplayer: this.multiplayer, role: this.riderRole, spacing: this.raceSpacing });
@@ -313,6 +316,7 @@ export class Mini extends BaseGame {
     }
   }
   draw(ctx: CanvasRenderingContext2D) {
+    this.adventureHud?.render(this.track,this.physics.distance,this.elapsed);
     if (this.view) {
       ctx.clearRect(0, 0, 1100, 570);
       this.view.render(
@@ -515,6 +519,7 @@ export class Mini extends BaseGame {
     record(this.recordId, this.host.difficulty, this.score);
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
     this.powerHud?.destroy();
+    this.adventureHud?.destroy();
     this.readouts?.destroy();
     this.view?.destroy();
   }

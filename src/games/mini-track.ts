@@ -1,3 +1,4 @@
+import { adventureAt } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import { clamp } from "../math";
@@ -7,9 +8,10 @@ import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
   "station" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
 export const isHump = (kind: MiniKind) =>
-  ["firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
+  ["mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
 export interface MiniRail {
   metric?(distance: number): number;
   readonly startDistance?: number;
@@ -81,6 +83,15 @@ export class MiniSection implements MiniRail {
         z = shift * ease;
       if (kind === "firsthill" || kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "mountainpass") {
+        y = amplitude * Math.sin(Math.PI * t) ** 2;
+        z += hand * width * .1 * Math.sin(Math.PI * t) ** 2 * Math.sin(2 * Math.PI * t);
+      }
+      if (kind === "tunnel") y = -amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "lanternrun" || kind === "pumpkinhop") {
+        y = amplitude * Math.sin(Math.PI * t) ** 2 * (.62 + .38 * Math.cos((kind === "pumpkinhop" ? 6 : 4) * Math.PI * t));
+        z += hand * 3 * Math.sin(Math.PI * t) ** 2 * Math.sin(2 * Math.PI * t);
+      }
       if (kind === "splash")
         y = -amplitude * smooth(Math.min(1, t / .24)) * smooth(Math.min(1, (1 - t) / .24));
       if (kind === "jump") {
@@ -359,6 +370,18 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
       if (kind === "ascendinghelix") turns = Math.min(8, Math.max(2, turns + Math.floor(r(-1, 2))));
       if (kind === "station") width = r(10, 20);
     }
+    if (kind === "mountainpass") { width = r(85, 110); amplitude = r(19, 27); shift = 0; }
+    if (kind === "tunnel") { width = r(45, 58); amplitude = 1.1; shift = 0; }
+    if (kind === "lanternrun") { width = r(62, 78); amplitude = r(5, 8); shift = 0; }
+    if (kind === "pumpkinhop") { width = r(70, 90); amplitude = r(7, 10); shift = 0; }
+    if (varied) {
+      const world = adventureAt(start).world;
+      const doubleHeight = ["loop", "nestedloop", "interlockingloops", "noninvertingloop"].includes(kind) ? 2 : 1;
+      const shrink = Math.min(1, world.maxHeight / Math.max(1, Math.abs(amplitude) * doubleHeight));
+      amplitude *= shrink; width *= shrink;
+      turns = Math.min(4, turns);
+      if (kind === "verticalhill") amplitude = Math.max(amplitude, width * .58);
+    }
     return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
 }
 
@@ -371,6 +394,7 @@ export class MiniTrack implements MiniRail {
   private random: () => number;
   private bag: MiniKind[] = [];
   private bags = 0;
+  private bagWorld = -1;
   constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean } = {}) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
@@ -421,6 +445,10 @@ export class MiniTrack implements MiniRail {
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
+      const adventure = adventureAt(this.end);
+      if (this.options.generative && this.bagWorld !== adventure.stage) {
+        this.bag = []; this.bagWorld = adventure.stage;
+      }
       if (!this.bag.length) {
         const shuffle = (items: readonly MiniKind[]) => {
           const result = [...items];
@@ -431,19 +459,15 @@ export class MiniTrack implements MiniRail {
           return result;
         };
         const { chapter } = rideProgress(this.end);
-        const challenges = shuffle(this.options.generative
-          ? ["loop", "helix", "skyhill", "invertedhill", "verticalhill", "triplehelix", "jump",
-            "ascendinghelix", "zerogstall", "immelmann", "noninvertingloop", "interlockingloops", "diveloop",
-            "tophat", "cobraroll", "pretzelknot", ...(chapter > 0 ? ["nestedloop" as const] : [])] as MiniKind[]
-          : CHALLENGES[chapter]).filter(kind => !this.options.generative || this.end >= 350 || kind !== "jump").slice(0, 6);
-        if (this.options.generative) challenges[1 + Math.floor(this.random() * 5)] = "splash";
+        const challenges = shuffle(this.options.generative ? adventure.world.challenges : CHALLENGES[chapter]).slice(0, 6);
         const recovery = shuffle(RECOVERY);
         // A tower or water jump is an occasional event, followed by a breather.
         if (!this.options.generative) {
           if (++this.bags % 2 === 0) challenges[4] = "jump";
           if (this.bags % 2 === 1) challenges[5] = "triplehelix";
         }
-        const sequence = challenges.flatMap((kind, i) => [recovery[i], kind]);
+        const sequence = challenges.flatMap((kind, i) => [recovery[i % recovery.length], kind]);
+        if (this.options.generative && adventure.index > 0) sequence.unshift(adventure.world.challenges[0]);
         this.bag = sequence.reverse();
       }
       this.append(this.bag.pop()!);

@@ -1170,3 +1170,19 @@ kbd {
   .is-remix .race-rider { padding: 6px 7px; }
   .is-remix .race-rider > span > span { max-width: 64px; }
 }
+
+/* The journey has one small landmark label; welcomes fade without blocking play. */
+.world-hud { position:absolute; z-index:3; bottom:14px; left:18px; display:flex; align-items:center; gap:9px; padding:8px 12px; border-radius:30px; background:#fffdf2e8; color:#37594d; pointer-events:none; font-size:12px; font-weight:700; box-shadow:0 2px 12px #243b3710; }
+.world-symbol { font-size:19px; line-height:1; }
+.world-stops { display:flex; gap:4px; margin-left:4px; }
+.world-stops i { width:5px; height:5px; background:#cad3c2; border-radius:50%; }
+.world-stops i.visited { background:#6d9b73; }
+.world-welcome { position:absolute; z-index:4; top:24%; left:50%; transform:translateX(-50%); width:max-content; max-width:90%; padding:16px 28px; background:#fff9ebf0; border:1px solid #ffffffaa; border-radius:20px; color:#36574e; text-align:center; pointer-events:none; box-shadow:0 6px 35px #21374715; }
+.world-welcome small { display:block; font-size:10px; letter-spacing:2px; font-weight:700; color:#788a75; }
+.world-welcome strong { display:block; font:600 30px Outfit,sans-serif; margin:3px 0 5px; }
+.world-welcome span { font-size:13px; }
+@media(max-width:800px),(hover:none) and (pointer:coarse) {
+ .world-hud { left:8px; bottom:8px; font-size:10px; gap:6px; padding:6px 9px; }
+ .world-symbol { font-size:14px; } .world-stops { display:none; }
+ .world-welcome { padding:12px 17px; top:29%; } .world-welcome strong { font-size:23px; } .world-welcome span { font-size:11px; }
+}

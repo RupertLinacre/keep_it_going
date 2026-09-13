@@ -16,6 +16,10 @@ import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  mountainpass: "A winding railway climbs a mountain ridge before swooping down the other side.",
+  tunnel: "A gentle valley runs through a short lantern-lit tunnel.",
+  lanternrun: "Rolling hills trace a parade of glowing lanterns.",
+  pumpkinhop: "Three playful little hops through the pumpkin patch.",
   noninvertingloop:
     "A regular loop with a roll on the climb, putting the coach upright at the crown before it unwinds on the descent.",
   pretzelknot:

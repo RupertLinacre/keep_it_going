@@ -23,6 +23,7 @@ export const CHALLENGES: readonly (readonly MiniKind[])[] = [
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  mountainpass: "MOUNTAIN PASS", tunnel: "TWINKLE TUNNEL", lanternrun: "LANTERN PARADE", pumpkinhop: "PUMPKIN HOPS",
   noninvertingloop: "NON-INVERTING LOOP", pretzelknot: "PRETZEL KNOT", cobraroll: "COBRA ROLL",
   station: "BREATHER", firsthill: "FIRST DROP", hill: "AIRTIME HILL", skyhill: "SKY-HIGH CLIMB",
   dip: "VALLEY RUN", loop: "VERTICAL LOOP", corkscrew: "CORKSCREW", helix: "HELIX",
