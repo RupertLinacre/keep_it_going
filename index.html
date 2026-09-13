@@ -10,7 +10,26 @@
       content="Keep it going — boost a miniature coaster through loops, corkscrews and helices. Watch your speed over the humps!"
     />
     <title>Keep it going</title>
-    <script type="module" crossorigin src="./assets/game-DQqtB5Eq.js"></script>
+    <script>
+      const analyticsMeasurementId = 'G-94373ZKHEE'
+      const analyticsDisabledHosts = new Set(['localhost', '127.0.0.1'])
+
+      if (!analyticsDisabledHosts.has(window.location.hostname)) {
+        window.dataLayer = window.dataLayer || []
+        window.gtag = function gtag() {
+          window.dataLayer.push(arguments)
+        }
+
+        window.gtag('js', new Date())
+        window.gtag('config', analyticsMeasurementId)
+
+        const analyticsScript = document.createElement('script')
+        analyticsScript.async = true
+        analyticsScript.src = `https://www.googletagmanager.com/gtag/js?id=${analyticsMeasurementId}`
+        document.head.append(analyticsScript)
+      }
+    </script>
+    <script type="module" crossorigin src="./assets/game-BcAyYEfz.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/three-Bv0WBYQY.js">
     <link rel="modulepreload" crossorigin href="./assets/mini-track-D0uG3HOm.js">
     <link rel="stylesheet" crossorigin href="./assets/mini-track-pFaUXuVv.css">
