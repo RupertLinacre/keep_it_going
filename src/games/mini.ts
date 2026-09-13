@@ -1,3 +1,5 @@
+import { drawAdventureFallback } from "./adventure-fallback";
+import { adventureAt } from "./adventure-worlds";
 import { AdventureHud } from "./adventure-hud";
 import { drawTailwindSail, sailDeployment } from "./tailwind-sails";
 import { RaceSpacing } from "./mini-world";
@@ -226,7 +228,10 @@ export class Mini extends BaseGame {
     this.host.sound("bad");
     record(this.recordId, this.host.difficulty, this.score);
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
-    this.finish(false, this.heightMode ? "The train ran out of momentum. Raise your track before the next climb." : water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.", {
+    const stopped = this.heightMode ? "The train ran out of momentum. Raise your track before the next climb." : water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.";
+    const journey = this.remixMode ? adventureAt(this.track.sectionAt(this.physics.distance).start) : undefined;
+    const explored = journey ? journey.lap ? ` All four worlds explored! Adventure ${journey.lap+1} reached.` : ` You reached ${journey.world.name}!` : "";
+    this.finish(false, stopped + explored, {
       distance: this.travelled, bestDistance: Math.max(this.personalBest.distance, this.travelled),
       bestJump: this.physics.bestJump, longestTrain: this.longestTrain, peakSpeed: this.physics.peakSpeed,
       bestStreak: this.bestStreak, newDistanceRecord: this.travelled > this.personalBest.distance,
@@ -361,7 +366,8 @@ export class Mini extends BaseGame {
   }
   private fallback(ctx: CanvasRenderingContext2D) {
     const power = this.powerups?.active, theme = power ? POWERUPS[power] : undefined;
-    gradient(ctx, theme?.sky ?? "#e1eee4", "#f5efd9");
+    const world=this.remixMode?adventureAt(this.track.sectionAt(this.physics.distance).start).world:undefined;
+    gradient(ctx, world?.sky ?? theme?.sky ?? "#e1eee4", world?.ground ?? "#f5efd9");
     const frame = this.physics.sample(this.physics.distance);
     const baseScale = this.close ? 28 : 19;
     let scale = baseScale;
@@ -408,9 +414,10 @@ export class Mini extends BaseGame {
     // A visible board edge in the side view gives the same downhill reference
     // as the 3D landscape, and rotates together with rails and scenery.
     const [boardX, boardY] = project(centerX - 1600/scale, 0);
-    ctx.fillStyle = "#cfae8c"; ctx.fillRect(boardX, boardY, 3200, 16);
-    ctx.fillStyle = "#d5e3c3"; ctx.fillRect(boardX, boardY - 5, 3200, 5);
+    ctx.fillStyle = world?.earth ?? "#cfae8c"; ctx.fillRect(boardX, boardY, 3200, 16);
+    ctx.fillStyle = world?.ground ?? "#d5e3c3"; ctx.fillRect(boardX, boardY - 5, 3200, 5);
     ctx.fillStyle = "#f7efdb"; ctx.fillRect(boardX, boardY, 3200, 2);
+    if(this.remixMode)drawAdventureFallback(ctx,this.track,this.physics.distance,this.elapsed,p=>project(p.x,p.y),scale);
     if (this.powerups?.gate) {
       const gate = this.powerups.gate, f = this.track.sample(gate.distance), info = POWERUPS[gate.kind];
       const [x,y] = project(f.position.x, f.position.y+2.4);
@@ -429,7 +436,7 @@ export class Mini extends BaseGame {
         for (let i = 0; i < 14; i++) line(ctx, [[x + i * section.width*.05*scale, y + 3], [x + (i * section.width*.05 + 1.5)*scale, y + 3]], "#c5f4f1", 2);
       }
       let points: [number, number][] = [];
-      const drawRail = () => { if (points.length > 1) { line(ctx, points, theme?.color ?? "#78a296", 8); line(ctx, points, "#f3d68f", 3); } points = []; };
+      const drawRail = () => { if (points.length > 1) { line(ctx, points, world?.rail ?? theme?.color ?? "#78a296", 8); line(ctx, points, "#f3d68f", 3); } points = []; };
       for (let i = 0; i < section.frames.length; i += 3) {
         if (!section.hasRail(section.start + section.distances[i])) { drawRail(); continue; }
         const f = section.frames[i]; points.push(project(f.position.x, f.position.y));

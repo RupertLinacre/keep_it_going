@@ -1,3 +1,4 @@
+import { halloweenScenery, pumpkinHops, pumpkinTunnel, ghostModel, batModel } from "./world-halloween";
 import { nightScenery, lanternParade } from "./world-night";
 import { mountainScenery, mountainRidge, tunnelModel } from "./world-mountains";
 import * as T from "three";
@@ -7,8 +8,8 @@ import { sectionBounds } from "./mini-world";
 import { seededRandom } from "./mini-rail";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
-type Actor = { kind: "sheep" | "mill" | "cable" | "wheel" | "firefly"; x: number; y: number; z: number; phase: number; size: number };
-type Tile = { root: T.Group; mirror?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group };
+type Actor = { kind: "sheep" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat"; x: number; y: number; z: number; phase: number; size: number };
+type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
  * Static scenery is batched; animated creatures share a small instance buffer. */
@@ -22,7 +23,11 @@ export class AdventureScene {
   private cables: T.InstancedMesh;
   private wheels: T.InstancedMesh;
   private fireflies: T.InstancedMesh;
+  private ghosts: T.InstancedMesh;
+  private bats: T.InstancedMesh;
+  private actorMeshes: Record<Actor["kind"],T.InstancedMesh>;
   private dummy = new T.Object3D();
+  private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
   constructor(scene: T.Scene) {
     scene.add(this.group);
     const sheep = new WorldModel();
@@ -58,6 +63,8 @@ export class AdventureScene {
     this.wheels=this.instances(wheel,true);
     const firefly=new WorldModel();firefly.add(G.round,'#c4f8a4',[0,0,0],[.1,.1,.1],[],true);
     this.fireflies=this.instances(firefly,true);
+    this.ghosts=this.instances(ghostModel());this.bats=this.instances(batModel());
+    this.actorMeshes={sheep:this.sheep,mill:this.mills,cable:this.cables,wheel:this.wheels,firefly:this.fireflies,ghost:this.ghosts,bat:this.bats};
   }
   private instances(model: WorldModel, glow=false) {
     const source = model.finish(this.material, this.luminous).children[0] as T.Mesh;
@@ -66,11 +73,11 @@ export class AdventureScene {
     mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); this.group.add(mesh); return mesh;
   }
   private build(section: MiniSection, track: MiniTrack): Tile {
-    const model = new WorldModel(), actors: Actor[] = [];
+    const model = new WorldModel(true), actors: Actor[] = [];
     const world = adventureAt(Math.max(0, section.start)).world;
     const random = seededRandom((track.seed ^ Math.imul(section.id + 17, 17041)) >>> 0);
     const bounds = sectionBounds(section);
-    const back = Math.min(-10, bounds.min.z - section.origin.z - 9);
+    const back = -Math.max(10,Math.abs(bounds.min.z-section.origin.z),Math.abs(bounds.max.z-section.origin.z))-12;
     const front = Math.max(9, bounds.max.z - section.origin.z + 7);
     const span = section.span;
     const n = Math.min(12, Math.max(1, Math.ceil(span / 32)));
@@ -91,15 +98,31 @@ export class AdventureScene {
           actors.push({kind:'wheel',x,y:9,z,phase:random()*6.28,size:1});
         }
         for(let j=0;j<10;j++)actors.push({kind:'firefly',x:x-14+random()*28,y:1+random()*3,z:front+random()*7,phase:random()*6.28,size:.7+random()});
+      } else if(world.id==='halloween') {
+        halloweenScenery(model,x,back,front,random);
+        for(let j=0;j<2;j++)actors.push({kind:'ghost',x:x-10+random()*20,y:2+random()*2,z:front+2+random()*5,phase:random()*6.28,size:.9+random()*.4});
+        for(let j=0;j<3;j++)actors.push({kind:'bat',x:x-12+random()*24,y:7+random()*3,z:back+3,phase:random()*6.28,size:.7+random()*.3});
       } else this.meadow(model, actors, x, back, front, random);
     }
-    if(section.kind==='lanternrun')lanternParade(model,section);
-    if(section.kind==='mountainpass')mountainRidge(model,section);
+    let formation:T.Group|undefined;
+    if(section.kind==='pumpkinhop'||section.kind==='lanternrun') {
+      const decoration=new WorldModel();
+      if(section.kind==='pumpkinhop')pumpkinHops(decoration,section);else lanternParade(decoration,section);
+      formation=decoration.finish(this.material,this.luminous);this.group.add(formation);
+    }
+    if(section.kind==='mountainpass') {
+      const ridge=new WorldModel();mountainRidge(ridge,section);formation=ridge.finish(this.material,this.luminous);this.group.add(formation);
+    }
+    if(section.kind==='tunnel') {
+      const base=new WorldModel(),f=section.sample(section.start+section.length*.5).position;
+      base.add(G.box,world.id==='halloween'?'#b69a72':'#a0ada8',[f.x-section.origin.x,(f.y-.3)/2,f.z-section.origin.z],[16,f.y-.3,8]);
+      formation=base.finish(this.material,this.luminous);this.group.add(formation);
+    }
     const root = model.finish(this.material, this.luminous);
     this.group.add(root);
-    const tunnel=section.kind==='tunnel'?tunnelModel(this.material,this.luminous,world.id==='halloween'):undefined;
+    const tunnel=section.kind==='tunnel'?(world.id==='halloween'?pumpkinTunnel(this.material,this.luminous):tunnelModel(this.material,this.luminous)):undefined;
     if(tunnel)this.group.add(tunnel);
-    return { root, actors, section, tunnel };
+    return { root, actors, section, tunnel, formation };
   }
   private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
     // Broad, overlapping hills read as a landscape rather than miniature cones.
@@ -135,57 +158,69 @@ export class AdventureScene {
     }
   }
   render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number) {
+    if(this.reducedMotion?.matches)time=0;
     const visible = track.sections.filter(s=>s.start<distance+350);
     const ids = new Set(visible.map(s=>s.id));
     for (const [id,tile] of this.tiles) if(!ids.has(id)) { this.release(tile); this.tiles.delete(id); }
-    let sheep=0,mills=0,cables=0,wheels=0,fireflies=0;
+    const counts:Record<Actor["kind"],number>={sheep:0,mill:0,cable:0,wheel:0,firefly:0,ghost:0,bat:0};
     const leadX=track.sample(distance).position.x;
     for (const section of visible) {
       let tile=this.tiles.get(section.id);
       if(!tile) { tile=this.build(section,track);this.tiles.set(section.id,tile); }
-      tile.root.position.set(section.origin.x-anchor,0,section.origin.z+laneOffset);
-      if(laneOffset && !tile.mirror) { tile.mirror=tile.root.clone();tile.mirror.scale.z=-1;this.group.add(tile.mirror); }
-      if(tile.mirror) tile.mirror.position.set(section.origin.x-anchor,0,-section.origin.z-laneOffset);
+      tile.root.position.set(section.origin.x-anchor,0,section.origin.z);
+      for(const mesh of tile.root.children) mesh.position.z=laneOffset?(mesh.userData.front?laneOffset:-laneOffset-2*section.origin.z):0;
+      if(tile.formation) {
+        tile.formation.position.set(section.origin.x-anchor,0,section.origin.z+laneOffset);
+        if(laneOffset) {
+          if(!tile.mirrorFormation){tile.mirrorFormation=tile.formation.clone();tile.mirrorFormation.scale.z=-1;this.group.add(tile.mirrorFormation)}
+          tile.mirrorFormation.position.set(section.origin.x-anchor,0,-section.origin.z-laneOffset);
+        }
+      }
       if(tile.tunnel) {
         const f=section.sample(section.start+section.length*.5);
         tile.tunnel.position.copy(f.position);tile.tunnel.position.x-=anchor;tile.tunnel.position.z+=laneOffset;
         tile.tunnel.quaternion.copy(f.rotation);
         if(laneOffset) {
-          tile.mirrorTunnel??=tile.tunnel.clone();this.group.add(tile.mirrorTunnel);
+          if(!tile.mirrorTunnel){tile.mirrorTunnel=tile.tunnel.clone();this.group.add(tile.mirrorTunnel)}
           tile.mirrorTunnel.position.copy(tile.tunnel.position);tile.mirrorTunnel.position.z*=-1;
           tile.mirrorTunnel.quaternion.set(-f.rotation.x,-f.rotation.y,f.rotation.z,f.rotation.w);tile.mirrorTunnel.scale.z=-1;
         }
       }
-      for (const rival of laneOffset ? [false,true] : [false]) for(const actor of tile.actors) {
-        const mesh=actor.kind==="sheep"?this.sheep:actor.kind==="mill"?this.mills:actor.kind==="cable"?this.cables:actor.kind==="wheel"?this.wheels:this.fireflies;
-        const index=actor.kind==="sheep"?sheep++:actor.kind==="mill"?mills++:actor.kind==="cable"?cables++:actor.kind==="wheel"?wheels++:fireflies++;
+      for(const actor of tile.actors) {
+        const mesh=this.actorMeshes[actor.kind],index=counts[actor.kind]++;
         if(index>=192)continue;
         const phase=time*.9+actor.phase;
-        this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y, (section.origin.z+actor.z+laneOffset)*(rival?-1:1));
+        this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y, actor.z+(laneOffset&&actor.z<0?-section.origin.z-laneOffset:section.origin.z+laneOffset));
         this.dummy.rotation.set(0,actor.kind==="sheep"?Math.sin(phase*.3)*.16+actor.phase:0,actor.kind==="mill"?phase*.35:Math.sin(phase)*.035);
+        if(actor.kind==='ghost') {this.dummy.position.y+=Math.sin(phase)*.55;this.dummy.rotation.set(0,Math.sin(phase*.8)*.25,Math.sin(phase)*.08);}
+        if(actor.kind==='bat') {this.dummy.position.x+=Math.sin(phase*.6)*2;this.dummy.position.y+=Math.cos(phase)*.6;this.dummy.rotation.set(0,Math.sin(phase*.5)*.4,0);}
         if(actor.kind==='wheel')this.dummy.rotation.set(0,0,phase*.19);
         if(actor.kind==='firefly') {
           this.dummy.position.x+=Math.sin(phase*.9)*.8;this.dummy.position.y+=Math.sin(phase)*.6;
           this.dummy.position.z+=Math.cos(phase*.7)*.6;
         }
         if(actor.kind==='cable') {this.dummy.position.x+=Math.sin(phase*.24)*9;this.dummy.rotation.set(0,0,Math.sin(phase)*.025);}
-        if(actor.kind==='sheep') {
+        if(actor.kind==='sheep' && !this.reducedMotion?.matches) {
           const passing=(leadX-section.origin.x-actor.x+8)/16;
           this.dummy.position.y+=passing>0&&passing<1?Math.sin(passing*Math.PI)*.7:0;
         }
-        this.dummy.scale.setScalar(actor.size*(actor.kind==='firefly'?.5+.5*Math.sin(phase*.7)**2:1));this.dummy.updateMatrix();mesh.setMatrixAt(index,this.dummy.matrix);
+        this.dummy.scale.setScalar(actor.size*(actor.kind==='firefly'?.5+.5*Math.sin(phase*.7)**2:1));if(actor.kind==='bat')this.dummy.scale.y*=.35+.65*Math.abs(Math.sin(time*5+actor.phase));
+        this.dummy.updateMatrix();mesh.setMatrixAt(index,this.dummy.matrix);
       }
     }
-    for(const [mesh,count] of [[this.sheep,sheep],[this.mills,mills],[this.cables,cables],[this.wheels,wheels],[this.fireflies,fireflies]] as const) { mesh.count=Math.min(192,count);mesh.instanceMatrix.needsUpdate=true; }
+    for(const kind of Object.keys(this.actorMeshes) as Actor["kind"][]) {
+      const mesh=this.actorMeshes[kind];mesh.count=Math.min(192,counts[kind]);mesh.instanceMatrix.needsUpdate=true;
+    }
   }
   private release(tile: Tile) {
     tile.root.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});
-    tile.root.removeFromParent();tile.mirror?.removeFromParent();
+    tile.root.removeFromParent();
+    tile.formation?.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});tile.formation?.removeFromParent();tile.mirrorFormation?.removeFromParent();
     tile.tunnel?.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});tile.tunnel?.removeFromParent();tile.mirrorTunnel?.removeFromParent();
   }
   destroy() {
     this.tiles.forEach(tile=>this.release(tile));this.tiles.clear();
-    for(const mesh of [this.sheep,this.mills,this.cables,this.wheels,this.fireflies]) {mesh.geometry.dispose();mesh.dispose()}
+    for(const mesh of [this.sheep,this.mills,this.cables,this.wheels,this.fireflies,this.ghosts,this.bats]) {mesh.geometry.dispose();mesh.dispose()}
     this.material.dispose();this.luminous.dispose();this.group.removeFromParent();
   }
 }

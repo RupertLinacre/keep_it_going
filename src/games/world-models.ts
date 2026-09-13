@@ -5,25 +5,37 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 export class WorldModel {
   private solid: T.BufferGeometry[] = [];
   private glow: T.BufferGeometry[] = [];
+  private frontSolid: T.BufferGeometry[] = [];
+  private frontGlow: T.BufferGeometry[] = [];
+  constructor(private splitLandscape=false) {}
   add(geometry: T.BufferGeometry, color: string, position: number[], scale = [1, 1, 1], rotation = [0, 0, 0], glow = false) {
     const g = geometry.index ? geometry.toNonIndexed() : geometry.clone(); g.deleteAttribute("uv");
     const matrix = new T.Matrix4().compose(new T.Vector3(...position),
       new T.Quaternion().setFromEuler(new T.Euler(...rotation)), new T.Vector3(...scale));
     g.applyMatrix4(matrix);
+    // Baked reflections need their triangle winding reversed (e.g. bat wings).
+    if (matrix.determinant() < 0) for (const attribute of Object.values(g.attributes)) {
+      const a=attribute as T.BufferAttribute, data=a.array;
+      for(let i=0;i<a.count;i+=3)for(let j=0;j<a.itemSize;j++){
+        const left=i*a.itemSize+j,right=(i+2)*a.itemSize+j;
+        [data[left],data[right]]=[data[right],data[left]];
+      }
+    }
     const c = new T.Color(color), colors = new Float32Array(g.getAttribute("position").count * 3);
     for (let i = 0; i < colors.length; i += 3) { colors[i] = c.r; colors[i + 1] = c.g; colors[i + 2] = c.b; }
     g.setAttribute("color", new T.BufferAttribute(colors, 3));
-    (glow ? this.glow : this.solid).push(g);
+    (this.splitLandscape && position[2]>0 ? glow ? this.frontGlow : this.frontSolid : glow ? this.glow : this.solid).push(g);
   }
   finish(material: T.Material, luminous: T.Material) {
     const group = new T.Group();
-    for (const [geometries, mat] of [[this.solid, material], [this.glow, luminous]] as const) {
+    for (const [geometries, mat, front] of [[this.solid, material, false], [this.glow, luminous, false], [this.frontSolid, material, true], [this.frontGlow, luminous, true]] as const) {
       if (!geometries.length) continue;
       const mesh = new T.Mesh(mergeGeometries([...geometries])!, mat);
       mesh.castShadow = mat === material; mesh.receiveShadow = mat === material;
+      mesh.userData.front=front;
       group.add(mesh); geometries.forEach(g => g.dispose());
     }
-    this.solid = []; this.glow = [];
+    this.solid = []; this.glow = [];this.frontSolid=[];this.frontGlow=[];
     return group;
   }
 }

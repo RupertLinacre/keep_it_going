@@ -780,6 +780,11 @@ export class MiniView {
     this.lamp.position.x -= anchor;
     this.lamp.intensity = flash > 0 ? flash * 12 : 0;
     const earth = groundBounds(this.track, this.laneOffset, tiltPoint(this.cameraRig.focus, pivot, -tilt), height, this.aspect);
+    if(this.track.options.generative) {
+      // Backdrop hills and foreground fields have a wider footprint than rails.
+      // Extend the ground underneath them without spending any camera budget.
+      earth.min.x-=20;earth.max.x+=20;earth.min.z-=80;earth.max.z+=40;
+    }
     this.board.position.set((earth.min.x + earth.max.x)/2 - anchor, 0, (earth.min.z + earth.max.z)/2);
     this.board.scale.set((earth.max.x - earth.min.x)/170, 1, (earth.max.z - earth.min.z)/26.8);
     // Keep the inlays at fixed world intervals as the island grows. Resizing
@@ -811,7 +816,7 @@ export class MiniView {
       const blend=1-Math.exp(-dt*1.5), dark=world.darkness;
       const sky=new THREE.Color(world.sky), ground=new THREE.Color(world.ground);
       if(powerups?.active) {
-        sky.lerp(new THREE.Color(POWERUPS[powerups.active].sky),.12);
+        sky.lerp(new THREE.Color(dark ? POWERUPS[powerups.active].color : POWERUPS[powerups.active].sky),dark ? .025 : .12);
         if(powerups.active==="ice")ground.lerp(new THREE.Color("#e3eced"),.5);
       }
       (this.scene.background as THREE.Color).lerp(sky,blend);

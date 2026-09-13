@@ -1,3 +1,5 @@
+import { drawAdventureFallback } from "../games/adventure-fallback";
+import { adventureAt } from "../games/adventure-worlds";
 import { drawTailwindSail, sailDeployment } from "../games/tailwind-sails";
 import { riderColor } from "./identity";
 import { Quaternion, Vector3 } from "three";
@@ -11,7 +13,8 @@ import { POWERUPS } from "../games/ride-powerups";
 
 /** A small software-rendered two-lane view keeps the race playable without WebGL. */
 export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
-  gradient(ctx, "#e5eee6", "#f3efd9");
+  const world=game.remixMode?adventureAt(game.track.sectionAt(game.physics.distance).start).world:undefined;
+  gradient(ctx, world?.sky ?? "#e5eee6", world?.ground ?? "#f3efd9");
   const lead = game.physics.sample(game.physics.distance).position;
   const offset = game.raceSpacing.updateAt(game.track, game.elapsed);
   const baseScale = game.close ? 28 : 19;
@@ -24,6 +27,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
   const local = snapshotRide(game, 0), remote = game.opponent?.sample();
   for (const rival of [true, false]) {
     const state = rival ? remote : local;
+    if(game.remixMode)drawAdventureFallback(ctx,game.track,game.physics.distance,state?.time??game.elapsed,p=>project(p,rival),scale);
     for (const section of game.track.sections) {
       if (section.kind === "splash" || section.kind === "jump") {
         const flooded = section.kind === "splash", y = flooded ? section.waterLevel : .4;

@@ -1186,3 +1186,11 @@ kbd {
  .world-symbol { font-size:14px; } .world-stops { display:none; }
  .world-welcome { padding:10px 15px; bottom:40px; } .world-welcome strong { font-size:21px; } .world-welcome span { font-size:11px; }
 }
+
+.world-route { display:flex; list-style:none; padding:0; margin:25px 0 0; gap:10px; max-width:430px; }
+.world-route li { flex:1; text-align:center; font-size:11px; color:#627a68; font-weight:600; }
+.world-route li span { display:grid; place-items:center; font-size:29px; height:60px; border-radius:18px; background:#e3eed4; margin-bottom:6px; }
+.world-route li:nth-child(2) span { background:#dfe9ef; }.world-route li:nth-child(3) span { background:#263754; }.world-route li:nth-child(4) span { background:#65516c; }
+@media(max-width:800px),(hover:none) and (pointer:coarse) { .world-route { margin:20px auto 0; max-width:330px; gap:8px; }.world-route li span { height:49px; font-size:25px; border-radius:14px; }.world-route li { font-size:10px; } }
+
+.power-hud[data-power="none"] { display:none; }

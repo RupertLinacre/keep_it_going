@@ -24,9 +24,10 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   root.innerHTML = `
     <section class="start-screen container">
       <div class="start-intro">
-        <span class="start-kicker">${remixMode ? "THE REMIX · A NEW RIDE EVERY TIME" : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
-        <h1>${remixMode ? "A new ride.<br>Every time<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
-        <p>${remixMode ? "Answer to boost. Ride through surprises.<br>No two adventures are quite the same." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
+        <span class="start-kicker">${remixMode ? "FOUR WORLDS. ONE LITTLE TRAIN." : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
+        <h1>${remixMode ? "Little sums.<br>Big adventures<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
+        <p>${remixMode ? "Wave to sheep. Climb mountains. Chase the stars.<br>Answer to boost into your next adventure." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
+        ${remixMode ? `<ol class="world-route" aria-label="Your journey"><li><span aria-hidden="true">🐑</span>Meadows</li><li><span aria-hidden="true">🏔️</span>Mountains</li><li><span aria-hidden="true">✨</span>Starlight</li><li><span aria-hidden="true">🎃</span>Pumpkins</li></ol>` : ''}
         <svg class="start-rails" viewBox="0 0 640 250" aria-hidden="true">
           <path d="M-20 208 C85 208 70 100 155 100 S230 223 308 213 C417 198 441 22 355 22 C255 22 251 211 430 211 S555 110 670 134" fill="none" stroke="#a2c7bc" stroke-width="12"/>
           <path d="M-20 198 C85 198 70 90 155 90 S230 213 308 203 C417 188 441 12 355 12 C255 12 251 201 430 201 S555 100 670 124" fill="none" stroke="#edb079" stroke-width="5"/>
@@ -35,10 +36,10 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
       </div>
       <div class="start-card">
         <div data-choose>
-          <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Roll into the unexpected." : "Choose your ride"}</h2>
+          <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Your adventure starts here." : "Choose your ride"}</h2>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
           <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, seven surprise power-ups, and flooded splash zones. Easier rides keep momentum longer, giving you more time between answers." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
+          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Explore four worlds with surprise power-ups. Choose Very easy for more thinking time. Each rider can choose their own difficulty." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
             <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>

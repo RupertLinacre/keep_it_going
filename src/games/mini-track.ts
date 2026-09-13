@@ -1,4 +1,4 @@
-import { adventureAt } from "./adventure-worlds";
+import { adventureAt, WORLD_ENCORES } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import { clamp } from "../math";
@@ -289,7 +289,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
     // taller faster than they grow wider, demanding sustained, timely answers.
-    const scale = generated < 11 ? 1 : progress.scale;
+    const scale = generated < 11 ? 1 : varied ? Math.min(2, progress.scale) : progress.scale;
     let turns = kind === "triplehelix" ? 3 : 1;
     let width = r(20, 28),
       amplitude = kind === "dip" ? -r(1.7, 2.5) : r(5, 10);
@@ -343,7 +343,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     if (kind === "doubledip") { width = r(70, 85); amplitude = r(8, 12); shift = 0; }
     if (kind === "tophat") { width = r(30, 36); amplitude = r(26, 30); shift = 0; }
     if (kind === "immelmann" || kind === "diveloop") { width = r(68, 80); amplitude = r(18, 22); shift = 0; }
-    if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = progress.turns; shift = 0; }
+    if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = varied ? Math.min(4, progress.turns) : progress.turns; shift = 0; }
     if (kind === "interlockingloops") { amplitude = r(21, 25); width = amplitude * 1.3; shift = 0; }
     if (kind === "noninvertingloop") { amplitude = r(20, 24); width = amplitude * 0.9; shift = 0; }
     if (kind === "cobraroll" || kind === "pretzelknot") { amplitude = r(22, 26); width = amplitude * (kind === "pretzelknot" ? 4.5 : 3.8); shift = 0; }
@@ -367,7 +367,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
         width *= round ? size : Math.sqrt(size) * r(.95, 1.15);
         if (kind === "verticalhill") amplitude = Math.max(amplitude, width * .58);
       }
-      if (kind === "ascendinghelix") turns = Math.min(8, Math.max(2, turns + Math.floor(r(-1, 2))));
+      if (kind === "ascendinghelix") turns = Math.min(4, Math.max(2, turns + Math.floor(r(-1, 2))));
       if (kind === "station") width = r(10, 20);
     }
     if (kind === "mountainpass") { width = r(85, 110); amplitude = r(19, 27); shift = 0; }
@@ -459,7 +459,7 @@ export class MiniTrack implements MiniRail {
           return result;
         };
         const { chapter } = rideProgress(this.end);
-        const challenges = shuffle(this.options.generative ? adventure.world.challenges : CHALLENGES[chapter]).slice(0, 6);
+        const challenges = shuffle(this.options.generative ? [...adventure.world.challenges, ...(adventure.lap ? WORLD_ENCORES[adventure.world.id] : [])] : CHALLENGES[chapter]).slice(0, 6);
         const recovery = shuffle(RECOVERY);
         // A tower or water jump is an occasional event, followed by a breather.
         if (!this.options.generative) {
@@ -467,7 +467,11 @@ export class MiniTrack implements MiniRail {
           if (this.bags % 2 === 1) challenges[5] = "triplehelix";
         }
         const sequence = challenges.flatMap((kind, i) => [recovery[i % recovery.length], kind]);
-        if (this.options.generative && adventure.index > 0) sequence.unshift(adventure.world.challenges[0]);
+        if (this.options.generative && adventure.index > 0) {
+          // Show the world landmark immediately; do not bury its tunnel behind
+          // a randomly ordered long inversion that might cross the next border.
+          sequence.unshift(adventure.world.challenges[0], ...([1,3].includes(adventure.index) ? ["station", "tunnel"] as MiniKind[] : []));
+        }
         this.bag = sequence.reverse();
       }
       this.append(this.bag.pop()!);

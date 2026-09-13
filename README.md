@@ -4,6 +4,21 @@
 
 Leave the optional course seed blank for a fresh ride on every restart, or enter a number or word to replay a course and its power-up order. **Copy ride** creates a link to the current seed. The old `?mode=height` URL also opens Remix. The original solo and multiplayer game remains available at `?mode=classic`, linked from the start screen. Remix records are separate from Classic. See [the Remix notes](docs/remix.md) for power-up rules, balancing and verification.
 
+## Adventure worlds
+
+On the `feature/adventure-worlds` branch, Remix travels through four worlds:
+
+- **Baa Baa Meadows:** rolling green hills, sheep that hop as you pass, flowers, farm fences and turning windmills.
+- **Marmalade Mountains:** snowy peaks, alpine pools, cable cars, a winding summit railway and lantern-lit tunnels.
+- **Starlight Carnival:** luminous rails, fireflies, lit fairground wheels, mushroom lamps and a lantern parade.
+- **Pumpkin Party:** glowing pumpkins, floating friendly ghosts, bats, crooked cottages and a giant pumpkin tunnel.
+
+Worlds change on section boundaries near 900, 1,900 and 3,000 course metres. Beyond 4,200 metres, another adventure begins with new arrangements and additional elements. Hills remain bounded so later rides retain a visible train. The four new track sections also appear in the track gallery.
+
+The same seed creates the same journey in solo and multiplayer. Both players retain personal difficulty and identity colours. Mountains and other backdrops sit behind both lanes; summit terrain and tunnels follow each lane. World scenery never requests camera zoom. WebGL and software fallback renderers both support the worlds; ambient animation respects reduced-motion preferences.
+
+`npm test` includes world progression, tunnel guarantees, geometric continuity, energy conservation, later-course limits and scenery disposal. `npx tsx scripts/playtest-worlds.ts` runs the full game with explicit answer-timing profiles. Browser scripts `scripts/check-worlds-browser.js` and `scripts/check-worlds-multiplayer-browser.js` cover visual checks, frame pacing and real two-player connections. See [world design and validation](docs/adventure-worlds.md).
+
 ## Original solo and multiplayer game
 
 A miniature coaster game about keeping your momentum. Start with six coaches rolling gently over the top of a 22-metre hill at 2 m/s (about 7 km/h), then gather speed down the first drop. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.

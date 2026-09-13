@@ -30,3 +30,9 @@ export function adventureAt(distance: number) {
   return { world, index, lap, stage: lap * WORLDS.length + index,
     progress: Math.max(0, Math.min(1, (at - world.start) / (world.end - world.start))) };
 }
+
+// Returning to a world unlocks a few wilder silhouettes, still within its size cap.
+export const WORLD_ENCORES: Record<WorldKind, readonly MiniKind[]> = {
+  meadow: ["skyhill", "corkscrew"], mountain: ["verticalhill", "diveloop"],
+  night: ["nestedloop", "cobraroll"], halloween: ["invertedhill", "tophat", "immelmann"],
+};
