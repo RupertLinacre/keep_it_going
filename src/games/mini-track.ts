@@ -250,6 +250,77 @@ export class MiniSection implements MiniRail {
   }
 }
 
+/** Shared piece factory for the game and the track gallery. */
+export function createMiniSection(kind: MiniKind, start: number, origin: THREE.Vector3,
+  generated: number, random: () => number): MiniSection {
+    const r = (min: number, max: number) => min + random() * (max - min);
+    const progress = rideProgress(start);
+    // Familiar opening pieces keep their established scale. Later climbs grow
+    // taller faster than they grow wider, demanding sustained, timely answers.
+    const scale = generated < 11 ? 1 : progress.scale;
+    let turns = kind === "triplehelix" ? 3 : 1;
+    let width = r(20, 28),
+      amplitude = kind === "dip" ? -r(1.7, 2.5) : r(5, 10);
+    const hand =
+      origin.z > 1 ? -1 : origin.z < -1 ? 1 : random() > 0.5 ? 1 : -1;
+    let shift = clamp(origin.z + r(-2.5, 2.5), -3.5, 3.5) - origin.z;
+    if (kind === "station") {
+      width = 12;
+      amplitude = 0;
+      shift = 0;
+    }
+    if (kind === "loop") {
+      amplitude = r(4.5, 6.5);
+      width = amplitude * r(0.7, 0.9);
+      shift = hand * 2.2;
+    }
+    if (kind === "corkscrew") {
+      amplitude = r(2.2, 2.8);
+      width = r(23, 29);
+    }
+    if (kind === "helix") {
+      amplitude = r(4.1, 4.8);
+      width = amplitude * r(4.8, 5.6);
+    }
+    if (kind === "skyhill" || kind === "invertedhill") {
+      amplitude = r(17, 23);
+      width = r(48, 62);
+    }
+    if (kind === "verticalhill") {
+      width = r(20, 25);
+      amplitude = r(19, 23);
+      shift = 0;
+    }
+    if (kind === "jump") {
+      width = generated < 11 ? r(60, 64) : r(70, 78);
+      amplitude = 3.8;
+      shift = 0;
+    }
+    if (kind === "triplehelix") {
+      width = r(48, 55);
+      amplitude = r(21, 23);
+      shift = 0;
+    }
+    if (kind === "heartline") { width = r(24, 32); amplitude = 2; }
+    if (kind === "zerogstall") { width = r(52, 64); amplitude = r(14, 18); }
+    if (kind === "waveturn") { width = r(38, 46); amplitude = r(6, 9); }
+    if (kind === "doubledip") { width = r(70, 85); amplitude = r(8, 12); shift = 0; }
+    if (kind === "tophat") { width = r(30, 36); amplitude = r(26, 30); shift = 0; }
+    if (kind === "immelmann" || kind === "diveloop") { width = r(68, 80); amplitude = r(18, 22); shift = 0; }
+    if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = progress.turns; shift = 0; }
+    if (kind === "interlockingloops") { amplitude = r(21, 25); width = amplitude * 1.3; shift = 0; }
+    if (kind === "nestedloop") { amplitude = r(30, 34); width = amplitude * 0.9; shift = 0; }
+    if (!["station", "dip", "heartline", "jump", "corkscrew"].includes(kind)) {
+      const recovery = RECOVERY.includes(kind);
+      const growth = recovery ? 1 + (scale - 1) * 0.25 : scale;
+      amplitude *= growth * (kind === "ascendinghelix" ? 1 + (turns - 2) * 0.18 : 1);
+      // Preserve the proportions of inversions; make hills increasingly steep.
+      const round = ["loop", "interlockingloops", "nestedloop"].includes(kind);
+      width *= round ? growth : Math.sqrt(growth);
+    }
+    return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
+}
+
 /** A sliding window of generated track. No finish, lap reset or cumulative descent. */
 export class MiniTrack implements MiniRail {
   readonly sections: MiniSection[] = [];
@@ -296,88 +367,10 @@ export class MiniTrack implements MiniRail {
     return this.sections.at(-1)!.end;
   }
   private append(kind: MiniKind) {
-    const r = (min: number, max: number) => min + this.random() * (max - min);
-    const previous = this.sections.at(-1),
-      origin = previous
-        ? previous.frames.at(-1)!.position.clone()
-        : new THREE.Vector3(0, 4, 0);
-    const progress = rideProgress(previous?.end ?? 0);
-    // Familiar opening pieces keep their established scale. Later climbs grow
-    // taller faster than they grow wider, demanding sustained, timely answers.
-    const scale = this.generated < 11 ? 1 : progress.scale;
-    let turns = kind === "triplehelix" ? 3 : 1;
-    let width = r(20, 28),
-      amplitude = kind === "dip" ? -r(1.7, 2.5) : r(5, 10);
-    const hand =
-      origin.z > 1 ? -1 : origin.z < -1 ? 1 : this.random() > 0.5 ? 1 : -1;
-    let shift = clamp(origin.z + r(-2.5, 2.5), -3.5, 3.5) - origin.z;
-    if (kind === "station") {
-      width = 12;
-      amplitude = 0;
-      shift = 0;
-    }
-    if (kind === "loop") {
-      amplitude = r(4.5, 6.5);
-      width = amplitude * r(0.7, 0.9);
-      shift = hand * 2.2;
-    }
-    if (kind === "corkscrew") {
-      amplitude = r(2.2, 2.8);
-      width = r(23, 29);
-    }
-    if (kind === "helix") {
-      amplitude = r(4.1, 4.8);
-      width = amplitude * r(4.8, 5.6);
-    }
-    if (kind === "skyhill" || kind === "invertedhill") {
-      amplitude = r(17, 23);
-      width = r(48, 62);
-    }
-    if (kind === "verticalhill") {
-      width = r(20, 25);
-      amplitude = r(19, 23);
-      shift = 0;
-    }
-    if (kind === "jump") {
-      width = this.generated < 11 ? r(60, 64) : r(70, 78);
-      amplitude = 3.8;
-      shift = 0;
-    }
-    if (kind === "triplehelix") {
-      width = r(48, 55);
-      amplitude = r(21, 23);
-      shift = 0;
-    }
-    if (kind === "heartline") { width = r(24, 32); amplitude = 2; }
-    if (kind === "zerogstall") { width = r(52, 64); amplitude = r(14, 18); }
-    if (kind === "waveturn") { width = r(38, 46); amplitude = r(6, 9); }
-    if (kind === "doubledip") { width = r(70, 85); amplitude = r(8, 12); shift = 0; }
-    if (kind === "tophat") { width = r(30, 36); amplitude = r(26, 30); shift = 0; }
-    if (kind === "immelmann" || kind === "diveloop") { width = r(68, 80); amplitude = r(18, 22); shift = 0; }
-    if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = progress.turns; shift = 0; }
-    if (kind === "interlockingloops") { amplitude = r(21, 25); width = amplitude * 1.3; shift = 0; }
-    if (kind === "nestedloop") { amplitude = r(30, 34); width = amplitude * 0.9; shift = 0; }
-    if (!["station", "dip", "heartline", "jump", "corkscrew"].includes(kind)) {
-      const recovery = RECOVERY.includes(kind);
-      const growth = recovery ? 1 + (scale - 1) * 0.25 : scale;
-      amplitude *= growth * (kind === "ascendinghelix" ? 1 + (turns - 2) * 0.18 : 1);
-      // Preserve the proportions of inversions; make hills increasingly steep.
-      const round = ["loop", "interlockingloops", "nestedloop"].includes(kind);
-      width *= round ? growth : Math.sqrt(growth);
-    }
-    this.sections.push(
-      new MiniSection(
-        this.generated++,
-        kind,
-        previous?.end ?? 0,
-        origin,
-        width,
-        amplitude,
-        shift,
-        hand,
-        turns,
-      ),
-    );
+    const previous = this.sections.at(-1);
+    this.sections.push(createMiniSection(kind, previous?.end ?? 0,
+      previous ? previous.frames.at(-1)!.position.clone() : new THREE.Vector3(0, 4, 0),
+      this.generated++, this.random));
   }
   ensure(distance: number) {
     while (this.end < distance + 230) {

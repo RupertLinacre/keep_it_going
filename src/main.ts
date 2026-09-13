@@ -19,6 +19,7 @@ function render() {
   app.innerHTML = `
     <div class="tiny-utility container">
       <img class="game-logo" src="${import.meta.env.BASE_URL}images/keep-it-going-logo.png" alt="Keep it going" width="2172" height="724" />
+      <a class="track-gallery-link" href="${import.meta.env.BASE_URL}tracks.html">Track gallery ↗</a>
     </div>
     <main id="main-content"></main>`;
 

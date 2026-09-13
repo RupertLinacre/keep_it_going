@@ -40,3 +40,7 @@ npm run playtest            # 160 simulated rides, up to ten minutes each
 The Vite build uses relative asset paths, so it works from a repository subdirectory. The workflow in `.github/workflows/pages.yml` tests, builds, and deploys the site whenever `main` is pushed, or when run manually.
 
 In the GitHub repository settings, choose **GitHub Actions** as the Pages source. No repository-name configuration is required.
+
+### Track gallery
+
+Open `tracks.html` (or use **Track gallery** above the game) to browse all 22 elements. Drag to orbit, scroll or pinch to zoom, and use the side/top presets to inspect inversions and crossings. The distance slider previews the shared game generation rules from the opening scale to 20 km. Each selection has a reusable URL. The animated coach shows direction only; it does not simulate ride physics. The water jump preview crops the far end of its landing straight.
