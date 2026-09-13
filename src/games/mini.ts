@@ -48,6 +48,7 @@ export class Mini extends BaseGame {
   private stalling = false;
   private guideAt = 0;
   private hudAt = 0;
+  private parcelCueAt = 0;
   private recordedAt = 0;
   private jumpBonusUntil = 0;
   private jumpWasRecord = false;
@@ -293,8 +294,9 @@ export class Mini extends BaseGame {
     } else if (this.carriages.arrived > previousArrivals) {
       this.host.feedback(`A coach caught up! ${this.cartCount} coaches aboard.`);
       this.host.sound("jump");
-    } else if (this.carriages.spilled > previousSpills) {
+    } else if (this.carriages.spilled > previousSpills && this.elapsed >= this.parcelCueAt) {
       this.host.feedback("Parcels away! Fresh cargo is on its way.");
+      this.parcelCueAt = this.elapsed + 1.2;
     }
     if (this.carriages.impacts > previousImpacts) this.host.sound("bad");
     if (this.elapsed >= this.hudAt) {

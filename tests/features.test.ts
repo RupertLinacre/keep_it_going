@@ -88,7 +88,7 @@ test("spilled parcels follow gravity and refill with one extra parcel up to four
   const at = hill.start + hill.length / 2 + MINI_CART_SPACING;
   for (const expectedCount of [2, 3, 4, 4, 4, 4]) {
     assert.equal(coach.cargo, expectedCount);
-    for (let i = 0; i < 120 && coach.cargo; i++) c.update(1 / 120, at, 20);
+    for (let i = 0; i < 180 && coach.cargo; i++) c.update(1 / 120, at, 20);
     assert.equal(coach.cargo, 0);
     assert.equal(c.lost, 0);
     const parcel = c.parcels.at(-1)!;

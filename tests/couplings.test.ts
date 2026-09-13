@@ -22,26 +22,60 @@ test("parcel drag matches the analytical horizontal solution at different frame 
   assert.ok(run(30).position.distanceTo(run(144).position) < 1e-8);
 });
 
-test("a full four-parcel wagon does not give its upper layer an extra launch boost", () => {
+test("a stack spills in staggered individual arcs without an extra launch boost", () => {
   const track = new MiniTrack(42), c = new MiniCarriages(track);
   const hill = track.sections.find(s => s.kind === "skyhill")!;
   const wagon = c.coaches[1];
   wagon.cargo = 4;
+  wagon.dynamite = 0b1010;
   c.coaches.splice(2);
   const distance = hill.start + hill.length / 2 + wagon.offset;
-  for (let i = 0; i < 120 && !c.spilled; i++) c.update(1 / 120, distance, 35);
-  assert.equal(c.parcels.length, 4);
+  const releases: { time: number; slot: number; dynamite: boolean; spin: Vector3; slip: Vector3 }[] = [];
+  for (let i = 0; i < 120 && wagon.cargo; i++) {
+    c.update(1 / 120, distance, 20);
+    const fresh = c.parcels.filter(p => p.age === 0);
+    assert.ok(fresh.length <= 1, "An attached wagon releases one parcel at a time");
+    for (const parcel of fresh) {
+      assert.ok(parcel.velocity.length() <= wagon.velocity.length() * 1.040001);
+      assert.ok(parcel.velocity.distanceTo(wagon.velocity) < 1.500001);
+      releases.push({time:i/120,slot:wagon.cargo,dynamite:!!parcel.dynamite,spin:parcel.angularVelocity.clone(),slip:parcel.velocity.clone().sub(wagon.velocity)});
+    }
+  }
+  assert.equal(releases.length, 4);
+  assert.ok(releases.at(-1)!.time-releases[0].time > .15);
+  assert.ok(releases.at(-1)!.time-releases[0].time < .4, "The spill remains a short burst");
+  assert.deepEqual(releases.map(r=>r.slot), [3,2,1,0], "Upper slots peel away without moving the remaining boxes");
+  assert.deepEqual(releases.map(r=>r.dynamite), [true,false,true,false]);
   assert.equal(parcelOffsets(30).length, 4, "Rendering and ejection share the four-parcel limit");
   const carrierVelocity = wagon.velocity;
   assert.ok(carrierVelocity.distanceTo(track.sample(distance - wagon.offset).tangent.clone()
-    .multiplyScalar(35).add(wagon.relativeVelocity)) < 1e-8,
+    .multiplyScalar(20).add(wagon.relativeVelocity)) < 1e-8,
     "A wagon's visual lean must not redirect its cargo's inherited velocity");
-  for (const parcel of c.parcels) {
-    assert.ok(parcel.velocity.length() <= carrierVelocity.length() * 1.040001);
-    assert.ok(parcel.velocity.distanceTo(carrierVelocity) < 1.51);
-  }
-  assert.ok(c.parcels[0].velocity.distanceTo(c.parcels[2].velocity) < 1e-8,
-    "The upper layer inherits the same motion as the first layer");
+  assert.ok(releases[0].spin.distanceTo(releases[1].spin) > .3, "Boxes tumble individually");
+  assert.ok(releases[0].slip.distanceTo(releases[2].slip) > .2, "The arcs separate gently");
+});
+
+test("eight-box spills are repeatable, varied between wagons, and refill only once empty", () => {
+  const run = (id: number) => {
+    const track = new MiniTrack(42), c = new MiniCarriages(track);
+    c.coaches.splice(2); const wagon = c.coaches[1]; wagon.id = id;
+    c.setCargoRush(true); wagon.grace = 0;
+    const hill = track.sections.find(s => s.kind === "skyhill")!;
+    const at = hill.start + hill.length/2 + wagon.offset;
+    const released: { time: number; velocity: number[]; spin: number[]; dynamite: boolean; drag: number }[] = [];
+    for(let i=0;i<120 && wagon.cargo;i++) {
+      c.update(1/120,at,20);
+      for(const p of c.parcels.filter(p=>p.age===0)) released.push({time:i/120,velocity:p.velocity.toArray(),spin:p.angularVelocity.toArray(),dynamite:!!p.dynamite,drag:p.dragScale!});
+      if(wagon.cargo) assert.equal(wagon.refill,0);
+    }
+    assert.equal(released.length,8); assert.ok(released.at(-1)!.time-released[0].time<.8);
+    assert.ok(released.some(p=>p.dynamite)); assert.ok(released.some(p=>!p.dynamite));
+    for(let i=0;i<110;i++) c.update(1/120,8,0);
+    assert.equal(wagon.cargo,8); assert.equal(c.refills,1); assert.equal(wagon.spillDelay,undefined);
+    return released;
+  };
+  assert.deepEqual(run(1),run(1));
+  assert.notDeepEqual(run(1),run(3));
 });
 
 test("vertical crest forces still lift wheels when the rail is almost vertical", () => {
