@@ -7,6 +7,7 @@ import type { RaceSession } from "./multiplayer/session";
 import type { Round } from "./multiplayer/protocol";
 import { raceWinner } from "./multiplayer/protocol";
 import { OpponentGhost, snapshotRide } from "./multiplayer/ghost";
+import { POWERUPS, type PowerGate, type PowerKind } from "./games/ride-powerups";
 
 export function mountGame(
   root: HTMLElement,
@@ -41,7 +42,7 @@ export function mountGame(
         <div class="game-stage" style="--game-color:#d6e8d9">
           <canvas class="game-canvas" width="${W}" height="${H}" aria-label="Keep it going game world"></canvas>
           <div class="game-hud"></div>
-          ${network ? `<div class="race-hud"><span class="race-rider"><i class="rider-dot"></i><span>You <strong data-your-distance>0 m</strong></span></span><span class="race-gap" data-race-gap>Keep it going!</span><span class="race-rider"><i class="rider-dot opponent"></i><span><span data-opponent-name></span> <strong data-rival-distance>0 m</strong></span></span></div>` : ""}
+          ${network ? `<div class="race-hud"><span class="race-rider"><i class="rider-dot"></i><span>You <strong data-your-distance>0 m</strong>${settings.remixMode ? '<small class="race-power" data-your-power></small>' : ''}</span></span><span class="race-gap" data-race-gap>Keep it going!</span><span class="race-rider"><i class="rider-dot opponent"></i><span><span data-opponent-name></span> <strong data-rival-distance>0 m</strong>${settings.remixMode ? '<small class="race-power" data-rival-power></small>' : ''}</span></span></div>` : ""}
           <div class="game-feedback" role="status" aria-live="polite"></div>
         </div>
         <div class="play-controls"></div>
@@ -230,6 +231,16 @@ export function mountGame(
         root.querySelector("[data-rival-distance]")!.textContent = `${Math.floor(remote).toLocaleString()} m`;
         const gap = Math.round(local - remote);
         root.querySelector("[data-race-gap]")!.textContent = network.remoteResult ? "Your friend has finished" : finished ? "Your ride is complete" : Math.abs(gap) < 2 ? "Neck and neck" : `${Math.abs(gap)} m ${gap > 0 ? "ahead" : "behind"}`;
+        if (settings.remixMode) {
+          const label = (power: { active?: PowerKind; remaining: number; gate?: PowerGate } | undefined, distance: number) => {
+            const kind = power?.active ?? power?.gate?.kind;
+            return !kind ? "Keep rolling" : power?.active ? `${POWERUPS[kind].icon} ${POWERUPS[kind].name} · ${Math.ceil(power.remaining)}s`
+              : `${POWERUPS[kind].icon} Next · ${Math.max(0, Math.ceil(power!.gate!.distance-distance))} m`;
+          };
+          root.querySelector("[data-your-power]")!.textContent = finished ? "Finished" : label(game!.powerups, game!.physics.distance);
+          const opponent = ghost!.sample(now);
+          root.querySelector("[data-rival-power]")!.textContent = network.remoteResult ? "Finished" : label(opponent?.power, opponent?.distance ?? 0);
+        }
       }
       ctx.clearRect(0, 0, W, H);
       game!.draw(ctx);

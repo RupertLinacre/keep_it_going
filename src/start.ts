@@ -5,6 +5,7 @@ import type { Difficulty } from "./types";
 import { ALL_TABLES, DEFAULT_TABLES, normalizeTables } from "./questions";
 import { RaceSession } from "./multiplayer/session";
 import { cleanCode, validCode } from "./multiplayer/protocol";
+import { courseSeed } from "./games/course-seed";
 
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 function readSettings(): { tables: number[]; name: string; difficulty: Difficulty } {
@@ -37,10 +38,10 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Roll into the unexpected." : "Choose your ride"}</h2>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
           <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, six surprise power-ups, and flooded splash zones. Easier rides keep momentum longer, giving you more time between answers." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
+          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, seven surprise power-ups, and flooded splash zones. Easier rides keep momentum longer, giving you more time between answers." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
-            <button class="mode-button mode-duo" data-two ${remixMode ? "hidden" : ""}><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
+            <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
           </div>
           <details class="table-settings"><summary>Times tables <span data-table-summary></span></summary>
             <p>Choose the tables you’d like to practise. In a race, the host chooses for both players.</p>
@@ -53,7 +54,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
             <input class="setup-input" id="course-seed" maxlength="40" placeholder="Leave blank for a fresh ride" value="${escape(new URL(location.href).searchParams.get("seed") || "")}">
             <p class="difficulty-help">Use the same seed to replay a course and its power-up order. Words work too.</p>
             <ul class="power-menu">${POWER_KINDS.map(kind => `<li><i style="--power-color:${POWERUPS[kind].color}">${POWERUPS[kind].icon}</i><span><strong>${POWERUPS[kind].name}</strong><small>${POWERUPS[kind].description}</small></span></li>`).join("")}</ul>
-            <p class="difficulty-help">One power-up at a time, for 20 seconds. Sky lift turns answers into track height. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
+            <p class="difficulty-help">One power-up at a time, for 20 seconds. Sky lift and Downhill drift are solo only. Races share the other five powers, collected independently. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
           </details>` : ""}
           <p class="start-footnote">${remixMode ? 'Correct answers boost automatically. <a href="?mode=classic">Play the original solo / two-player game →</a>' : 'A correct answer gives you a boost automatically. <a href="?mode=remix">Try the remix →</a>'}</p>
         </div>
@@ -61,6 +62,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <button class="text-button back-button" data-back>← Back</button>
           <span class="start-kicker">BETTER TOGETHER</span><h2>Bring a friend</h2>
           <p class="setup-copy">Two tracks. The same questions.<br>Whoever travels furthest wins.</p>
+          ${remixMode ? '<p class="difficulty-help">Race on the same fresh course with five surprise powers. Sky lift and Downhill drift stay in solo play.</p>' : ''}
           <label class="setup-label" for="multiplayer-difficulty">Your difficulty</label>
           <select class="setup-input difficulty-select" id="multiplayer-difficulty">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
           <p class="difficulty-help">Choose a challenge that suits you. Your friend can choose a different level.</p>
@@ -106,6 +108,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
       <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : "Joining your friend"}</h2>
       ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>2 players</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
       <p class="lobby-status ${error ? "is-error" : ""}" role="status">${escape(session.status)}</p>
+      ${!error ? `<p class="lobby-mode">${session.remixMode ? "Remix race · five powers · shared course" : "Classic race"}</p>` : ""}
       ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you) · ${DIFFICULTY_LABELS[session.difficulty]}</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)} <small>${DIFFICULTY_LABELS[session.opponentDifficulty]}</small></span></div><p class="lobby-tables">Shared times tables · ${session.tables.join(", ")}</p>` : ""}
       ${host && !error ? `<button class="primary-button full-button" data-start-race ${ready ? "" : "disabled"}>${ready ? "Start the race →" : "Waiting for your friend…"}</button>` : ""}
       <p class="copy-status" data-copy-status role="status"></p>`;
@@ -121,7 +124,8 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     session = new RaceSession(); connect(session);
     off = session.on("change", renderLobby);
     show("lobby");
-    void session.open(role, settings.name, [...selected], code, settings.difficulty);
+    void session.open(role, settings.name, [...selected], code, settings.difficulty,
+      { remixMode, seed: role === "host" && remixMode ? courseSeed(q<HTMLInputElement>("#course-seed").value) : undefined });
   };
   root.addEventListener("change", event => {
     const input = event.target as HTMLInputElement;
@@ -153,6 +157,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     if (button.hasAttribute("data-start-race")) session?.start();
     if (button.dataset.copy && session) {
       const url = new URL(location.href); url.search = ""; url.hash = ""; url.searchParams.set("join", session.code);
+      url.searchParams.set("mode", session.remixMode ? "remix" : "classic");
       try {
         await navigator.clipboard.writeText(button.dataset.copy === "link" ? url.href : session.code);
         if (!disposed) q("[data-copy-status]").textContent = "Copied! Send it to your friend.";
@@ -161,6 +166,6 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   }, { signal: controller.signal });
   q("[data-join-form]").addEventListener("submit", event => { event.preventDefault(); open("guest"); }, { signal: controller.signal });
   updateTables();
-  if (!remixMode && validCode(invite)) show("join-setup");
+  if (validCode(invite)) show("join-setup");
   return () => { disposed = true; controller.abort(); off?.(); };
 }

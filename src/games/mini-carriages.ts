@@ -37,7 +37,7 @@ export interface Explosion {
   particles: { position: THREE.Vector3; velocity: THREE.Vector3; size: number }[];
 }
 
-function fly(body: FlyingBody, dt: number, gravity: number, drag = 0) {
+function fly(body: FlyingBody, dt: number, gravity: number, drag = 0, gravityX = 0) {
   body.age += dt;
   if (drag) {
     // Exact quadratic-drag drift between gravity half-kicks. Small substeps also
@@ -45,18 +45,22 @@ function fly(body: FlyingBody, dt: number, gravity: number, drag = 0) {
     for (let remaining = dt; remaining > 1e-10;) {
       const h = Math.min(remaining, 1 / 120);
       body.velocity.y -= gravity * h / 2;
+      body.velocity.x += gravityX * h / 2;
       const resistance = drag * body.velocity.length();
       const travel = resistance > 0 ? Math.log1p(resistance * h) / resistance : h;
       body.position.addScaledVector(body.velocity, travel);
       body.velocity.multiplyScalar(1 / (1 + resistance * h));
       body.velocity.y -= gravity * h / 2;
+      body.velocity.x += gravityX * h / 2;
       remaining -= h;
     }
     body.angularVelocity.multiplyScalar(Math.exp(-1.2 * dt));
   } else {
     body.position.addScaledVector(body.velocity, dt);
     body.position.y -= 0.5 * gravity * dt * dt;
+    body.position.x += 0.5 * gravityX * dt * dt;
     body.velocity.y -= gravity * dt;
+    body.velocity.x += gravityX * dt;
   }
   const spin = body.angularVelocity.length();
   if (spin > 0)
@@ -65,11 +69,11 @@ function fly(body: FlyingBody, dt: number, gravity: number, drag = 0) {
     ));
 }
 
-export function outwardForce(frame: RailFrame, speed: number, gravity = 9.81) {
+export function outwardForce(frame: RailFrame, speed: number, gravity = 9.81, gravityX = 0) {
   // Inverted crests press the load into the wagon. Retaining wheels and cargo
   // friction add deliberately forgiving adhesion beyond the weightless threshold.
   return !frame.airborne
-    ? Math.max(0, -gravity * frame.up.y - speed ** 2 * frame.curvature.dot(frame.up)) : 0;
+    ? Math.max(0, gravityX * frame.up.x - gravity * frame.up.y - speed ** 2 * frame.curvature.dot(frame.up)) : 0;
 }
 export interface Coach {
   id: number;
@@ -118,6 +122,7 @@ export class MiniCarriages {
   private arrivalTravel = 0;
   private readonly detachedHills = new Set<number>();
   cargoRush = false;
+  gravityX = 0;
   sample: (distance: number) => RailFrame;
 
   constructor(readonly track: MiniTrack, public gravity = 9.81) {
@@ -173,12 +178,14 @@ export class MiniCarriages {
       .filter(c => this.track.followerDistance(distance, c.offset) >= this.track.sections[0].start)
       .map(coach => ({ coach, frame: this.frame(coach, distance, alpha) }));
   }
-  cameraSubjects() {
+  cameraSubjects(lead?: THREE.Vector3) {
+    const nearby = (p: THREE.Vector3, radius: number) => !lead || p.distanceToSquared(lead) < radius*radius;
+    // Cargo can float for a long time during gravity flip. Only the initial,
+    // nearby action earns camera space; weather and spray never do.
     return [
-      ...this.flights.map(cart => cart.position),
-      ...this.parcels.filter(parcel => !parcel.bounces && !parcel.groundedFor).map(parcel => parcel.position),
-      ...this.explosions.filter(explosion => explosion.age < 0.65)
-        .flatMap(explosion => [explosion.position, ...explosion.particles.map(particle => particle.position)]),
+      ...this.flights.filter(cart => cart.age < 4 && nearby(cart.position, 50)).map(cart => cart.position),
+      ...this.parcels.filter(parcel => parcel.age < 1.6 && !parcel.bounces && !parcel.groundedFor && nearby(parcel.position, 30)).map(parcel => parcel.position),
+      ...this.explosions.filter(e => e.age < .65 && !e.water && !e.dynamite && nearby(e.position, 40)).map(e => e.position),
     ];
   }
   splash(frame: RailFrame, strength = 1) {
@@ -263,7 +270,9 @@ export class MiniCarriages {
       for (const particle of explosion.particles) {
         particle.position.addScaledVector(particle.velocity, dt);
         particle.position.y -= 0.5 * this.gravity * dt * dt;
+        particle.position.x += 0.5 * this.gravityX * dt * dt;
         particle.velocity.y -= this.gravity * dt;
+        particle.velocity.x += this.gravityX * dt;
         if (explosion.flood && particle.velocity.y < 0 && particle.position.y < explosion.position.y) {
           particle.position.y = explosion.position.y;
           particle.velocity.set(0, 0, 0); particle.size *= Math.exp(-dt * 14);
@@ -275,7 +284,7 @@ export class MiniCarriages {
         }
       }
     }
-    for (const cart of this.flights) fly(cart, dt, this.gravity);
+    for (const cart of this.flights) fly(cart, dt, this.gravity, 0, this.gravityX);
     for (let i = this.flights.length - 1; i >= 0; i--) {
       const cart = this.flights[i];
       if (cart.age > 45) { this.flights.splice(i, 1); continue; }
@@ -304,7 +313,7 @@ export class MiniCarriages {
         if (parcel.groundedFor > 2) this.parcels.splice(i, 1);
         continue;
       }
-      fly(parcel, dt, this.gravity, MINI_PARCEL_DRAG);
+      fly(parcel, dt, this.gravity, MINI_PARCEL_DRAG, this.gravityX);
       const matrix = new THREE.Matrix4().makeRotationFromQuaternion(parcel.rotation).elements;
       const floor = 0.075 + 0.34 * (Math.abs(matrix[1]) + Math.abs(matrix[5]) + Math.abs(matrix[9]));
       if (parcel.dynamite && (parcel.age >= (parcel.fuse ?? 2) || parcel.position.y < floor)) {
@@ -366,7 +375,7 @@ export class MiniCarriages {
     const outward = frames.map((frame, index) => {
       const section = this.track.sectionAt(this.track.followerDistance(distance, this.coaches[index].offset));
       return isHump(section.kind) && section.kind !== "invertedhill"
-        ? outwardForce(frame, speed, this.gravity) : 0;
+        ? outwardForce(frame, speed, this.gravity, this.gravityX) : 0;
     });
     const shed = this.updateCouplings(dt, frames, outward, distance, speed);
     for (const coach of this.coaches.slice(1)) {

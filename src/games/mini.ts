@@ -9,7 +9,8 @@ import { BaseGame } from "./base";
 import { MiniTrack } from "./mini-track";
 import { MiniPhysics } from "./mini-physics";
 import { MiniView } from "./mini-view";
-import { MINI_MAX_ZOOM_OUT } from "./mini-camera";
+import { MINI_CARGO_ZOOM_OUT, MINI_MAX_ZOOM_OUT } from "./mini-camera";
+import { tiltPoint } from "./mini-tilt";
 import { MiniReadouts } from "./mini-readouts";
 import { approachingStall, jumpApproach, type JumpApproach } from "./mini-guide";
 import { MiniCarriages } from "./mini-carriages";
@@ -68,18 +69,19 @@ export class Mini extends BaseGame {
   private pendingLifts = 0;
   constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean } = {}) {
     super(host);
-    this.heightMode = !!options.heightMode;
+    this.heightMode = !!options.heightMode && !options.multiplayer;
     this.remixMode = !!options.remixMode;
     this.recordId = this.remixMode ? "remix" : this.heightMode ? "height" : "mini";
     this.riderRole = options.riderRole ?? "host";
     this.multiplayer = !!options.multiplayer;
     this.personalBest = bestRide(host.difficulty, this.recordId);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
-    this.track = this.heightMode || this.remixMode ? new HeightTrack(seed, { generative: this.remixMode }) : new MiniTrack(seed);
+    this.track = this.heightMode || (this.remixMode && !this.multiplayer)
+      ? new HeightTrack(seed, { generative: this.remixMode }) : new MiniTrack(seed, { generative: this.remixMode });
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => this.physics.sample(distance);
-    if (this.remixMode) this.powerups = new RidePowerups(this.track.seed, host.difficulty);
+    if (this.remixMode) this.powerups = new RidePowerups(this.track.seed, host.difficulty, this.multiplayer);
     this.next();
     this.hud();
     try {
@@ -91,7 +93,7 @@ export class Mini extends BaseGame {
   }
   setup() {
     if (!this.heightMode && !this.remixMode) this.readouts = new MiniReadouts(this.host.stage);
-    if (this.remixMode) this.powerHud = new PowerupHud(this.host.stage);
+    if (this.remixMode && !this.multiplayer) this.powerHud = new PowerupHud(this.host.stage);
     this.view = new MiniView(this.host.stage, this.track, { multiplayer: this.multiplayer, role: this.riderRole, spacing: this.raceSpacing });
   }
   get travelled() {
@@ -357,10 +359,18 @@ export class Mini extends BaseGame {
     let centerX = frame.position.x + 200 / scale;
     let centerY = Math.max(0, frame.position.y - 10) + 65 / scale;
     const normalX = centerX, normalY = centerY;
+    const tilt = this.powerups?.tilt ?? 0, pivot = new Vector3(normalX, normalY, 0);
     const subjects = [
+      frame.position,
       ...this.carriages.poses(this.physics.distance).slice(0, MINI_STARTING_CARTS).filter(p => (p.frame.airborne || this.track instanceof HeightTrack) && p.coach !== this.carriages.incoming).map(p => p.frame.position),
-      ...this.carriages.cameraSubjects(),
-    ];
+    ].map(p => tiltPoint(p, pivot, tilt));
+    for (const p of this.carriages.cameraSubjects(frame.position)) {
+      const point = tiltPoint(p, pivot, tilt);
+      // As in the 3D view, optional debris cannot spend the train's zoom budget.
+      point.x = Math.max(normalX - 500/baseScale*MINI_CARGO_ZOOM_OUT + 3, Math.min(normalX + 500/baseScale*MINI_CARGO_ZOOM_OUT - 3, point.x));
+      point.y = Math.max(normalY - 195/baseScale*MINI_CARGO_ZOOM_OUT + 3, Math.min(normalY + 195/baseScale*MINI_CARGO_ZOOM_OUT - 3, point.y));
+      subjects.push(point);
+    }
     if (subjects.length) {
       const left = Math.min(centerX - 500 / scale, ...subjects.map(p => p.x - 3));
       const right = Math.max(centerX + 500 / scale, ...subjects.map(p => p.x + 3));
@@ -375,7 +385,7 @@ export class Mini extends BaseGame {
       550 + (x - centerX) * scale,
       300 - (y - centerY) * scale,
     ];
-    if (theme) {
+    if (theme && power !== "tilt") {
       ctx.save(); ctx.globalAlpha = .4;
       for (let i = 0; i < 60; i++) {
         const phase = ((i*.618 + this.elapsed*(power === "reverse" || power === "lift" ? -.25 : power === "heavy" ? 1 : .3))%1+1)%1;
@@ -384,6 +394,15 @@ export class Mini extends BaseGame {
       }
       ctx.restore();
     }
+    ctx.save();
+    const [pivotX, pivotY] = project(normalX, normalY);
+    ctx.translate(pivotX, pivotY); ctx.rotate(tilt); ctx.translate(-pivotX, -pivotY);
+    // A visible board edge in the side view gives the same downhill reference
+    // as the 3D landscape, and rotates together with rails and scenery.
+    const [boardX, boardY] = project(centerX - 1600/scale, 0);
+    ctx.fillStyle = "#cfae8c"; ctx.fillRect(boardX, boardY, 3200, 16);
+    ctx.fillStyle = "#d5e3c3"; ctx.fillRect(boardX, boardY - 5, 3200, 5);
+    ctx.fillStyle = "#f7efdb"; ctx.fillRect(boardX, boardY, 3200, 2);
     if (this.powerups?.gate) {
       const gate = this.powerups.gate, f = this.track.sample(gate.distance), info = POWERUPS[gate.kind];
       const [x,y] = project(f.position.x, f.position.y+2.4);
@@ -485,6 +504,7 @@ export class Mini extends BaseGame {
           explosion.water ? "#58b9c9" : i % 3 ? palette[explosion.colorIndex % palette.length] : "#ffa451");
       }
     }
+    ctx.restore();
   }
   destroy() {
     record(this.recordId, this.host.difficulty, this.score);

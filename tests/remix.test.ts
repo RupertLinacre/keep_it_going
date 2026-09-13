@@ -58,10 +58,10 @@ test("varied course pieces join and retain finite orthonormal geometry across ma
   }
 });
 
-test("power-up bags are seeded, include all six, and never cut another effect short", () => {
+test("power-up bags are seeded, include every effect, and never cut another effect short", () => {
   const sequence = (seed: number) => {
     const { track, physics, carriages, power } = rig(seed), kinds: string[] = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < POWER_KINDS.length * 2; i++) {
       power.update(3, track, physics, carriages);
       assert.ok(power.gate);
       const kind = power.gate.kind;
@@ -73,7 +73,7 @@ test("power-up bags are seeded, include all six, and never cut another effect sh
       power.update(19.9, track, physics, carriages); assert.equal(power.active, kind);
       power.update(.11, track, physics, carriages); assert.equal(power.active, undefined);
     }
-    assert.equal(new Set(kinds.slice(0,6)).size, 6);
+    assert.equal(new Set(kinds.slice(0,POWER_KINDS.length)).size, POWER_KINDS.length);
     assert.ok(!kinds.includes("splash"));
     return kinds;
   };
@@ -93,6 +93,7 @@ test("all physics modifiers restore the chosen difficulty exactly when they expi
     assert.equal(physics.options.gravity, 9.81); assert.equal(carriages.gravity, 9.81);
     assert.equal(physics.options.drag, rideResistance("hard").drag);
     assert.equal(physics.options.rolling, rideResistance("hard").rolling);
+    assert.equal(physics.options.worldTilt, 0); assert.equal(carriages.gravityX, 0);
     assert.equal(physics.options.tailwind, 0); assert.equal(carriages.cargoRush, false);
   }
 });

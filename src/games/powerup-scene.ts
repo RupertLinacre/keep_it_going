@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { MiniTrack } from "./mini-track";
 import type { RailFrame } from "./mini-rail";
-import { POWERUPS, type PowerKind, type RidePowerups } from "./ride-powerups";
+import { POWERUPS, type PowerKind, type PowerVisualState } from "./ride-powerups";
 
 const fract = (n: number) => n - Math.floor(n);
 /** A bounded effects layer: one gate, one weather buffer and eight rocks.
@@ -49,11 +49,13 @@ export class PowerupScene {
     texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     this.textures.set(kind, texture); return texture;
   }
-  render(power: RidePowerups, track: MiniTrack, frame: RailFrame, anchor: number, time: number) {
+  render(power: PowerVisualState, track: MiniTrack, frame: Pick<RailFrame, "position">, anchor: number, time: number, laneOffset = 0, rival = false) {
     const kind = power.active, info = kind ? POWERUPS[kind] : undefined;
+    this.group.position.z = rival ? -laneOffset : laneOffset;
+    this.group.scale.z = rival ? -1 : 1;
     this.group.visible = !!kind || !!power.gate;
-    this.gate.visible = !!power.gate;
-    if (power.gate) {
+    this.gate.visible = !!power.gate && power.gate.distance >= track.sections[0].start && power.gate.distance <= track.end;
+    if (power.gate && this.gate.visible) {
       const f = track.sample(power.gate.distance);
       this.gate.position.copy(f.position).addScaledVector(f.up, 2.4); this.gate.position.x -= anchor;
       this.gate.quaternion.copy(f.rotation);
@@ -65,7 +67,8 @@ export class PowerupScene {
         this.lastGate = power.gate.kind;
       }
     }
-    this.weather.visible = this.aura.visible = !!kind;
+    this.aura.visible = !!kind;
+    this.weather.visible = !!kind && kind !== "tilt";
     this.rocks.visible = kind === "reverse" || kind === "heavy";
     if (!kind || !info) return;
     const strength = Math.min(1, power.age * 3, power.remaining);

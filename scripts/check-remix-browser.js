@@ -61,7 +61,7 @@ async (page) => {
   }
   const natural = await report(page);
   if (natural.answers !== 18 || natural.ended || natural.collected < 1 || natural.overflow) throw new Error(JSON.stringify(natural));
-  for (const kind of ['ice','reverse','cargo','lift','heavy','wind']) {
+  for (const kind of ['ice','reverse','cargo','lift','heavy','wind','tilt']) {
     await bind(page); await answer(page);
     await page.evaluate(kind => {
       const g = window.remixGame;

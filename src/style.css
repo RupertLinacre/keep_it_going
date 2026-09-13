@@ -1160,3 +1160,13 @@ kbd {
   .remix-root:not(.at-start) .track-gallery-link, .seed-copy span { display: none; }
   .seed-copy { padding: 5px; }
 }
+
+/* Remix race effects sit inside the existing rider cards, leaving the question clear. */
+.is-race.is-remix .game-hud { display: none; }
+.race-power { display: block; font-size: 10px; margin-top: 4px; color: #547268; white-space: nowrap; }
+.lobby-mode { font-size: 12px; color: #587466; margin: 12px 0; }
+@media (max-width: 800px), (hover: none) and (pointer: coarse) {
+  .race-power { font-size: 8px; }
+  .is-remix .race-rider { padding: 6px 7px; }
+  .is-remix .race-rider > span > span { max-width: 64px; }
+}

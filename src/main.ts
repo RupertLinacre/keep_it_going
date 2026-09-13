@@ -18,7 +18,7 @@ import type { Round } from "./multiplayer/protocol";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const query = new URLSearchParams(location.search);
-const remixMode = query.get("mode") !== "classic" && !query.has("join");
+let remixMode = query.get("mode") === "remix" || (query.get("mode") !== "classic" && !query.has("join"));
 let cleanup: (() => void) | undefined;
 let session: RaceSession | undefined;
 let disconnectStart: (() => void) | undefined;
@@ -51,7 +51,10 @@ function solo(tables: number[], difficulty: Difficulty, seedText = "") {
 }
 function race(round: Round) {
   unlockAudio();
-  cleanup = mountGame(shell(true), session?.role === "guest" ? round.guestDifficulty : round.difficulty, () => {}, { tables: round.tables, network: session, round, menu });
+  remixMode = round.mode === "remix";
+  const url = new URL(location.href); url.searchParams.set("mode", remixMode ? "remix" : "classic");
+  history.replaceState(null, "", url);
+  cleanup = mountGame(shell(true, round.seed), session?.role === "guest" ? round.guestDifficulty : round.difficulty, () => {}, { tables: round.tables, network: session, round, menu, remixMode });
 }
 function menu() {
   if (app.querySelector(".standalone-game")) {

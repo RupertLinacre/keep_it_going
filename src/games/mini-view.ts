@@ -21,6 +21,7 @@ import type { MiniCarriages } from "./mini-carriages";
 import { lanePosition, mirrorRotation } from "../multiplayer/ghost";
 import type { RideState } from "../multiplayer/protocol";
 import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
+import { DOWNHILL_TILT, tiltPoint } from "./mini-tilt";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
 const CART_COLORS = ["#e5ef93", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987", "#a8dac7"].map(c => new THREE.Color(c));
@@ -43,6 +44,7 @@ export class MiniView {
   private parcelParts: ModelPart[];
   private dynamiteParts?: ModelPart[];
   private powerScene?: PowerupScene;
+  private opponentPowerScene?: PowerupScene;
   private splashSheets: THREE.InstancedMesh;
   private waterDroplets: THREE.InstancedMesh;
   readonly debris: THREE.InstancedMesh;
@@ -54,6 +56,7 @@ export class MiniView {
   readonly pieces = new Map<number, THREE.Group>();
   readonly resize: ResizeObserver;
   private board = new THREE.Group();
+  private boardInlay: THREE.Mesh;
   private lastState = "";
   private aspect = 2;
   private readonly compactLayout = window.matchMedia("(max-width: 800px), (hover: none), (pointer: coarse)");
@@ -95,6 +98,21 @@ export class MiniView {
     const turf = this.mesh(new THREE.BoxGeometry(170, 0.25, 26.8), "#d5e3c3");
     turf.position.y = -0.05;
     this.board.add(table, turf);
+    // The board extends beyond the view around large elements. Fine inlaid
+    // lines reveal its downhill pitch even when both outside edges are cropped.
+    // One static mesh, part of the board, with no influence on camera framing.
+    const inlay = new THREE.BufferGeometry(), vertices: number[] = [];
+    for (let i = 0; i < 96; i++) {
+      const z = i*8, a = z-.04, b = z+.04;
+      vertices.push(-85,.079,a, -85,.079,b, 85,.079,a, 85,.079,a, -85,.079,b, 85,.079,b);
+    }
+    inlay.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    inlay.computeVertexNormals();
+    const inlayMaterial = this.material("#94ad7c");
+    inlayMaterial.transparent = true; inlayMaterial.depthWrite = false;
+    this.boardInlay = new THREE.Mesh(inlay, inlayMaterial);
+    this.boardInlay.visible = false;
+    this.board.add(this.boardInlay);
     for (const z of [-13.4, 13.4]) {
       const edging = this.mesh(
         new THREE.BoxGeometry(170, 0.18, 0.28),
@@ -116,9 +134,9 @@ export class MiniView {
     const sprayMaterial = this.material("#bdeef3");
     sprayMaterial.transparent = true; sprayMaterial.opacity = .48; sprayMaterial.depthWrite = false; sprayMaterial.side = THREE.DoubleSide;
     sprayMaterial.emissive.set("#8adbe6"); sprayMaterial.emissiveIntensity = .3;
-    this.splashSheets = this.instances(splashFanGeometry(), "#bdeef3", MINI_MAX_EXPLOSIONS * 2);
+    this.splashSheets = this.instances(splashFanGeometry(), "#bdeef3", MINI_MAX_EXPLOSIONS * 4);
     this.splashSheets.castShadow = this.splashSheets.receiveShadow = false;
-    this.waterDroplets = this.instances(new THREE.IcosahedronGeometry(1, 0), "#ffffff", 2 * MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
+    this.waterDroplets = this.instances(new THREE.IcosahedronGeometry(1, 0), "#ffffff", 4 * MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
     this.waterDroplets.setColorAt(0, new THREE.Color("#8adbe6"));
     this.waterDroplets.castShadow = false;
     this.scene.add(this.lamp);
@@ -522,23 +540,23 @@ export class MiniView {
     }
     // Frame taller hills from the side. Fade the influence of approaching
     // peaks in at the edges so the model view opens up smoothly as we travel.
-    let skyline = 10;
+    const elevation = this.track instanceof HeightTrack ? this.track.elevation(distance) : 0;
+    let skyline = elevation + 10;
     for (const section of this.track.sections)
       for (let i = 0; i < section.frames.length; i += 12) {
         const p = section.frames[i].position;
         const influence =
           clamp((p.x - f.position.x + 30) / 12, 0, 1) *
           clamp((f.position.x + 65 - p.x) / 22, 0, 1);
-        skyline = Math.max(skyline, 4 + (p.y - 4) * influence);
+        skyline = Math.max(skyline, elevation + 4 + (p.y - elevation - 4) * influence);
       }
-    const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches);
+    const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches, elevation);
     // Follow the head of a long train. New arrivals enter from behind without
     // pulling the camera hundreds of metres back to its ever-growing tail.
-    // Detached coaches and loose cargo still get the full airborne camera treatment.
+    // Loose objects receive a smaller, separate framing budget.
     const subjects = [
       ...(poses?.slice(0, MINI_STARTING_CARTS).filter(p => p.coach !== effects?.incoming
         && (this.track instanceof HeightTrack || p.frame.airborne || p.coach.lift > 0.05)).map(p => p.frame.position) ?? []),
-      ...(effects?.cameraSubjects() ?? []),
     ];
     subjects.unshift(f.position);
     const framedSubjects = subjects.map(p => lane(p));
@@ -553,7 +571,19 @@ export class MiniView {
       if (lead && Math.abs(lead.position[0] - f.position.x) < 45)
         framedSubjects.push(lane(new THREE.Vector3(...lead.position), true));
     }
-    this.cameraRig.update(framing.focus, framing.height, this.aspect, framedSubjects, dt);
+    const tilt = powerups?.tilt ?? 0, pivot = framing.focus;
+    const cameraCargo = (effects?.cameraSubjects(f.position) ?? []).map(p => tiltPoint(lane(p), pivot, tilt));
+    this.cameraRig.update(framing.focus, framing.height, this.aspect,
+      framedSubjects.map(p => tiltPoint(p, pivot, tilt)), dt, cameraCargo);
+    // One rigid world transform: scenery, rails, shadows and loose bodies all
+    // agree, while the camera and question stay level. Pivot near the train so
+    // a large route coordinate cannot create a huge camera excursion.
+    const localPivot = pivot.clone(); localPivot.x -= anchor;
+    this.scene.rotation.z = -tilt;
+    this.scene.position.copy(localPivot).sub(tiltPoint(localPivot, new THREE.Vector3(), tilt));
+    this.scene.updateMatrix();
+    this.boardInlay.visible = tilt > .0001;
+    (this.boardInlay.material as THREE.MeshStandardMaterial).opacity = .65 * tilt / DOWNHILL_TILT;
     const height = this.cameraRig.height;
     const focus = this.cameraRig.focus.clone();
     focus.x -= anchor;
@@ -592,7 +622,7 @@ export class MiniView {
     for (const { frame, coach } of attached) {
       const position = lane(frame.position);
       position.x -= anchor;
-      const screen = position.clone().project(this.camera);
+      const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
       addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0);
     }
@@ -609,14 +639,14 @@ export class MiniView {
     if (opponent) {
       for (const body of opponent.bodies) {
         const position = lane(new THREE.Vector3(...body.position), true); position.x -= anchor;
-        const screen = position.clone().project(this.camera);
+        const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
         if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true);
+        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true, body.bombs ?? 0);
       }
       for (const parcel of opponent.parcels) {
         const position = lane(new THREE.Vector3(...parcel.position), true); position.x -= anchor;
         if (Math.abs(position.x - f.position.x + anchor) > 130) continue;
-        cargo.push(new THREE.Matrix4().compose(position, mirrorRotation(new THREE.Quaternion(...parcel.rotation)), new THREE.Vector3(1, 1, 1)));
+        (parcel.dynamite ? dynamite : cargo).push(new THREE.Matrix4().compose(position, mirrorRotation(new THREE.Quaternion(...parcel.rotation)), new THREE.Vector3(1, 1, 1)));
       }
     }
     this.drawModel(this.trainParts, closed, closedColors);
@@ -649,7 +679,8 @@ export class MiniView {
     const allExplosions = [
       ...explosions.map(explosion => ({ ...explosion, rival: false })),
       ...(opponent?.impacts ?? []).filter(e => Math.abs(e.position[0] - f.position.x) < 130).map(e => ({
-        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true, dynamite: false, flood: undefined,
+        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true, dynamite: !!e.dynamite,
+        flood: e.flood ? { rotation: new THREE.Quaternion(...e.flood.rotation), strength: e.flood.strength } : undefined,
         particles: e.particles.map(p => ({ position: new THREE.Vector3(...p.position), size: p.size })),
       })),
     ];
@@ -657,8 +688,8 @@ export class MiniView {
       if (explosion.flood && explosion.age < 1.1) {
         const rise = Math.sin(Math.PI * Math.min(1, explosion.age / 1.1));
         for (const side of [-1, 1]) {
-          dummy.position.copy(explosion.position); dummy.position.x -= anchor;
-          dummy.quaternion.copy(explosion.flood.rotation);
+          dummy.position.copy(lane(explosion.position, explosion.rival)); dummy.position.x -= anchor;
+          dummy.quaternion.copy(explosion.rival ? mirrorRotation(explosion.flood.rotation) : explosion.flood.rotation);
           dummy.scale.set(side * (2 + explosion.age * 10) * explosion.flood.strength,
             rise * 7 * explosion.flood.strength, 6);
           dummy.updateMatrix(); this.splashSheets.setMatrixAt(sheets++, dummy.matrix);
@@ -705,17 +736,29 @@ export class MiniView {
     this.lamp.position.copy(lane(f.position)).addScaledVector(f.up, 0.6);
     this.lamp.position.x -= anchor;
     this.lamp.intensity = flash > 0 ? flash * 12 : 0;
-    const earth = groundBounds(this.track, this.laneOffset, this.cameraRig.focus, height, this.aspect);
+    const earth = groundBounds(this.track, this.laneOffset, tiltPoint(this.cameraRig.focus, pivot, -tilt), height, this.aspect);
     this.board.position.set((earth.min.x + earth.max.x)/2 - anchor, 0, (earth.min.z + earth.max.z)/2);
     this.board.scale.set((earth.max.x - earth.min.x)/170, 1, (earth.max.z - earth.min.z)/26.8);
+    // Keep the inlays at fixed world intervals as the island grows. Resizing
+    // the ground must not stretch or slide these visual references underneath it.
+    const firstInlay = Math.ceil(Math.max(earth.min.z + .1, f.position.z - 384)/8)*8;
+    this.boardInlay.position.z = (firstInlay - this.board.position.z)/this.board.scale.z;
+    this.boardInlay.scale.z = 1/this.board.scale.z;
+    this.boardInlay.geometry.setDrawRange(0, Math.min(96, Math.max(0, Math.ceil((earth.max.z - .1 - firstInlay)/8)))*6);
     if (powerups) {
       this.powerScene ??= new PowerupScene(this.scene);
-      this.powerScene.render(powerups, this.track, f, anchor, time);
+      this.powerScene.render(powerups, this.track, f, anchor, time, this.laneOffset);
+      const remoteLead = opponent?.bodies[0];
+      if (opponent?.power && remoteLead && Math.abs(remoteLead.position[0] - f.position.x) < 130) {
+        this.opponentPowerScene ??= new PowerupScene(this.scene);
+        this.opponentPowerScene.render({ ...opponent.power, seed: this.track.seed }, this.track,
+          { position: new THREE.Vector3(...remoteLead.position) }, anchor, opponent.time, this.laneOffset, true);
+      } else if (this.opponentPowerScene) this.opponentPowerScene.group.visible = false;
       const active = powerups.active, info = active ? POWERUPS[active] : undefined;
       const blend = 1 - Math.exp(-dt*3);
       (this.scene.background as THREE.Color).lerp(new THREE.Color(info?.sky ?? "#e6eee8"), blend);
       fog.color.copy(this.scene.background as THREE.Color);
-      for (let i = 0; i < 3; i++) this.railMaterial(i).color.lerp(new THREE.Color(info ? i === 1 ? "#fff1bf" : info.color : ["#e89983", "#f5d16f", "#64988e"][i]), blend);
+      if (!this.multiplayer) for (let i = 0; i < 3; i++) this.railMaterial(i).color.lerp(new THREE.Color(info ? i === 1 ? "#fff1bf" : info.color : ["#e89983", "#f5d16f", "#64988e"][i]), blend);
       this.material("#d5e3c3").color.lerp(new THREE.Color(active === "ice" ? "#e3eced" : active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : "#d5e3c3"), blend);
     }
     this.renderer.render(this.scene, this.camera);
@@ -757,6 +800,7 @@ export class MiniView {
   destroy() {
     this.resize.disconnect();
     this.powerScene?.destroy();
+    this.opponentPowerScene?.destroy();
     // All geometries are owned by this view; shared materials are released once.
     this.release(this.scene);
     this.materials.forEach((material) => material.dispose());

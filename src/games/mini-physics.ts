@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { RailFrame } from "./mini-rail";
 import type { MiniSection, MiniRail } from "./mini-track";
 import { MINI_BOOST_ENERGY, MINI_START_SPEED } from "./mini-config";
+import { tiltedGravity } from "./mini-tilt";
 
 export interface MiniPhysicsOptions {
   gravity: number;
@@ -11,6 +12,21 @@ export interface MiniPhysicsOptions {
   initialSpeed: number;
   initialDistance: number;
   tailwind: number;
+  worldTilt: number;
+}
+
+export function railDrag(track: MiniRail, distance: number, drag: number) {
+  return drag + .008 * Math.min(1, (track.waterDepth?.(distance) ?? 0) / .55);
+}
+export function railAcceleration(track: MiniRail, s: number, v: number,
+  options: Pick<MiniPhysicsOptions, "gravity" | "drag" | "rolling" | "tailwind"> & { worldTilt?: number }) {
+  const angle = options.worldTilt;
+  let slope: number;
+  if (angle) {
+    const t = track.sample(s).tangent;
+    slope = Math.cos(angle)*t.y - Math.sin(angle)*t.x;
+  } else slope = track.slope(s);
+  return options.tailwind - options.gravity*slope - railDrag(track, s, options.drag)*v*v - options.rolling*Math.tanh(v*5);
 }
 
 /** Metres, seconds, kilograms. A one-way catch supplies the constraint force at rest.
@@ -81,15 +97,18 @@ export class MiniPhysics {
     const flight = this.flight!;
     // The lead coach's jump guide remains magnetic during gravity flip. Loose
     // cargo still floats upward; the train gets a short, readable landing arc.
-    const gravity = this.options.gravity < 0 ? 9.81 : this.options.gravity;
+    const { down: gravity, x: gravityX } = tiltedGravity(this.options.gravity < 0 ? 9.81 : this.options.gravity, this.options.worldTilt);
     const previous = flight.position.clone();
-    if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h >= flight.section.landingX) {
-      const crossingTime = (flight.section.landingX - previous.x) / flight.velocity.x;
+    if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h + .5 * gravityX * h*h >= flight.section.landingX) {
+      const dx = flight.section.landingX - previous.x, vx = flight.velocity.x;
+      const crossingTime = 2*dx / (vx + Math.sqrt(vx*vx + 2*gravityX*dx));
       const crossingHeight = previous.y + flight.velocity.y * crossingTime - 0.5 * gravity * crossingTime ** 2;
       flight.missed = crossingHeight < flight.section.height(flight.section.distanceAtX(flight.section.landingX));
     }
     flight.position.addScaledVector(flight.velocity, h);
+    flight.position.x += 0.5 * gravityX * h * h;
     flight.position.y -= 0.5 * gravity * h * h;
+    flight.velocity.x += gravityX * h;
     flight.velocity.y -= gravity * h;
     const endX = flight.section.origin.x + flight.section.span;
     this.distance = this.track.distanceAtWorldX?.(flight.position.x, this.distance) ?? (flight.position.x <= endX
@@ -127,6 +146,7 @@ export class MiniPhysics {
       initialSpeed: MINI_START_SPEED,
       initialDistance: track.startDistance ?? 8,
       tailwind: 0,
+      worldTilt: 0,
       ...options,
     };
     this.distance = this.options.initialDistance;
@@ -149,14 +169,10 @@ export class MiniPhysics {
   }
   dragAt(distance: number) {
     // Water resistance belongs to submerged railway, independent of timed powers.
-    return this.options.drag + .008 * Math.min(1, (this.track.waterDepth?.(distance) ?? 0) / .55);
+    return railDrag(this.track, distance, this.options.drag);
   }
   private force(s: number, v: number) {
-    return (
-      this.options.tailwind - this.options.gravity * this.track.slope(s) -
-      this.dragAt(s) * v * v -
-      this.options.rolling * Math.tanh(v * 5)
-    );
+    return railAcceleration(this.track, s, v, this.options);
   }
   update(dt: number, afterStep?: (dt: number) => boolean | void) {
     if (!Number.isFinite(dt) || dt <= 0) return;
@@ -215,10 +231,13 @@ export class MiniPhysics {
     }
   }
   get energy() {
+    const angle = this.options.worldTilt;
+    const p = angle ? this.flight?.position ?? this.track.sample(this.distance).position : undefined;
+    const height = p ? Math.cos(angle)*p.y - Math.sin(angle)*p.x : this.flight?.position.y ?? this.track.height(this.distance);
     return (
       this.options.mass *
       (0.5 * this.velocity ** 2 +
-        this.options.gravity * (this.flight?.position.y ?? this.track.height(this.distance)))
+        this.options.gravity * height)
     );
   }
 }
