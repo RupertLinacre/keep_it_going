@@ -1129,3 +1129,34 @@ kbd {
 .prompt .height-guide { color: #527b69; font-size: .85rem; font-weight: 600; margin: .3rem 0; }
 .mode-button[hidden] { display: none; }
 .start-footnote a { display: block; margin-top: .75rem; color: #527b69; }
+.power-hud { position: absolute; z-index: 3; right: 20px; top: 18px; display: grid; grid-template-columns: 40px 1fr auto; gap: 9px; align-items: center; width: 290px; padding: 14px 15px 17px; border-radius: 18px; background: #fffefaee; border: 1px solid #ffffff; box-shadow: 0 5px 22px #344c4610; color: #2e453d; pointer-events: none; }
+.power-icon { display: grid; place-items: center; width: 40px; height: 40px; color: var(--power-color); background: color-mix(in srgb, var(--power-color) 13%, white); border-radius: 13px; font-size: 29px; font-weight: 800; }
+.power-copy small { display: block; font-size: 8px; letter-spacing: .12em; color: var(--power-color); font-weight: 800; margin-bottom: 3px; }
+.power-copy strong { display: block; font-family: Outfit, sans-serif; font-size: 18px; }
+.power-copy p { margin: 4px 0 0; font-size: 10px; line-height: 1.35; color: #6b7c72; }
+.power-time { font-family: Outfit, sans-serif; color: var(--power-color); font-size: 20px; align-self: start; padding-top: 12px; font-variant-numeric: tabular-nums; }
+.power-meter { position: absolute; bottom: 0; left: 15px; right: 15px; height: 4px; background: #e9eee6; border-radius: 3px; overflow: hidden; }
+.power-meter i { display: block; width: 100%; height: 100%; background: var(--power-color); transform-origin: left; transition: transform .1s linear; }
+.power-hud[data-active="false"] .power-meter { opacity: 0; }
+.is-remix .game-hud { right: auto; width: 240px; display: flex; gap: 10px; }
+.is-remix .game-hud > * { min-width: 92px; }
+.remix-settings { margin-top: 14px; border-top: 1px solid #e4eadf; padding-top: 14px; }
+.remix-settings summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #5b7963; }
+.power-menu { list-style: none; padding: 0; display: grid; gap: 10px; margin: 18px 0; }
+.power-menu li { display: flex; gap: 10px; align-items: center; }
+.power-menu i { font-style: normal; width: 30px; text-align: center; color: var(--power-color); font-size: 26px; }
+.power-menu strong { display: block; font-size: 13px; }
+.power-menu small { color: #74806e; font-size: 11px; }
+.seed-copy { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.seed-copy b { font-size: 19px; }
+@media (max-width: 800px), (hover: none) and (pointer: coarse) {
+  .is-remix .game-hud { display: none; }
+  .power-hud { top: 10px; right: 10px; width: 188px; padding: 9px 10px 12px; gap: 7px; grid-template-columns: 29px 1fr auto; border-radius: 13px; }
+  .power-icon { width: 29px; height: 29px; font-size: 23px; border-radius: 9px; }
+  .power-copy small { font-size: 6px; letter-spacing: .09em; }
+  .power-copy strong { font-size: 13px; }
+  .power-copy p { display: none; }
+  .power-time { font-size: 15px; padding-top: 6px; }
+  .remix-root:not(.at-start) .track-gallery-link, .seed-copy span { display: none; }
+  .seed-copy { padding: 5px; }
+}

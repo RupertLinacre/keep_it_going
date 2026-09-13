@@ -48,17 +48,17 @@ export function record(id: GameId, difficulty: Difficulty, score: number) {
 }
 
 export function bestRide(difficulty: Difficulty, id: GameId = "mini") {
-  if (id === "height") return { score: validRecord(save.best[`height:${difficulty}`]),
-    distance: validRecord(save.best[`height-distance:${difficulty}`]), jump: validRecord(save.best[`height-jump:${difficulty}`]) };
+  if (id !== "mini") return { score: validRecord(save.best[`${id}:${difficulty}`]),
+    distance: validRecord(save.best[`${id}-distance:${difficulty}`]), jump: validRecord(save.best[`${id}-jump:${difficulty}`]) };
   return { score: validRecord(save.best[`mini:${difficulty}`]),
     distance: validRecord(save.rides[difficulty]?.distance), jump: validRecord(save.rides[difficulty]?.jump) };
 }
 
 export function recordRide(difficulty: Difficulty, distance: number, jump: number, id: GameId = "mini") {
   const previous = bestRide(difficulty, id);
-  if (id === "height") {
-    save.best[`height-distance:${difficulty}`] = Math.max(previous.distance, validRecord(distance));
-    save.best[`height-jump:${difficulty}`] = Math.max(previous.jump, validRecord(jump));
+  if (id !== "mini") {
+    save.best[`${id}-distance:${difficulty}`] = Math.max(previous.distance, validRecord(distance));
+    save.best[`${id}-jump:${difficulty}`] = Math.max(previous.jump, validRecord(jump));
     persist(); return;
   }
   save.rides[difficulty] = { distance: Math.max(previous.distance, validRecord(distance)),

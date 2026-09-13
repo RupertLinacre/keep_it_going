@@ -1,3 +1,4 @@
+import { POWERUPS, POWER_KINDS } from "./games/ride-powerups";
 import { riderColor } from "./multiplayer/identity";
 import { DIFFICULTIES, DIFFICULTY_LABELS, normalizeDifficulty } from "./difficulty";
 import type { Difficulty } from "./types";
@@ -11,7 +12,7 @@ function readSettings(): { tables: number[]; name: string; difficulty: Difficult
   catch { return { tables: [...DEFAULT_TABLES], name: "", difficulty: "normal" }; }
 }
 
-export function mountStart(root: HTMLElement, play: (tables: number[], difficulty: Difficulty) => void, connect: (session: RaceSession) => void, heightMode = false) {
+export function mountStart(root: HTMLElement, play: (tables: number[], difficulty: Difficulty, seed?: string) => void, connect: (session: RaceSession) => void, remixMode = false) {
   const controller = new AbortController();
   const settings = readSettings();
   const selected = new Set(settings.tables);
@@ -22,9 +23,9 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   root.innerHTML = `
     <section class="start-screen container">
       <div class="start-intro">
-        <span class="start-kicker">${heightMode ? "THE HEIGHT EXPERIMENT · SOLO" : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
-        <h1>${heightMode ? "A little maths.<br>A little higher<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
-        <p>${heightMode ? "Every answer lifts the track beneath you.<br>Earn height, then let gravity do the work." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
+        <span class="start-kicker">${remixMode ? "THE REMIX · A NEW RIDE EVERY TIME" : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
+        <h1>${remixMode ? "A new ride.<br>Every time<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
+        <p>${remixMode ? "Answer to boost. Ride through surprises.<br>No two adventures are quite the same." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
         <svg class="start-rails" viewBox="0 0 640 250" aria-hidden="true">
           <path d="M-20 208 C85 208 70 100 155 100 S230 223 308 213 C417 198 441 22 355 22 C255 22 251 211 430 211 S555 110 670 134" fill="none" stroke="#a2c7bc" stroke-width="12"/>
           <path d="M-20 198 C85 198 70 90 155 90 S230 213 308 203 C417 188 441 12 355 12 C255 12 251 201 430 201 S555 100 670 124" fill="none" stroke="#edb079" stroke-width="5"/>
@@ -33,13 +34,13 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
       </div>
       <div class="start-card">
         <div data-choose>
-          <span class="start-kicker">ALL ABOARD</span><h2>${heightMode ? "Build height. Go further." : "Choose your ride"}</h2>
+          <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Roll into the unexpected." : "Choose your ride"}</h2>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
           <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">${heightMode ? "Answer before the next climb. Each correct answer raises your section by 30 metres, with no instant speed boost." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
+          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, seven surprise power-ups, and 20 seconds to make each one count. Correct answers usually boost your speed." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
-            <button class="mode-button mode-duo" data-two ${heightMode ? "hidden" : ""}><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
+            <button class="mode-button mode-duo" data-two ${remixMode ? "hidden" : ""}><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
           </div>
           <details class="table-settings"><summary>Times tables <span data-table-summary></span></summary>
             <p>Choose the tables you’d like to practise. In a race, the host chooses for both players.</p>
@@ -47,7 +48,14 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
             <div class="table-shortcuts"><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
             <p class="setup-error" data-table-error role="status"></p>
           </details>
-          <p class="start-footnote">${heightMode ? 'Correct answers lift automatically. <a href="?mode=classic">Play the original solo / two-player game →</a>' : 'A correct answer gives you a boost automatically. <a href="?mode=height">Try the height experiment →</a>'}</p>
+          ${remixMode ? `<details class="remix-settings"><summary>Course seed & ride surprises</summary>
+            <label class="setup-label" for="course-seed">Course seed <span>(optional)</span></label>
+            <input class="setup-input" id="course-seed" maxlength="40" placeholder="Leave blank for a fresh ride" value="${escape(new URL(location.href).searchParams.get("seed") || "")}">
+            <p class="difficulty-help">Use the same seed to replay a course and its power-up order. Words work too.</p>
+            <ul class="power-menu">${POWER_KINDS.map(kind => `<li><i style="--power-color:${POWERUPS[kind].color}">${POWERUPS[kind].icon}</i><span><strong>${POWERUPS[kind].name}</strong><small>${POWERUPS[kind].description}</small></span></li>`).join("")}</ul>
+            <p class="difficulty-help">One power-up at a time, for 20 seconds. Sky lift turns answers into track height. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
+          </details>` : ""}
+          <p class="start-footnote">${remixMode ? 'Correct answers boost automatically. <a href="?mode=classic">Play the original solo / two-player game →</a>' : 'A correct answer gives you a boost automatically. <a href="?mode=remix">Try the remix →</a>'}</p>
         </div>
         <div data-join-setup hidden>
           <button class="text-button back-button" data-back>← Back</button>
@@ -130,7 +138,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   root.addEventListener("click", async event => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
     if (!button || button.disabled) return;
-    if (button.hasAttribute("data-single")) { persist(); play([...selected], settings.difficulty); }
+    if (button.hasAttribute("data-single")) { persist(); play([...selected], settings.difficulty, remixMode ? q<HTMLInputElement>("#course-seed").value : undefined); }
     if (button.hasAttribute("data-two")) { show("join-setup"); }
     if (button.hasAttribute("data-back")) show("choose");
     if (button.hasAttribute("data-lobby-back")) { off?.(); session?.close(); show("join-setup"); }
@@ -153,6 +161,6 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   }, { signal: controller.signal });
   q("[data-join-form]").addEventListener("submit", event => { event.preventDefault(); open("guest"); }, { signal: controller.signal });
   updateTables();
-  if (!heightMode && validCode(invite)) show("join-setup");
+  if (!remixMode && validCode(invite)) show("join-setup");
   return () => { disposed = true; controller.abort(); off?.(); };
 }

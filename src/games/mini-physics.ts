@@ -10,6 +10,7 @@ export interface MiniPhysicsOptions {
   rolling: number;
   initialSpeed: number;
   initialDistance: number;
+  tailwind: number;
 }
 
 /** Metres, seconds, kilograms. A one-way catch supplies the constraint force at rest.
@@ -78,15 +79,18 @@ export class MiniPhysics {
   }
   private stepJump(h: number) {
     const flight = this.flight!;
+    // The lead coach's jump guide remains magnetic during gravity flip. Loose
+    // cargo still floats upward; the train gets a short, readable landing arc.
+    const gravity = this.options.gravity < 0 ? 9.81 : this.options.gravity;
     const previous = flight.position.clone();
     if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h >= flight.section.landingX) {
       const crossingTime = (flight.section.landingX - previous.x) / flight.velocity.x;
-      const crossingHeight = previous.y + flight.velocity.y * crossingTime - 0.5 * this.options.gravity * crossingTime ** 2;
+      const crossingHeight = previous.y + flight.velocity.y * crossingTime - 0.5 * gravity * crossingTime ** 2;
       flight.missed = crossingHeight < flight.section.height(flight.section.distanceAtX(flight.section.landingX));
     }
     flight.position.addScaledVector(flight.velocity, h);
-    flight.position.y -= 0.5 * this.options.gravity * h * h;
-    flight.velocity.y -= this.options.gravity * h;
+    flight.position.y -= 0.5 * gravity * h * h;
+    flight.velocity.y -= gravity * h;
     const endX = flight.section.origin.x + flight.section.span;
     this.distance = this.track.distanceAtWorldX?.(flight.position.x, this.distance) ?? (flight.position.x <= endX
       ? flight.section.distanceAtX(flight.position.x)
@@ -122,6 +126,7 @@ export class MiniPhysics {
       rolling: 0.06,
       initialSpeed: MINI_START_SPEED,
       initialDistance: track.startDistance ?? 8,
+      tailwind: 0,
       ...options,
     };
     this.distance = this.options.initialDistance;
@@ -144,7 +149,7 @@ export class MiniPhysics {
   }
   private force(s: number, v: number) {
     return (
-      -this.options.gravity * this.track.slope(s) -
+      this.options.tailwind - this.options.gravity * this.track.slope(s) -
       this.options.drag * v * v -
       this.options.rolling * Math.tanh(v * 5)
     );

@@ -1,6 +1,8 @@
 import { RaceSpacing } from "./mini-world";
 import { HeightTrack, HEIGHT_PER_ANSWER } from "./height-track";
 import { heightGuide } from "./height-guide";
+import { RidePowerups, POWERUPS } from "./ride-powerups";
+import { PowerupHud } from "./powerup-hud";
 import type { RiderRole } from "../multiplayer/identity";
 import { rideResistance } from "../difficulty";
 import { BaseGame } from "./base";
@@ -58,20 +60,26 @@ export class Mini extends BaseGame {
   readonly raceSpacing = new RaceSpacing();
   readonly multiplayer: boolean;
   readonly heightMode: boolean;
-  readonly recordId: "mini" | "height";
+  readonly remixMode: boolean;
+  readonly powerups?: RidePowerups;
+  private powerHud?: PowerupHud;
+  private answerWasLift = false;
+  readonly recordId: "mini" | "height" | "remix";
   private pendingLifts = 0;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean } = {}) {
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean } = {}) {
     super(host);
     this.heightMode = !!options.heightMode;
-    this.recordId = this.heightMode ? "height" : "mini";
+    this.remixMode = !!options.remixMode;
+    this.recordId = this.remixMode ? "remix" : this.heightMode ? "height" : "mini";
     this.riderRole = options.riderRole ?? "host";
     this.multiplayer = !!options.multiplayer;
     this.personalBest = bestRide(host.difficulty, this.recordId);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
-    this.track = this.heightMode ? new HeightTrack(seed) : new MiniTrack(seed);
+    this.track = this.heightMode || this.remixMode ? new HeightTrack(seed, { generative: this.remixMode }) : new MiniTrack(seed);
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => this.physics.sample(distance);
+    if (this.remixMode) this.powerups = new RidePowerups(this.track.seed, host.difficulty);
     this.next();
     this.hud();
     try {
@@ -82,7 +90,8 @@ export class Mini extends BaseGame {
     }
   }
   setup() {
-    if (!this.heightMode) this.readouts = new MiniReadouts(this.host.stage);
+    if (!this.heightMode && !this.remixMode) this.readouts = new MiniReadouts(this.host.stage);
+    if (this.remixMode) this.powerHud = new PowerupHud(this.host.stage);
     this.view = new MiniView(this.host.stage, this.track, { multiplayer: this.multiplayer, role: this.riderRole, spacing: this.raceSpacing });
   }
   get travelled() {
@@ -91,6 +100,7 @@ export class Mini extends BaseGame {
   get cartCount() {
     return this.carriages.coaches.length;
   }
+  get liftingAnswers() { return this.heightMode || this.powerups?.active === "lift"; }
   next() {
     [this.a, this.b] = this.nextQuestion?.() ?? multiplication(this.host.difficulty);
     this.answer = "";
@@ -98,14 +108,21 @@ export class Mini extends BaseGame {
   }
   panel() {
     const shown = this.acceptedAnswer ?? this;
-    this.host.panel(
-      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${shown.a} × ${shown.b} = <span class="answer-display" role="status">${shown.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? this.heightMode ? `↑ +${HEIGHT_PER_ANSWER} m ${this.pendingLifts ? "saved for landing" : "track lift"}` : "Correct!" : ""}</p>${this.heightMode ? '<p class="height-guide">Answer early to raise your track</p>' : ''}<p class="keyboard-hint">${this.heightMode ? "Correct answers raise this section. Gravity supplies the speed." : "Type the correct answer to boost automatically"}</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
-    );
+    const feedback = this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct"
+      ? this.answerWasLift ? `↑ +${HEIGHT_PER_ANSWER} m ${this.pendingLifts ? "saved for landing" : "track lift"}` : "Correct!" : "";
+    this.host.panel(`
+      <div class="prompt" data-feedback="${this.answerFeedback}">
+        <h2>${shown.a} × ${shown.b} = <span class="answer-display" role="status">${shown.answer || "?"}</span></h2>
+        <p class="answer-feedback" role="status">${feedback}</p>
+        ${this.liftingAnswers ? '<p class="height-guide">Answer early to raise your track</p>' : ''}
+        <p class="keyboard-hint">${this.liftingAnswers ? "Correct answers raise this section. Gravity supplies the speed." : "Type the correct answer to boost automatically"}</p>
+      </div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`);
   }
   hud() {
     const bestJump = Math.max(this.personalBest.jump, this.physics.bestJump);
-    this.approach = this.ended || this.heightMode ? undefined : jumpApproach(this.track, this.physics);
-    if (this.track instanceof HeightTrack) {
+    this.approach = this.ended || this.heightMode || this.remixMode ? undefined : jumpApproach(this.track, this.physics);
+    if (this.powerups) this.powerHud?.render(this.powerups, this.physics.distance);
+    if (this.track instanceof HeightTrack && this.liftingAnswers) {
       const guide = this.host.stage.parentElement?.querySelector(".height-guide");
       if (guide) guide.textContent = this.ended ? "The ride stopped. Earn height earlier next time." : heightGuide(this.track, this.physics);
     }
@@ -115,14 +132,15 @@ export class Mini extends BaseGame {
       this.guideAt = this.elapsed + 0.25;
     }
     this.host.stage.parentElement?.classList.toggle("needs-boost", this.stalling);
-    this.host.stats([
+    const stats = [
       { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
       { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
       { label: "YOUR TRAIN", value: `${this.cartCount} ${this.cartCount === 1 ? "coach" : "coaches"}` },
       this.track instanceof HeightTrack
         ? { label: "TRACK RAISED", value: `+${this.track.elevation(this.physics.distance).toFixed(0)} m` }
         : { label: "BEST JUMP", value: bestJump ? `${bestJump.toFixed(1)} m` : "—" },
-    ]);
+    ];
+    this.host.stats(this.remixMode ? stats.slice(0, 2) : stats);
   }
   action(value: string) {
     if (this.ended) return;
@@ -156,14 +174,15 @@ export class Mini extends BaseGame {
       this.answerFeedbackUntil = this.elapsed + 0.8;
       if (Number(this.answer) === this.a * this.b) {
         this.answerFeedback = "correct";
-        if (this.track instanceof HeightTrack) {
+        this.answerWasLift = this.liftingAnswers;
+        if (this.track instanceof HeightTrack && this.liftingAnswers) {
           if (this.physics.flight) this.pendingLifts++;
           else this.track.raise(this.physics.distance);
           this.lastImpulse = 0;
         } else this.lastImpulse = this.physics.impulse();
         this.flash = 0.5;
         this.good(
-          this.heightMode ? `↑ +${HEIGHT_PER_ANSWER} m of track height` : `${this.a} × ${this.b} = ${this.a * this.b}. Big forward boost!`,
+          this.liftingAnswers ? `↑ +${HEIGHT_PER_ANSWER} m of track height` : `${this.a} × ${this.b} = ${this.a * this.b}. Big forward boost!`,
         );
         this.bestStreak = Math.max(this.bestStreak, this.combo);
         this.guideAt = 0;
@@ -192,6 +211,7 @@ export class Mini extends BaseGame {
     if (key.toLowerCase() === "c") this.action("camera");
   }
   private endRide(water: boolean) {
+    this.powerups?.finish(this.physics, this.carriages);
     this.hud();
     if (water) this.carriages.splash(this.physics.sample(this.physics.distance));
     this.host.sound("bad");
@@ -222,6 +242,12 @@ export class Mini extends BaseGame {
     }
     this.track.ensure(this.physics.distance + this.physics.velocity * dt,
       this.multiplayer ? Math.max(600, this.physics.velocity * 14) : 230);
+    if (this.powerups?.update(dt, this.track, this.physics, this.carriages)) {
+      this.panel(); this.guideAt = 0;
+      const active = this.powerups.active;
+      this.host.feedback(active ? `${POWERUPS[active].name} · ${POWERUPS[active].description}` : "Power-up complete · normal boosts restored");
+      this.host.sound(active ? "beat" : "good");
+    }
     if (this.track instanceof HeightTrack) {
       // A free-flying train cannot be lifted by its rails. Save those answers
       // until it lands, and keep the landing geometry still during the flight.
@@ -288,10 +314,11 @@ export class Mini extends BaseGame {
         this.elapsed,
         this.physics.renderAlpha,
         this.opponent?.sample(),
+        this.powerups,
       );
     } else if (this.opponent) drawRaceFallback(this, ctx);
     else this.fallback(ctx);
-    if (!this.heightMode && !this.compactHud?.matches && this.elapsed >= this.readoutsAt) {
+    if (!this.heightMode && !this.remixMode && !this.compactHud?.matches && this.elapsed >= this.readoutsAt) {
       this.readoutsAt = this.elapsed + 0.1;
       const reloading = this.carriages.coaches.filter(coach => coach.refill > 0);
       this.readouts?.render({
@@ -318,7 +345,8 @@ export class Mini extends BaseGame {
     this.drawParticles(ctx);
   }
   private fallback(ctx: CanvasRenderingContext2D) {
-    gradient(ctx, "#e1eee4", "#f5efd9");
+    const power = this.powerups?.active, theme = power ? POWERUPS[power] : undefined;
+    gradient(ctx, theme?.sky ?? "#e1eee4", "#f5efd9");
     const frame = this.physics.sample(this.physics.distance);
     const baseScale = this.close ? 28 : 19;
     let scale = baseScale;
@@ -326,7 +354,7 @@ export class Mini extends BaseGame {
     let centerY = Math.max(0, frame.position.y - 10) + 65 / scale;
     const normalX = centerX, normalY = centerY;
     const subjects = [
-      ...this.carriages.poses(this.physics.distance).slice(0, MINI_STARTING_CARTS).filter(p => p.frame.airborne && p.coach !== this.carriages.incoming).map(p => p.frame.position),
+      ...this.carriages.poses(this.physics.distance).slice(0, MINI_STARTING_CARTS).filter(p => (p.frame.airborne || this.track instanceof HeightTrack) && p.coach !== this.carriages.incoming).map(p => p.frame.position),
       ...this.carriages.cameraSubjects(),
     ];
     if (subjects.length) {
@@ -343,13 +371,28 @@ export class Mini extends BaseGame {
       550 + (x - centerX) * scale,
       300 - (y - centerY) * scale,
     ];
+    if (theme) {
+      ctx.save(); ctx.globalAlpha = .4;
+      for (let i = 0; i < 60; i++) {
+        const phase = ((i*.618 + this.elapsed*(power === "reverse" || power === "lift" ? -.25 : power === "heavy" ? 1 : .3))%1+1)%1;
+        const x = (i*173.2 + (power === "wind" ? this.elapsed*220 : 0))%1100, y = phase*570;
+        line(ctx, [[x,y],[x+(power === "wind" ? 24 : 0),y+(power === "ice" ? 3 : 12)]], theme.color, 2);
+      }
+      ctx.restore();
+    }
+    if (this.powerups?.gate) {
+      const gate = this.powerups.gate, f = this.track.sample(gate.distance), info = POWERUPS[gate.kind];
+      const [x,y] = project(f.position.x, f.position.y+2.4);
+      ctx.save(); ctx.strokeStyle = info.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x,y,2.5*scale,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle = info.color; ctx.font = "bold 28px Arial"; ctx.textAlign = "center"; ctx.fillText(info.icon,x,y-2.5*scale-8); ctx.restore();
+    }
     for (const section of this.track.sections) {
       if (section.kind === "jump") {
         const [x, y] = project(section.origin.x + section.width * 0.2, 0.4);
         roundRect(ctx, x, y, section.width * 0.44 * scale, 18, 4, "#58b9c9");
       }
       let points: [number, number][] = [];
-      const drawRail = () => { if (points.length > 1) { line(ctx, points, "#78a296", 8); line(ctx, points, "#f3d68f", 3); } points = []; };
+      const drawRail = () => { if (points.length > 1) { line(ctx, points, theme?.color ?? "#78a296", power === "splash" ? 13 : 8); line(ctx, points, "#f3d68f", 3); } points = []; };
       for (let i = 0; i < section.frames.length; i += 3) {
         if (!section.hasRail(section.start + section.distances[i])) { drawRail(); continue; }
         const f = section.frames[i]; points.push(project(f.position.x, f.position.y));
@@ -377,11 +420,11 @@ export class Mini extends BaseGame {
         palette[index % palette.length],
         "#779486",
       );
-      for (const parcel of parcelPresentation(coach.cargo, coach.cargoAge)) {
+      for (const [i, parcel] of parcelPresentation(coach.cargo, coach.cargoAge, this.remixMode ? 8 : undefined).entries()) {
         if (parcel.scale <= 0) continue;
         const x = parcel.z > 0 ? 2 : -15, y = -27 - (parcel.y - 1) * 20;
         ctx.save(); ctx.translate(x + 6.5, y + 6.5); ctx.scale(parcel.scale, parcel.scale);
-        roundRect(ctx, -6.5, -6.5, 13, 13, 1, "#c89560");
+        roundRect(ctx, -6.5, -6.5, 13, 13, 1, (coach.dynamite ?? 0) & (1 << i) ? "#d44739" : "#c89560");
         roundRect(ctx, -1.5, -6.5, 3, 13, 0, "#f9e8b9");
         ctx.restore();
       }
@@ -405,7 +448,7 @@ export class Mini extends BaseGame {
       const [x, y] = project(parcel.position.x, parcel.position.y);
       const size = scale * 0.68;
       ctx.save(); ctx.translate(x, y); ctx.rotate(parcel.age * 2);
-      roundRect(ctx, -size / 2, -size / 2, size, size, 1, "#c89560");
+      roundRect(ctx, -size / 2, -size / 2, size, size, 1, parcel.dynamite ? "#d44739" : "#c89560");
       roundRect(ctx, -size / 10, -size / 2, size / 5, size, 0, "#f9e8b9");
       ctx.restore();
     }
@@ -425,6 +468,7 @@ export class Mini extends BaseGame {
   destroy() {
     record(this.recordId, this.host.difficulty, this.score);
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
+    this.powerHud?.destroy();
     this.readouts?.destroy();
     this.view?.destroy();
   }

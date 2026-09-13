@@ -12,7 +12,7 @@ export function mountGame(
   root: HTMLElement,
   difficulty: Difficulty,
   restart: () => void,
-  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean } = {},
+  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; seed?: number } = {},
 ): () => void {
   const controller = new AbortController();
   let disposed = false;
@@ -37,7 +37,7 @@ export function mountGame(
 
   root.innerHTML = `
     <div class="game-page container standalone-game">
-      <div class="play-zone${network ? " is-race" : ""}">
+      <div class="play-zone${network ? " is-race" : ""}${settings.remixMode ? " is-remix" : ""}">
         <div class="game-stage" style="--game-color:#d6e8d9">
           <canvas class="game-canvas" width="${W}" height="${H}" aria-label="Keep it going game world"></canvas>
           <div class="game-hud"></div>
@@ -205,7 +205,7 @@ export function mountGame(
   }
 
   try {
-    game = new Mini(host, settings.round?.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed, multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode });
+    game = new Mini(host, settings.round?.seed ?? settings.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed ?? (settings.seed === undefined ? undefined : settings.seed ^ 0x517ab1e), multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode, remixMode: settings.remixMode });
     game.opponent = ghost;
     ghost?.configure(game.track, network?.opponentDifficulty ?? "normal");
     if (network) { ghost!.push(snapshotRide(game, 0)); syncRaceOverlay(); network.ready(); }

@@ -1,6 +1,10 @@
 # Keep it going
 
-**This branch defaults to the solo height experiment:** correct answers raise the occupied track section by 30 metres over one second, rather than giving a speed impulse. Earn height before the next climb and use gravity to carry you through it. Open `?mode=classic` for the original solo/multiplayer game described below. See [the height experiment notes](docs/height-experiment.md) for the mechanic, implementation and verification.
+**This branch defaults to the solo Remix:** fresh, seeded courses assembled from the existing elements, with varied sizes and proportions. Correct answers boost speed. Collect coloured gates to activate one of seven 20-second effects: Ice glide, Gravity flip, Cargo carnival, Splash zone, Sky lift, Heavy metal and Tailwind. **Sky lift** temporarily makes correct answers raise the occupied track section by 30 metres instead of boosting speed.
+
+Leave the optional course seed blank for a fresh ride on every restart, or enter a number or word to replay a course and its power-up order. **Copy ride** creates a link to the current seed. The old `?mode=height` URL also opens Remix. The original solo and multiplayer game remains available at `?mode=classic`, linked from the start screen. Remix records are separate; this branch remains a solo experiment and has not replaced the live game. See [the Remix notes](docs/remix.md) for power-up rules, balancing and verification.
+
+## Original solo and multiplayer game
 
 A miniature coaster game about keeping your momentum. Start with six coaches rolling gently over the top of a 22-metre hill at 2 m/s (about 7 km/h), then gather speed down the first drop. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.
 
@@ -49,6 +53,8 @@ npm run build
 npm run preview
 npm run playtest -- --quick # 32 simulated rides
 npm run playtest            # 160 simulated rides, up to ten minutes each
+npx tsx scripts/playtest-remix.ts --quick # 9 simulated Remix rides
+npx tsx scripts/playtest-remix.ts         # 24 rides, up to three minutes each
 ```
 
 ## GitHub Pages

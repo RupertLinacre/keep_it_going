@@ -3,6 +3,8 @@ import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/iden
 import * as THREE from "three";
 import { mergeStaticMeshes, railGeometries, refreshRails } from "./mini-mesh";
 import { HeightTrack } from "./height-track";
+import { PowerupScene } from "./powerup-scene";
+import { POWERUPS, type RidePowerups } from "./ride-powerups";
 import { MiniTrack, type MiniSection } from "./mini-track";
 import {
   MINI_CART_SPACING,
@@ -11,7 +13,7 @@ import {
   MINI_START_SPEED,
   MINI_MAX_FLYING_CARTS,
   MINI_MAX_FLYING_PARCELS, MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES,
-  parcelPresentation, isParcelWagon,
+  parcelPresentation, isParcelWagon, MINI_POWER_PARCELS,
 } from "./mini-config";
 import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
@@ -38,6 +40,8 @@ export class MiniView {
   private trainParts: ModelPart[];
   private wagonParts: ModelPart[];
   private parcelParts: ModelPart[];
+  private dynamiteParts?: ModelPart[];
+  private powerScene?: PowerupScene;
   readonly debris: THREE.InstancedMesh;
   readonly couplings: THREE.InstancedMesh;
   readonly impactFlashes: THREE.InstancedMesh;
@@ -242,6 +246,18 @@ export class MiniView {
     group.add(this.mesh(new THREE.BoxGeometry(0.69, 0.69, 0.12), "#f9e8b9"));
     return group;
   }
+  private dynamite() {
+    const group = new THREE.Group();
+    for (const x of [-.2, 0, .2]) {
+      const stick = this.mesh(new THREE.CylinderGeometry(.115, .115, .64, 8), "#d44739");
+      stick.rotation.x = Math.PI/2; stick.position.x = x; group.add(stick);
+    }
+    const strap = this.mesh(new THREE.BoxGeometry(.64, .26, .15), "#55433a"); group.add(strap);
+    const fuse = this.mesh(new THREE.CylinderGeometry(.028, .028, .35, 5), "#e6c570");
+    fuse.rotation.x = -.55; fuse.position.set(0, .19, .27); group.add(fuse);
+    const spark = this.mesh(new THREE.IcosahedronGeometry(.095), "#ffdd72"); spark.position.set(0, .34, .36); group.add(spark);
+    return group;
+  }
   private build(section: MiniSection) {
     const group = new THREE.Group();
     const dynamic = this.track instanceof HeightTrack;
@@ -440,6 +456,7 @@ export class MiniView {
     time = 0,
     alpha = 1,
     opponent?: RideState,
+    powerups?: RidePowerups,
   ) {
     const flights = effects?.flights ?? [], parcels = effects?.parcels ?? [], explosions = effects?.explosions ?? [];
     const dt = clamp(time - this.lastTime, 0, 0.05) || 1 / 60;
@@ -541,15 +558,15 @@ export class MiniView {
     fog.far = cameraDistance + Math.max(180, height * 3);
     this.cartCount = cartCount;
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
-    const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [];
+    const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [], dynamite: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
-    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false) => {
+    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false, bombs = 0) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
       if (isParcelWagon(index)) {
         open.push(matrix); openColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index);
-        if (loaded) for (const offset of parcelPresentation(loaded, cargoAge)) {
+        if (loaded) for (const [i, offset] of parcelPresentation(loaded, cargoAge, powerups ? MINI_POWER_PARCELS : undefined).entries()) {
           if (offset.scale <= 0) continue;
-          cargo.push(matrix.clone().multiply(new THREE.Matrix4().compose(
+          (bombs & (1 << i) ? dynamite : cargo).push(matrix.clone().multiply(new THREE.Matrix4().compose(
             new THREE.Vector3(offset.x, offset.y, offset.z), new THREE.Quaternion(), new THREE.Vector3().setScalar(offset.scale))));
         }
       } else { closed.push(matrix); closedColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index); }
@@ -562,7 +579,7 @@ export class MiniView {
       position.x -= anchor;
       const screen = position.clone().project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge);
+      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0);
     }
     this.renderedCartCount = open.length + closed.length;
     for (const cart of flights) {
@@ -572,7 +589,7 @@ export class MiniView {
     }
     for (const parcel of parcels) {
       const position = lane(parcel.position); position.x -= anchor;
-      cargo.push(new THREE.Matrix4().compose(position, parcel.rotation, new THREE.Vector3(1, 1, 1)));
+      (parcel.dynamite ? dynamite : cargo).push(new THREE.Matrix4().compose(position, parcel.rotation, new THREE.Vector3(1, 1, 1)));
     }
     if (opponent) {
       for (const body of opponent.bodies) {
@@ -590,6 +607,8 @@ export class MiniView {
     this.drawModel(this.trainParts, closed, closedColors);
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);
+    if (dynamite.length && !this.dynamiteParts) this.dynamiteParts = this.instanceModel(this.dynamite(), 64);
+    if (this.dynamiteParts) this.drawModel(this.dynamiteParts, dynamite, []);
     const dummy = new THREE.Object3D();
     const links = (effects?.links(distance, poses) ?? []).map(link => ({ ...link, start: lane(link.start), end: lane(link.end) }));
     if (opponent) for (const link of opponent.links) {
@@ -615,7 +634,7 @@ export class MiniView {
     const allExplosions = [
       ...explosions.map(explosion => ({ ...explosion, rival: false })),
       ...(opponent?.impacts ?? []).filter(e => Math.abs(e.position[0] - f.position.x) < 130).map(e => ({
-        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true,
+        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true, dynamite: false,
         particles: e.particles.map(p => ({ position: new THREE.Vector3(...p.position), size: p.size })),
       })),
     ];
@@ -626,7 +645,7 @@ export class MiniView {
         dummy.scale.setScalar(particle.size * 2 * Math.max(0, 1 - explosion.age / 2));
         dummy.updateMatrix();
         this.debris.setMatrixAt(chunks, dummy.matrix);
-        this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : i % 3 ? (this.multiplayer ? new THREE.Color(riderColor(this.riderRole, !!explosion.rival)) : CART_COLORS[explosion.colorIndex % CART_COLORS.length]) : new THREE.Color("#ffa451"));
+        this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : explosion.dynamite ? new THREE.Color(["#e96732", "#ffd36a", "#554137"][i%3]) : i % 3 ? (this.multiplayer ? new THREE.Color(riderColor(this.riderRole, !!explosion.rival)) : CART_COLORS[explosion.colorIndex % CART_COLORS.length]) : new THREE.Color("#ffa451"));
       }
       dummy.position.copy(lane(explosion.position, explosion.rival)); dummy.position.x -= anchor;
       dummy.rotation.set(0, 0, 0);
@@ -635,7 +654,7 @@ export class MiniView {
         this.impactFlashes.setMatrixAt(flashes++, dummy.matrix);
       }
       if (explosion.age < 0.8) {
-        dummy.position.y = 0.16; dummy.rotation.x = Math.PI / 2;
+        dummy.position.y = explosion.water || explosion.dynamite ? explosion.position.y + .1 : .16; dummy.rotation.x = Math.PI / 2;
         dummy.scale.setScalar(0.5 + explosion.age * 8); dummy.updateMatrix();
         this.impactRings.setColorAt(rings, new THREE.Color(explosion.water ? "#c7f7ff" : "#f6ad62"));
         this.impactRings.setMatrixAt(rings++, dummy.matrix);
@@ -654,6 +673,16 @@ export class MiniView {
     const earth = groundBounds(this.track, this.laneOffset, this.cameraRig.focus, height, this.aspect);
     this.board.position.set((earth.min.x + earth.max.x)/2 - anchor, 0, (earth.min.z + earth.max.z)/2);
     this.board.scale.set((earth.max.x - earth.min.x)/170, 1, (earth.max.z - earth.min.z)/26.8);
+    if (powerups) {
+      this.powerScene ??= new PowerupScene(this.scene);
+      this.powerScene.render(powerups, this.track, f, distance, anchor, time);
+      const active = powerups.active, info = active ? POWERUPS[active] : undefined;
+      const blend = 1 - Math.exp(-dt*3);
+      (this.scene.background as THREE.Color).lerp(new THREE.Color(info?.sky ?? "#e6eee8"), blend);
+      fog.color.copy(this.scene.background as THREE.Color);
+      for (let i = 0; i < 3; i++) this.railMaterial(i).color.lerp(new THREE.Color(info ? i === 1 ? "#fff1bf" : info.color : ["#e89983", "#f5d16f", "#64988e"][i]), blend);
+      this.material("#d5e3c3").color.lerp(new THREE.Color(active === "ice" ? "#e3eced" : active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : active === "splash" ? "#c5ded5" : "#d5e3c3"), blend);
+    }
     this.renderer.render(this.scene, this.camera);
   }
   private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[]) {
@@ -692,6 +721,7 @@ export class MiniView {
   }
   destroy() {
     this.resize.disconnect();
+    this.powerScene?.destroy();
     // All geometries are owned by this view; shared materials are released once.
     this.release(this.scene);
     this.materials.forEach((material) => material.dispose());

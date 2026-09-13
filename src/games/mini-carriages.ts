@@ -7,6 +7,7 @@ import {
   parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
   MINI_PARCEL_DRAG, MINI_PARCEL_RETENTION, MINI_COACH_LINK_LIFT, MINI_COUPLING_STRENGTH,
   MINI_COUPLING_LOAD_THRESHOLD, MINI_COACH_RETENTION, MINI_COACH_MAX_LIFT, MINI_COACH_HOP_DURATION, MINI_PARCELS_PER_WAGON,
+  MINI_POWER_PARCELS,
 } from "./mini-config";
 
 interface FlyingBody {
@@ -23,9 +24,12 @@ export interface FlyingCart extends FlyingBody {
 }
 export interface FlyingParcel extends FlyingBody {
   bounces: number;
+  dynamite?: boolean;
+  fuse?: number;
 }
 export interface Explosion {
   water?: boolean;
+  dynamite?: boolean;
   position: THREE.Vector3;
   age: number;
   colorIndex: number;
@@ -73,6 +77,7 @@ export interface Coach {
   previousLift: number;
   liftVelocity: number;
   cargo: number;
+  dynamite?: number;
   cargoAge: number;
   nextCargo: number;
   refill: number;
@@ -107,17 +112,34 @@ export class MiniCarriages {
   private nextId = MINI_STARTING_CARTS;
   private arrivalTravel = 0;
   private readonly detachedHills = new Set<number>();
+  cargoRush = false;
   sample: (distance: number) => RailFrame;
 
-  constructor(readonly track: MiniTrack, readonly gravity = 9.81) {
+  constructor(readonly track: MiniTrack, public gravity = 9.81) {
     this.sample = distance => track.sample(distance);
     for (let i = 0; i < MINI_STARTING_CARTS; i++) this.coaches.push(this.newCoach(i, i * MINI_CART_SPACING));
   }
   private newCoach(id: number, offset: number): Coach {
-    return { id, offset, lift: 0, previousLift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? 2 : 0,
+    return { id, offset, lift: 0, previousLift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? this.cargoRush ? MINI_POWER_PARCELS : 2 : 0,
+      dynamite: this.cargoRush && isParcelWagon(id) ? this.cargoMask(id) : 0,
       cargoAge: 1, nextCargo: 3, refill: 0, grace: 0, parcelStrain: 0,
       displacement: new THREE.Vector3(), relativeVelocity: new THREE.Vector3(), couplingLoad: 0, couplingStrain: 0, stress: 0, velocity: new THREE.Vector3(),
       position: new THREE.Vector3(), derailed: false, airTime: MINI_COACH_HOP_DURATION, wheelStrain: 0, liftPeak: 0 };
+  }
+  private cargoMask(id: number) {
+    let mask = 0;
+    for (let i = 0; i < MINI_POWER_PARCELS; i++) if ((this.track.seed + id + i + this.refills) % 3 === 0) mask |= 1 << i;
+    return mask;
+  }
+  setCargoRush(enabled: boolean) {
+    if (enabled === this.cargoRush) return;
+    this.cargoRush = enabled;
+    for (const coach of [...this.coaches, ...(this.incoming ? [this.incoming] : [])]) {
+      if (!isParcelWagon(coach.id)) continue;
+      coach.cargo = enabled ? MINI_POWER_PARCELS : Math.min(coach.cargo, MINI_PARCELS_PER_WAGON);
+      coach.dynamite = enabled ? this.cargoMask(coach.id) : (coach.dynamite ?? 0) & 15;
+      if (enabled) { coach.refill = 0; coach.cargoAge = 0; coach.grace = .8; }
+    }
   }
   frame(coach: Coach, distance: number, alpha = 1) {
     const frame = this.sample(this.track.followerDistance(distance, coach.offset));
@@ -154,10 +176,11 @@ export class MiniCarriages {
         .flatMap(explosion => [explosion.position, ...explosion.particles.map(particle => particle.position)]),
     ];
   }
-  splash(frame: RailFrame) {
+  splash(frame: RailFrame, strength = 1) {
     this.explode({ position: frame.position.clone(), velocity: new THREE.Vector3(),
       rotation: frame.rotation, angularVelocity: new THREE.Vector3(), age: 0, groundedFor: 0, colorIndex: 0, cargo: 0 });
     this.explosions.at(-1)!.water = true;
+    for (const p of this.explosions.at(-1)!.particles) { p.velocity.multiplyScalar(strength); p.size *= Math.sqrt(strength); }
   }
 
   private explode(cart: FlyingCart) {
@@ -180,12 +203,14 @@ export class MiniCarriages {
 
   private spill(coach: Coach, frame: RailFrame, speed: number) {
     const count = coach.cargo;
+    const dynamite = coach.dynamite ?? 0;
     coach.cargo = 0;
-    coach.refill = MINI_PARCEL_RESPAWN;
+    coach.dynamite = 0;
+    coach.refill = this.cargoRush ? .8 : MINI_PARCEL_RESPAWN;
     coach.parcelStrain = 0;
     const angularVelocity = frame.tangent.clone().cross(frame.curvature).multiplyScalar(speed).clampLength(0, 3);
     const carrierVelocity = coach.velocity;
-    for (const offset of parcelOffsets(count)) {
+    for (const [i, offset] of parcelOffsets(count, MINI_POWER_PARCELS).entries()) {
       const local = new THREE.Vector3(offset.x, offset.y, offset.z).applyQuaternion(frame.rotation);
       // Boxes can slip against one another: a taller stack is not a rigid lever.
       const contact = new THREE.Vector3(offset.x, Math.min(offset.y, 1), offset.z).applyQuaternion(frame.rotation);
@@ -198,6 +223,7 @@ export class MiniCarriages {
         rotation: frame.rotation.clone(),
         angularVelocity: angularVelocity.clone().add(new THREE.Vector3(0.7, 0.4, -0.6)),
         age: 0, groundedFor: 0, bounces: 0,
+        dynamite: !!(dynamite & (1 << i)), fuse: 1.6 + (i % 3) * .3,
       });
       this.spilled++;
     }
@@ -224,6 +250,7 @@ export class MiniCarriages {
     for (const cart of this.flights) fly(cart, dt, this.gravity);
     for (let i = this.flights.length - 1; i >= 0; i--) {
       const cart = this.flights[i];
+      if (cart.age > 45) { this.flights.splice(i, 1); continue; }
       if (cart.position.y < 2 && cart.velocity.y < 0) {
         const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cart.rotation);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cart.rotation);
@@ -243,6 +270,7 @@ export class MiniCarriages {
     }
     for (let i = this.parcels.length - 1; i >= 0; i--) {
       const parcel = this.parcels[i];
+      if (parcel.age > 35) { this.parcels.splice(i, 1); continue; }
       if (parcel.groundedFor > 0) {
         parcel.groundedFor += dt;
         if (parcel.groundedFor > 2) this.parcels.splice(i, 1);
@@ -251,6 +279,13 @@ export class MiniCarriages {
       fly(parcel, dt, this.gravity, MINI_PARCEL_DRAG);
       const matrix = new THREE.Matrix4().makeRotationFromQuaternion(parcel.rotation).elements;
       const floor = 0.075 + 0.34 * (Math.abs(matrix[1]) + Math.abs(matrix[5]) + Math.abs(matrix[9]));
+      if (parcel.dynamite && (parcel.age >= (parcel.fuse ?? 2) || parcel.position.y < floor)) {
+        this.explode({ ...parcel, colorIndex: 4, cargo: 0 });
+        const explosion = this.explosions.at(-1)!;
+        explosion.dynamite = true;
+        for (const p of explosion.particles) { p.velocity.multiplyScalar(1.6); p.size *= 1.3; }
+        this.parcels.splice(i, 1); continue;
+      }
       if (parcel.position.y < floor && parcel.velocity.y < 0) {
         parcel.position.y = floor;
         if (parcel.bounces++ < 2 && Math.abs(parcel.velocity.y) > 1) {
@@ -299,7 +334,8 @@ export class MiniCarriages {
       if (coach.refill > 0) {
         coach.refill -= dt;
         if (coach.refill <= 0) {
-          coach.cargo = Math.min(coach.nextCargo, MINI_PARCELS_PER_WAGON);
+          coach.cargo = this.cargoRush ? MINI_POWER_PARCELS : Math.min(coach.nextCargo, MINI_PARCELS_PER_WAGON);
+          coach.dynamite = this.cargoRush ? this.cargoMask(coach.id) : 0;
           coach.nextCargo = Math.min(coach.cargo + 1, MINI_PARCELS_PER_WAGON);
           coach.cargoAge = 0;
           coach.grace = 0.75;
@@ -309,7 +345,10 @@ export class MiniCarriages {
       if (this.track.followerDistance(distance, coach.offset) < this.track.sections[0].start) continue;
       const index = this.coaches.indexOf(coach);
       if (coach.cargo && coach.grace === 0) {
-        coach.parcelStrain = Math.max(0, coach.parcelStrain + (outward[index] > MINI_PARCEL_RETENTION ? outward[index] / MINI_PARCEL_RETENTION - 1 : -4) * dt);
+        const load = this.cargoRush ? outward[index] * 1.5 : outward[index];
+        coach.parcelStrain = Math.max(0, coach.parcelStrain + (load > MINI_PARCEL_RETENTION ? load / MINI_PARCEL_RETENTION - 1 : -4) * dt);
+        // Upside-down gravity visibly lifts loose cargo; the leading coach stays tethered.
+        if (this.gravity < 0 && frames[index].up.y > .25) coach.parcelStrain += dt * 6;
         if (coach.parcelStrain > 0.035) this.spill(coach, this.frame(coach, distance), speed);
       }
     }
