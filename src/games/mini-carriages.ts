@@ -3,7 +3,7 @@ import { isHump, type MiniTrack } from "./mini-track";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import {
   MINI_CART_SPACING, MINI_MAX_FLYING_CARTS, MINI_MAX_FLYING_PARCELS,
-  MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS,
+  MINI_MAX_EXPLOSIONS, MINI_EXPLOSION_PARTICLES, MINI_VISIBLE_CARTS, MINI_MAX_CARTS,
   parcelOffsets, isParcelWagon, MINI_STARTING_CARTS, MINI_PARCEL_RESPAWN,
   MINI_PARCEL_DRAG, MINI_PARCEL_RETENTION, MINI_COACH_LINK_LIFT, MINI_COUPLING_STRENGTH,
   MINI_COUPLING_LOAD_THRESHOLD, MINI_COACH_RETENTION, MINI_COACH_MAX_LIFT, MINI_COACH_HOP_DURATION, MINI_PARCELS_PER_WAGON,
@@ -70,6 +70,7 @@ export interface Coach {
   id: number;
   offset: number;
   lift: number;
+  previousLift: number;
   liftVelocity: number;
   cargo: number;
   cargoAge: number;
@@ -113,25 +114,26 @@ export class MiniCarriages {
     for (let i = 0; i < MINI_STARTING_CARTS; i++) this.coaches.push(this.newCoach(i, i * MINI_CART_SPACING));
   }
   private newCoach(id: number, offset: number): Coach {
-    return { id, offset, lift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? 2 : 0,
+    return { id, offset, lift: 0, previousLift: 0, liftVelocity: 0, cargo: isParcelWagon(id) ? 2 : 0,
       cargoAge: 1, nextCargo: 3, refill: 0, grace: 0, parcelStrain: 0,
       displacement: new THREE.Vector3(), relativeVelocity: new THREE.Vector3(), couplingLoad: 0, couplingStrain: 0, stress: 0, velocity: new THREE.Vector3(),
       position: new THREE.Vector3(), derailed: false, airTime: MINI_COACH_HOP_DURATION, wheelStrain: 0, liftPeak: 0 };
   }
-  frame(coach: Coach, distance: number) {
+  frame(coach: Coach, distance: number, alpha = 1) {
     const frame = this.sample(distance - coach.offset);
     // Tethered coaches follow the same rail position and orientation. Their only
     // extra degree of freedom is height in world space, never yaw or lateral drift.
-    frame.position.y += coach.lift;
-    if (coach.lift > 0) frame.airborne = true;
+    const lift = coach.previousLift + (coach.lift - coach.previousLift) * alpha;
+    frame.position.y += lift;
+    if (lift > 0) frame.airborne = true;
     return frame;
   }
   /** Coupler endpoints are shared by the 3D view and the side-view fallback. */
-  links(distance: number) {
+  links(distance: number, sampled = this.poses(distance)) {
     const links: { start: THREE.Vector3; end: THREE.Vector3; stress: number }[] = [];
     const end = (position: THREE.Vector3, rotation: THREE.Quaternion, front: boolean) =>
       new THREE.Vector3(0, 0.3, front ? -1.02 : 1.02).applyQuaternion(rotation).add(position);
-    const poses = this.poses(distance).filter(p => p.coach !== this.incoming);
+    const poses = sampled.filter(p => p.coach !== this.incoming);
     for (let i = 1; i < poses.length; i++) links.push({
       stress: poses[i].coach.stress,
       start: end(poses[i - 1].frame.position, poses[i - 1].frame.rotation, false),
@@ -139,10 +141,10 @@ export class MiniCarriages {
     });
     return links;
   }
-  poses(distance: number) {
+  poses(distance: number, alpha = 1) {
     return [...this.coaches.slice(0, MINI_VISIBLE_CARTS), ...(this.incoming ? [this.incoming] : [])]
       .filter(c => distance - c.offset >= this.track.sections[0].start)
-      .map(coach => ({ coach, frame: this.frame(coach, distance) }));
+      .map(coach => ({ coach, frame: this.frame(coach, distance, alpha) }));
   }
   cameraSubjects() {
     return [
@@ -265,8 +267,9 @@ export class MiniCarriages {
     if (!running) return false;
     // Each arriving coach is a real, visible rail traveller, closing the gap faster
     // at high speed. Distance travelled also brings the next one along sooner.
-    this.arrivalTravel += speed * dt;
-    if (!this.incoming && this.arrivalTravel >= 140) {
+    if (this.coaches.length >= MINI_MAX_CARTS) { this.incoming = undefined; this.arrivalTravel = 0; }
+    else this.arrivalTravel += speed * dt;
+    if (this.coaches.length < MINI_MAX_CARTS && !this.incoming && this.arrivalTravel >= 140) {
       this.arrivalTravel = 0;
       this.incoming = this.newCoach(this.nextId++, this.coaches.at(-1)!.offset + 34);
     }
@@ -316,6 +319,7 @@ export class MiniCarriages {
   private updateCouplings(dt: number, frames: RailFrame[], outward: number[], distance: number, speed: number) {
     const coaches = this.coaches;
     const previous = coaches.map(coach => coach.lift);
+    for (const coach of coaches) coach.previousLift = coach.lift;
     for (let i = 0; i < coaches.length; i++) {
       const coach = coaches[i], frame = frames[i];
       const section = this.track.sectionAt(distance - coach.offset);

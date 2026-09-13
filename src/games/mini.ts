@@ -2,6 +2,7 @@ import { BaseGame } from "./base";
 import { MiniTrack } from "./mini-track";
 import { MiniPhysics } from "./mini-physics";
 import { MiniView } from "./mini-view";
+import { MINI_MAX_ZOOM_OUT } from "./mini-camera";
 import { MiniReadouts } from "./mini-readouts";
 import { approachingStall, jumpApproach, type JumpApproach } from "./mini-guide";
 import { MiniCarriages } from "./mini-carriages";
@@ -40,6 +41,8 @@ export class Mini extends BaseGame {
   private jumpWasRecord = false;
   private approach?: JumpApproach;
   private readouts?: MiniReadouts;
+  private readoutsAt = 0;
+  private readonly compactHud = typeof window !== "undefined" ? window.matchMedia("(max-width: 800px), (hover: none) and (pointer: coarse)") : undefined;
   constructor(host: Host, seed?: number) {
     super(host);
     this.personalBest = bestRide(host.difficulty);
@@ -72,7 +75,7 @@ export class Mini extends BaseGame {
   }
   panel() {
     this.host.panel(
-      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? "Correct!" : ""}</p><p class="keyboard-hint">Type your answer · <kbd>Enter</kbd> to boost</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
+      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${this.a} × ${this.b} = <span class="answer-display" role="status">${this.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? "Correct!" : ""}</p><p class="keyboard-hint">Type the correct answer to boost automatically</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
     );
   }
   hud() {
@@ -107,7 +110,10 @@ export class Mini extends BaseGame {
       this.answer = this.answer.slice(0, -1);
       this.answerFeedback = "";
     }
-    if (value === "submit" && this.answer) {
+    // A complete correct entry is its own submission, including corrections
+    // made with Backspace. Partial answers remain editable and aren't mistakes.
+    const edited = /^digit:\d$/.test(value) || value === "back";
+    if (this.answer && (value === "submit" || (edited && Number(this.answer) === this.a * this.b))) {
       this.answerFeedbackUntil = this.elapsed + 0.8;
       if (Number(this.answer) === this.a * this.b) {
         this.answerFeedback = "correct";
@@ -193,7 +199,7 @@ export class Mini extends BaseGame {
       this.host.feedback("The tail coupling snapped! One coach broke away.", false);
       this.host.sound("bad");
     } else if (this.carriages.arrived > previousArrivals) {
-      this.host.feedback(`A coach caught up! ${this.cartCount} coaches and counting.`);
+      this.host.feedback(`A coach caught up! ${this.cartCount} coaches aboard.`);
       this.host.sound("jump");
     } else if (this.carriages.spilled > previousSpills) {
       this.host.feedback("Parcels away! Fresh cargo is on its way.");
@@ -213,36 +219,40 @@ export class Mini extends BaseGame {
     if (this.view) {
       ctx.clearRect(0, 0, 1100, 570);
       this.view.render(
-        this.physics.distance,
+        this.physics.renderDistance,
         this.physics.velocity,
         this.flash,
         this.close,
         this.cartCount,
         this.carriages,
         this.elapsed,
+        this.physics.renderAlpha,
       );
     } else this.fallback(ctx);
-    const reloading = this.carriages.coaches.filter(coach => coach.refill > 0);
-    this.readouts?.render({
-      held: this.ended,
-      incoming: !!this.carriages.incoming,
-      jump: this.physics.flight && !this.ended
-        ? { distance: this.physics.flight.position.x - this.physics.flight.startX, landed: false, record: false }
-        : this.elapsed < this.jumpBonusUntil ? { distance: this.physics.lastJumpDistance, landed: true, record: this.jumpWasRecord } : undefined,
-      correct: this.correct,
-      score: this.score,
-      streak: this.combo,
-      personalBest: this.personalBest.distance,
-      distance: this.travelled,
-      stalling: this.stalling,
-      approach: this.approach,
-      cargo: this.carriages.coaches.reduce((sum, coach) => sum + coach.cargo, 0),
-      refillIn: reloading.length ? Math.min(...reloading.map(coach => coach.refill)) : undefined,
-      stress: Math.max(0, ...this.carriages.coaches.map(coach => coach.stress)),
-      feature: this.track.sectionAt(this.physics.distance).kind,
-      turns: this.track.sectionAt(this.physics.distance).turns,
-      boost: this.flash > 0 ? Math.round(this.lastImpulse * 3.6) : null,
-    });
+    if (!this.compactHud?.matches && this.elapsed >= this.readoutsAt) {
+      this.readoutsAt = this.elapsed + 0.1;
+      const reloading = this.carriages.coaches.filter(coach => coach.refill > 0);
+      this.readouts?.render({
+        held: this.ended,
+        incoming: !!this.carriages.incoming,
+        jump: this.physics.flight && !this.ended
+          ? { distance: this.physics.flight.position.x - this.physics.flight.startX, landed: false, record: false }
+          : this.elapsed < this.jumpBonusUntil ? { distance: this.physics.lastJumpDistance, landed: true, record: this.jumpWasRecord } : undefined,
+        correct: this.correct,
+        score: this.score,
+        streak: this.combo,
+        personalBest: this.personalBest.distance,
+        distance: this.travelled,
+        stalling: this.stalling,
+        approach: this.approach,
+        cargo: this.carriages.coaches.reduce((sum, coach) => sum + coach.cargo, 0),
+        refillIn: reloading.length ? Math.min(...reloading.map(coach => coach.refill)) : undefined,
+        stress: Math.max(0, ...this.carriages.coaches.map(coach => coach.stress)),
+        feature: this.track.sectionAt(this.physics.distance).kind,
+        turns: this.track.sectionAt(this.physics.distance).turns,
+        boost: this.flash > 0 ? Math.round(this.lastImpulse * 3.6) : null,
+      });
+    }
     this.drawParticles(ctx);
   }
   private fallback(ctx: CanvasRenderingContext2D) {
@@ -252,6 +262,7 @@ export class Mini extends BaseGame {
     let scale = baseScale;
     let centerX = frame.position.x + 200 / scale;
     let centerY = Math.max(0, frame.position.y - 10) + 65 / scale;
+    const normalX = centerX, normalY = centerY;
     const subjects = [
       ...this.carriages.poses(this.physics.distance).slice(0, MINI_STARTING_CARTS).filter(p => p.frame.airborne && p.coach !== this.carriages.incoming).map(p => p.frame.position),
       ...this.carriages.cameraSubjects(),
@@ -261,8 +272,10 @@ export class Mini extends BaseGame {
       const right = Math.max(centerX + 500 / scale, ...subjects.map(p => p.x + 3));
       const bottom = Math.min(centerY - 195 / scale, ...subjects.map(p => p.y - 3));
       const top = Math.max(centerY + 195 / scale, ...subjects.map(p => p.y + 3));
-      centerX = (left + right) / 2; centerY = (bottom + top) / 2;
-      scale = Math.min(scale, 1000 / (right - left), 390 / (top - bottom));
+      scale = Math.max(baseScale / MINI_MAX_ZOOM_OUT, Math.min(scale, 1000 / (right - left), 390 / (top - bottom)));
+      const panX = 500 / scale - 500 / baseScale, panY = 195 / scale - 195 / baseScale;
+      centerX = Math.max(normalX - panX, Math.min(normalX + panX, (left + right) / 2));
+      centerY = Math.max(normalY - panY, Math.min(normalY + panY, (bottom + top) / 2));
     }
     const project = (x: number, y: number): [number, number] => [
       550 + (x - centerX) * scale,

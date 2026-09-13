@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { clamp } from "../math";
 
 export const MINI_CAMERA_DIRECTION = new THREE.Vector3(8, 17, 38).normalize();
+export const MINI_MAX_ZOOM_OUT = 3;
 const right = new THREE.Vector3(38, 0, -8).normalize();
 const up = MINI_CAMERA_DIRECTION.clone().cross(right).normalize();
 
@@ -26,6 +27,11 @@ export class MiniCameraRig {
 
   update(base: THREE.Vector3, baseHeight: number, aspect: number, subjects: readonly THREE.Vector3[], dt: number) {
     const previousHeight = this.height;
+    const maxHeight = baseHeight * MINI_MAX_ZOOM_OUT;
+    // Preserve the normal train view inside the safe area even if a loose
+    // object flies beyond the zoom budget. It can leave the screen.
+    const maxPanX = Math.max(0, (maxHeight * 0.84 - baseHeight) * aspect / 2);
+    const maxPanY = Math.max(0, (maxHeight * 0.72 - baseHeight) / 2);
     let left = -baseHeight * aspect / 2, rightEdge = -left;
     let bottom = -baseHeight / 2, top = -bottom;
     for (const point of subjects) {
@@ -34,12 +40,18 @@ export class MiniCameraRig {
       left = Math.min(left, x - 4); rightEdge = Math.max(rightEdge, x + 4);
       bottom = Math.min(bottom, y - 4); top = Math.max(top, y + 4);
     }
-    const target = base.clone().addScaledVector(right, (left + rightEdge) / 2)
-      .addScaledVector(up, (bottom + top) / 2);
-    const targetHeight = Math.max(baseHeight, (rightEdge - left) / aspect, top - bottom);
+    const target = base.clone().addScaledVector(right, clamp((left + rightEdge) / 2, -maxPanX, maxPanX))
+      .addScaledVector(up, clamp((bottom + top) / 2, -maxPanY, maxPanY));
+    const targetHeight = Math.min(maxHeight, Math.max(baseHeight, (rightEdge - left) / aspect, top - bottom));
     if (!this.height) { this.focus.copy(target); this.height = targetHeight; }
     const motion = 1 - Math.exp(-Math.max(0, dt) * 5);
     this.focus.lerp(target, motion);
+    // Apply the pan limit to the current camera too: resizing or switching to
+    // close view can shrink the allowed area before the easing catches up.
+    const offset = this.focus.clone().sub(base);
+    const panX = offset.dot(right), panY = offset.dot(up);
+    this.focus.addScaledVector(right, clamp(panX, -maxPanX, maxPanX) - panX)
+      .addScaledVector(up, clamp(panY, -maxPanY, maxPanY) - panY);
     this.height += (targetHeight - this.height) * (1 - Math.exp(-Math.max(0, dt) * 2.5));
     // Pan gently, but widen immediately to keep flying objects clear of the HUD.
     for (const point of subjects.length ? [base, ...subjects] : [base]) {
@@ -48,6 +60,7 @@ export class MiniCameraRig {
         2 * (Math.abs(offset.dot(right)) + 4) / (aspect * 0.84),
         2 * (Math.abs(offset.dot(up)) + 4) / 0.72);
     }
+    this.height = Math.min(this.height, maxHeight);
     this.settled = this.focus.distanceTo(target) < 0.01
       && Math.abs(this.height - previousHeight) < 0.01;
     return this;

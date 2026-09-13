@@ -139,7 +139,7 @@ test("a carriage explodes once on impact and the debris follows gravity then exp
   assert.equal(carriages.explosions.length, 0);
 });
 
-test("the camera keeps the train and airborne objects in frame, then returns smoothly", () => {
+test("the camera keeps nearby airborne objects in frame, then returns smoothly", () => {
   for (const aspect of [0.7, 1.4, 2, 3.5]) {
     const rig = new MiniCameraRig();
     const base = new THREE.Vector3(0, 10, 0);
@@ -148,7 +148,7 @@ test("the camera keeps the train and airborne objects in frame, then returns smo
     rig.update(base, 32, aspect, [], 1 / 60);
     for (let i = 0; i <= 240; i++) {
       const t = i / 60;
-      const subjects = [new THREE.Vector3(60 * t, 25 + 20 * t - 4.905 * t * t, 0), new THREE.Vector3(-25 * t, 35, 15)];
+      const subjects = [new THREE.Vector3(6 * t, 25 + 20 * t - 4.905 * t * t, 0), new THREE.Vector3(-3 * t, 35, 15)];
       rig.update(base, 32, aspect, subjects, 1 / 60);
       camera.left = -rig.height * aspect / 2; camera.right = -camera.left;
       camera.top = rig.height / 2; camera.bottom = -camera.top;
@@ -166,5 +166,30 @@ test("the camera keeps the train and airborne objects in frame, then returns smo
     for (let i = 0; i < 360; i++) rig.update(base, 32, aspect, [], 1 / 60);
     assert.ok(Math.abs(rig.height - 32) < 0.01);
     assert.ok(rig.focus.distanceTo(base) < 0.01);
+  }
+});
+
+test("runaway objects cannot zoom beyond three times normal or pan the train offscreen", () => {
+  const rig = new MiniCameraRig();
+  for (const [aspect, normal] of [[2, 100], [0.7, 32], [3.5, 26], [1, 48]]) {
+    const base = new THREE.Vector3(20, 18, 5);
+    const runaway = new THREE.Vector3(10000, 8000, -3000);
+    for (let i = 0; i < 240; i++) {
+      base.x += 0.5;
+      rig.update(base, normal, aspect, [runaway], 1 / 60);
+      assert.ok(rig.height <= normal * 3, "Hard cap also applies during resize/close-view transitions");
+      const camera = new THREE.OrthographicCamera(-rig.height * aspect / 2, rig.height * aspect / 2, rig.height / 2, -rig.height / 2, 0.1, 20000);
+      camera.position.copy(rig.focus).addScaledVector(MINI_CAMERA_DIRECTION, 10000);
+      camera.lookAt(rig.focus); camera.updateMatrixWorld(true);
+      const engine = base.clone().project(camera);
+      assert.ok(Math.abs(engine.x) < 0.84 && Math.abs(engine.y) < 0.72, "Keep the train visible at the cap");
+      const escaped = runaway.clone().project(camera);
+      assert.ok(Math.abs(escaped.x) > 1 || Math.abs(escaped.y) > 1, "Distant debris may leave the view");
+    }
+    assert.equal(rig.height, normal * 3);
+    rig.update(base, normal, aspect, [], 1 / 60);
+    assert.ok(rig.height > normal * 2.7, "Return from the cap without snapping in");
+    for (let i = 0; i < 360; i++) rig.update(base, normal, aspect, [], 1 / 60);
+    assert.ok(Math.abs(rig.height - normal) < 0.01);
   }
 });

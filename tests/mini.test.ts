@@ -260,13 +260,13 @@ test("one answer clears a loop from a stall without repeated little pushes", () 
   }
 });
 
-test("answers boost speed without instantly adding coaches, and locked submissions add nothing", () => {
+test("answers boost speed without instantly adding coaches, and trailing submissions add nothing", () => {
   const game = new HeadlessMini(harness().host, 16);
   for (let n = 1; n <= 3; n++) {
     answer(game);
     assert.equal(game.correct, n);
     const speed = game.physics.velocity;
-    answer(game);
+    game.key("Enter");
     assert.equal(game.physics.velocity, speed);
     assert.equal(game.cartCount, 6);
     advance(game, 0.2);
@@ -274,17 +274,16 @@ test("answers boost speed without instantly adding coaches, and locked submissio
   }
 });
 
-test("typing the next answer during a boost cooldown preserves every digit without applying a second impulse", () => {
+test("correct answers auto-submit immediately, including during the previous boost cooldown", () => {
   const game = new HeadlessMini(harness().host, 42);
   answer(game);
   const speed = game.physics.velocity, nextAnswer = String(game.a * game.b);
   for (const digit of nextAnswer) game.key(digit);
-  assert.equal(game.answer, nextAnswer);
+  assert.equal(game.answer, "");
+  assert.ok(game.physics.velocity > speed);
+  const boosted = game.physics.velocity;
   game.key("Enter");
-  assert.equal(game.physics.velocity, speed);
-  assert.equal(game.correct, 1);
-  advance(game, 0.2);
-  game.key("Enter");
+  assert.equal(game.physics.velocity, boosted, "A trailing Enter cannot boost twice");
   assert.equal(game.correct, 2);
   assert.equal(game.combo, 2);
   assert.equal(game.bestStreak, 2);
@@ -292,6 +291,32 @@ test("typing the next answer during a boost cooldown preserves every digit witho
   game.key("0"); game.key("Enter");
   assert.equal(game.combo, 0);
   assert.equal(game.bestStreak, 2, "A mistake resets the live streak but keeps the ride's best");
+});
+
+test("keyboard and touch digits only auto-accept a complete correct answer", () => {
+  for (const touch of [false, true]) {
+    const game = new HeadlessMini(harness().host, 42);
+    game.a = 12; game.b = 12;
+    const digit = (d: string) => touch ? game.action(`digit:${d}`) : game.key(d);
+    const speed = game.physics.velocity;
+    digit("1"); digit("4");
+    assert.equal(game.answer, "14");
+    assert.equal(game.correct, 0);
+    assert.equal(game.mistakes, 0);
+    assert.equal(game.physics.velocity, speed);
+    digit("5");
+    assert.equal(game.correct, 0, "Incorrect entries don't boost or advance");
+    assert.equal(game.mistakes, 0, "Allow the player to correct a typo");
+    if (touch) game.action("back"); else game.key("Backspace");
+    digit("4");
+    assert.equal(game.correct, 1);
+    assert.equal(game.answer, "");
+    assert.ok(game.physics.velocity > speed);
+    assert.equal(game.mistakes, 0);
+    game.a = 2; game.b = 3;
+    digit("6");
+    assert.equal(game.correct, 2, "Single-digit answers work without Return too");
+  }
 });
 
 test("the visible train tail stays on retained rail even on a long endless ride", () => {

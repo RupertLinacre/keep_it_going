@@ -25,6 +25,10 @@ export class MiniPhysics {
   peakSpeed = 0;
   readonly options: MiniPhysicsOptions;
   private accumulator = 0;
+  private previousDistance: number;
+  /** Draw between completed 120 Hz physics steps, at any display refresh rate. */
+  get renderAlpha() { return this.held || this.crashed ? 1 : Math.max(0, Math.min(1, this.accumulator * 120)); }
+  get renderDistance() { return this.previousDistance + (this.distance - this.previousDistance) * this.renderAlpha; }
   crashed = false;
   jumps = 0;
   lastJumpDistance = 0;
@@ -120,6 +124,7 @@ export class MiniPhysics {
       ...options,
     };
     this.distance = this.options.initialDistance;
+    this.previousDistance = this.distance;
     this.velocity = this.options.initialSpeed;
   }
   get held() {
@@ -149,6 +154,7 @@ export class MiniPhysics {
     const h = 1 / 120;
     while (this.accumulator + 1e-10 >= h) {
       this.accumulator -= h;
+      this.previousDistance = this.distance;
       if (this.crashed) { if (afterStep?.(h) === false) { this.accumulator = 0; return; } continue; }
       this.time += h;
       if (this.flight) {

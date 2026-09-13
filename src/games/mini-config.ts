@@ -1,4 +1,5 @@
 export const MINI_STARTING_CARTS = 6;
+export const MINI_MAX_CARTS = 10;
 export const MINI_START_SPEED = 2;
 export const MINI_CART_SPACING = 2.4;
 export const MINI_MAX_FLYING_CARTS = 12;
@@ -33,8 +34,7 @@ export const parcelPresentation = (count: number, age: number) => parcelOffsets(
     scale: scale * scale * (3 - 2 * scale) };
 });
 export const MINI_TRAIL_DISTANCE = 180;
-export const MINI_VISIBLE_CARTS =
-  Math.ceil(MINI_TRAIL_DISTANCE / MINI_CART_SPACING) + 1;
+export const MINI_VISIBLE_CARTS = MINI_MAX_CARTS;
 // Energy per unit mass, applied only when an answer is correct. It gives a
 // substantial launch from rest and smaller speed increments when already fast.
 export const MINI_BOOST_ENERGY = 300;

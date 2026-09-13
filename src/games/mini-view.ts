@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { MiniRailCurve, MiniTrack, type MiniSection } from "./mini-track";
+import { mergeStaticMeshes, railGeometries } from "./mini-mesh";
+import { MiniTrack, type MiniSection } from "./mini-track";
 import {
   MINI_CART_SPACING,
   MINI_VISIBLE_CARTS,
@@ -52,6 +53,8 @@ export class MiniView {
     this.renderer.domElement.className = "coaster-canvas mini-canvas";
     this.renderer.domElement.setAttribute("aria-hidden", "true");
     stage.prepend(this.renderer.domElement);
+    this.scene.matrixAutoUpdate = false;
+    this.scene.updateMatrix();
     this.scene.background = new THREE.Color("#e6eee8");
     this.scene.fog = new THREE.Fog("#e6eee8", 100, 180);
     this.scene.add(new THREE.HemisphereLight("#fffbea", "#8bafa6", 2));
@@ -80,8 +83,7 @@ export class MiniView {
       this.board.add(edging);
     }
     this.scene.add(this.board);
-    // Instance each model part: a long reward train costs the same number of
-    // draw calls as a short one. Offscreen tail carts remain logical rewards.
+    // Instance each material batch, so adding coaches does not add draw calls.
     this.trainParts = this.instanceModel(this.car("#ffffff"), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.wagonParts = this.instanceModel(this.car("#ffffff", true), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.parcelParts = this.instanceModel(this.parcel(), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
@@ -117,6 +119,7 @@ export class MiniView {
   }
   private instanceModel(model: THREE.Group, capacity: number) {
     const parts: ModelPart[] = [];
+    mergeStaticMeshes(model);
     model.updateMatrixWorld(true);
     for (const child of model.children) {
       if (!(child instanceof THREE.Mesh)) continue;
@@ -219,19 +222,9 @@ export class MiniView {
     const ranges = section.kind === "jump"
       ? [[section.start, section.takeoff - 0.03], [section.distanceAtX(section.landingX), section.end]]
       : [[section.start, section.end]];
-    for (const [from, to] of ranges) for (const [i, offset] of [-0.57, 0.57].entries()) {
-      const rail = this.mesh(
-        new THREE.TubeGeometry(
-          new MiniRailCurve(section, offset, from, to),
-          Math.max(24, Math.min(8000, Math.ceil((to - from) * 5))),
-          0.095,
-          6,
-          false,
-        ),
-        i ? "#f5d16f" : "#e89983",
-      );
-      group.add(rail);
-    }
+    for (const [from, to] of ranges)
+      railGeometries(section, from, to).forEach((geometry, i) =>
+        group.add(this.mesh(geometry, i ? "#f5d16f" : "#e89983")));
     const count = Math.ceil(section.length / 0.65);
     const sleepers = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.55, 0.13, 0.18),
@@ -361,6 +354,8 @@ export class MiniView {
       tree.scale.setScalar(0.7 + random(i + 5) * 0.5);
       group.add(tree);
     }
+    mergeStaticMeshes(group);
+    group.traverse(object => { object.updateMatrix(); object.matrixAutoUpdate = false; });
     this.pieces.set(section.id, group);
     this.scene.add(group);
   }
@@ -381,6 +376,7 @@ export class MiniView {
     cartCount = MINI_STARTING_CARTS,
     effects?: MiniCarriages,
     time = 0,
+    alpha = 1,
   ) {
     const flights = effects?.flights ?? [], parcels = effects?.parcels ?? [], explosions = effects?.explosions ?? [];
     const dt = clamp(time - this.lastTime, 0, 0.05) || 1 / 60;
@@ -394,15 +390,16 @@ export class MiniView {
         this.release(mesh);
         this.pieces.delete(id);
       }
-    const poses = effects?.poses(distance);
+    const poses = effects?.poses(distance, alpha);
     const f = poses?.[0]?.frame ?? this.track.sample(distance),
       anchor = Math.floor(f.position.x / 25) * 25;
     for (const section of this.track.sections) {
       if (!this.pieces.has(section.id)) this.build(section);
-      this.pieces
-        .get(section.id)!
-        .position.copy(section.origin)
-        .add(new THREE.Vector3(-anchor, 0, 0));
+      const piece = this.pieces.get(section.id)!;
+      if (piece.position.x !== section.origin.x - anchor || piece.position.y !== section.origin.y || piece.position.z !== section.origin.z) {
+        piece.position.set(section.origin.x - anchor, section.origin.y, section.origin.z);
+        piece.updateMatrix();
+      }
     }
     // Frame taller hills from the side. Fade the influence of approaching
     // peaks in at the edges so the model view opens up smoothly as we travel.
@@ -482,7 +479,7 @@ export class MiniView {
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);
     const dummy = new THREE.Object3D();
-    const links = effects?.links(distance) ?? [];
+    const links = effects?.links(distance, poses) ?? [];
     for (const [i, link] of links.entries()) {
       const direction = link.end.clone().sub(link.start);
       dummy.position.copy(link.start).add(link.end).multiplyScalar(0.5);
@@ -522,7 +519,10 @@ export class MiniView {
       }
     }
     for (const [mesh, count] of [[this.debris, chunks], [this.impactFlashes, flashes], [this.impactRings, rings]] as const) {
-      mesh.count = count; mesh.instanceMatrix.needsUpdate = true;
+      mesh.count = count; mesh.visible = count > 0;
+      if (!mesh.visible) continue;
+      mesh.instanceMatrix.clearUpdateRanges(); mesh.instanceMatrix.addUpdateRange(0, count * 16);
+      mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
     this.lamp.position.copy(f.position).addScaledVector(f.up, 0.6);
@@ -546,6 +546,8 @@ export class MiniView {
         this.scene.add(mesh); part.mesh = mesh;
       }
       part.mesh.count = transforms.length;
+      part.mesh.visible = transforms.length > 0;
+      if (!part.mesh.visible) continue;
       transforms.forEach((transform, index) => {
         matrix.multiplyMatrices(transform, part.transform);
         part.mesh.setMatrixAt(index, matrix);
@@ -555,8 +557,14 @@ export class MiniView {
             CART_COLORS[colorIndices[index] % CART_COLORS.length],
           );
       });
+      part.mesh.instanceMatrix.clearUpdateRanges();
+      part.mesh.instanceMatrix.addUpdateRange(0, transforms.length * 16);
       part.mesh.instanceMatrix.needsUpdate = true;
-      if (part.mesh.instanceColor) part.mesh.instanceColor.needsUpdate = true;
+      if (part.mesh.instanceColor) {
+        part.mesh.instanceColor.clearUpdateRanges();
+        part.mesh.instanceColor.addUpdateRange(0, transforms.length * 3);
+        part.mesh.instanceColor.needsUpdate = true;
+      }
     }
   }
   destroy() {
