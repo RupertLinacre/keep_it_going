@@ -1,3 +1,4 @@
+import { drawTailwindSail, sailDeployment } from "./tailwind-sails";
 import { RaceSpacing } from "./mini-world";
 import { HeightTrack, HEIGHT_PER_ANSWER } from "./height-track";
 import { heightGuide, skyLiftBoostEnergy } from "./height-guide";
@@ -460,6 +461,7 @@ export class Mini extends BaseGame {
         roundRect(ctx, -1.5, -6.5, 3, 13, 0, "#f9e8b9");
         ctx.restore();
       }
+      drawTailwindSail(ctx, sailDeployment(this.powerups), this.elapsed, index, palette[index % palette.length]);
       circle(ctx, -10, 0, 4, "#738779");
       circle(ctx, 10, 0, 4, "#738779");
       ctx.restore();

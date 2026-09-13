@@ -1,3 +1,4 @@
+import { sailDeployment } from "./tailwind-sails";
 import { groundBounds, RaceSpacing } from "./mini-world";
 import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
 import * as THREE from "three";
@@ -42,6 +43,7 @@ export class MiniView {
   private trainParts: ModelPart[];
   private wagonParts: ModelPart[];
   private parcelParts: ModelPart[];
+  private sailParts?: ModelPart[];
   private dynamiteParts?: ModelPart[];
   private powerScene?: PowerupScene;
   private opponentPowerScene?: PowerupScene;
@@ -218,6 +220,27 @@ export class MiniView {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     return mesh;
+  }
+  private sail() {
+    const group = new THREE.Group();
+    const mast = this.mesh(new THREE.CylinderGeometry(.035, .045, 2.65, 6), "#96764f");
+    mast.position.y = 1.325; group.add(mast);
+    // A bowed cloth surface, rather than a rigid flat triangle.
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute([
+      0,2.6,0, 0,.65,0, .22,1.25,-.65,
+      0,.65,0, 0,.65,-1.55, .22,1.25,-.65,
+      0,.65,-1.55, 0,2.6,0, .22,1.25,-.65,
+    ], 3));
+    geometry.computeVertexNormals();
+    this.material("#fff5d9").side = THREE.DoubleSide;
+    group.add(this.mesh(geometry, "#fff5d9"));
+    const pennant = new THREE.BufferGeometry();
+    pennant.setAttribute("position", new THREE.Float32BufferAttribute([.01,2.62,0, .01,2.32,0, .01,2.47,-.55], 3));
+    pennant.computeVertexNormals();
+    this.material("#ffffff").side = THREE.DoubleSide;
+    group.add(this.mesh(pennant, "#ffffff"));
+    return group;
   }
   private car(color: string, open = false) {
     const group = new THREE.Group();
@@ -605,8 +628,19 @@ export class MiniView {
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
     const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [], dynamite: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
-    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false, bombs = 0) => {
+    const sails: THREE.Matrix4[] = [], sailColors: number[] = [];
+    const localSail = sailDeployment(powerups), remoteSail = sailDeployment(opponent?.power);
+    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false, bombs = 0, attached = false) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
+      const deployment = rival ? remoteSail : localSail;
+      if (attached && index > 0 && deployment > 0) {
+        const flutter = Math.sin((rival ? opponent!.time : time) * 5 + index * 1.7);
+        sails.push(matrix.clone().multiply(new THREE.Matrix4().compose(
+          new THREE.Vector3(.76, .7, .72),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flutter * .06),
+          new THREE.Vector3(1, deployment, .94 + flutter * .06))));
+        sailColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index);
+      }
       if (isParcelWagon(index)) {
         open.push(matrix); openColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index);
         if (loaded) for (const [i, offset] of parcelPresentation(loaded, cargoAge, powerups ? MINI_POWER_PARCELS : undefined).entries()) {
@@ -624,7 +658,7 @@ export class MiniView {
       position.x -= anchor;
       const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0);
+      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0, true);
     }
     this.renderedCartCount = open.length + closed.length;
     for (const cart of flights) {
@@ -641,7 +675,7 @@ export class MiniView {
         const position = lane(new THREE.Vector3(...body.position), true); position.x -= anchor;
         const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
         if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true, body.bombs ?? 0);
+        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true, body.bombs ?? 0, body.id.startsWith("coach-"));
       }
       for (const parcel of opponent.parcels) {
         const position = lane(new THREE.Vector3(...parcel.position), true); position.x -= anchor;
@@ -649,6 +683,8 @@ export class MiniView {
         (parcel.dynamite ? dynamite : cargo).push(new THREE.Matrix4().compose(position, mirrorRotation(new THREE.Quaternion(...parcel.rotation)), new THREE.Vector3(1, 1, 1)));
       }
     }
+    if (sails.length && !this.sailParts) this.sailParts = this.instanceModel(this.sail(), MINI_VISIBLE_CARTS * 2);
+    if (this.sailParts) this.drawModel(this.sailParts, sails, sailColors);
     this.drawModel(this.trainParts, closed, closedColors);
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);

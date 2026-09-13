@@ -1,3 +1,4 @@
+import { drawTailwindSail, sailDeployment } from "../games/tailwind-sails";
 import { riderColor } from "./identity";
 import { Quaternion, Vector3 } from "three";
 import { gradient, line, roundRect, circle } from "../draw";
@@ -79,6 +80,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
         ctx.save(); ctx.translate(px + 6.5, py + 6.5); ctx.scale(parcel.scale, parcel.scale);
         roundRect(ctx, -6.5, -6.5, 13, 13, 1, (body.bombs??0)&(1<<i) ? "#c94b40" : "#c89560"); roundRect(ctx, -1.5, -6.5, 3, 13, 0, "#f9e8b9"); ctx.restore();
       }
+      if (body.id.startsWith("coach-")) drawTailwindSail(ctx, sailDeployment(state.power), state.time, body.color, riderColor(game.riderRole, rival));
       circle(ctx, -10, 0, 4, "#567970"); circle(ctx, 10, 0, 4, "#567970"); ctx.restore();
     }
     for (const impact of state.impacts) {
