@@ -16,6 +16,8 @@ import type { RaceSession } from "./multiplayer/session";
 import type { Round } from "./multiplayer/protocol";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
+const query = new URLSearchParams(location.search);
+const heightMode = query.get("mode") !== "classic" && !query.has("join");
 let cleanup: (() => void) | undefined;
 let session: RaceSession | undefined;
 let disconnectStart: (() => void) | undefined;
@@ -35,7 +37,7 @@ function shell(playing: boolean) {
 }
 function solo(tables: number[], difficulty: Difficulty) {
   unlockAudio();
-  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty), { tables, menu });
+  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty), { tables, menu, heightMode });
 }
 function race(round: Round) {
   unlockAudio();
@@ -52,7 +54,7 @@ function menu() {
     disconnectStart?.();
     session = connected;
     disconnectStart = session.on("prepare", race);
-  });
+  }, heightMode);
 }
 window.addEventListener("pagehide", () => session?.close());
 menu();

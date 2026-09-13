@@ -70,7 +70,8 @@ export class MiniPhysics {
     this.launched.add(section.id);
     this.distance = section.takeoff;
     const frame = section.sample(section.takeoff - 0.05);
-    frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
+    if (section.revision) frame.position.copy(section.sample(section.takeoff).position);
+    else frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
     frame.tangent.copy(section.launchTangent);
     this.flight = { section, position: frame.position.clone(), velocity: frame.tangent.clone().multiplyScalar(this.velocity), startX: frame.position.x };
     this.traces.push({ start: this.distance, end: this.distance, points: [{ distance: this.distance, frame: this.airFrame() }] });
@@ -81,7 +82,7 @@ export class MiniPhysics {
     if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h >= flight.section.landingX) {
       const crossingTime = (flight.section.landingX - previous.x) / flight.velocity.x;
       const crossingHeight = previous.y + flight.velocity.y * crossingTime - 0.5 * this.options.gravity * crossingTime ** 2;
-      flight.missed = crossingHeight < flight.section.origin.y;
+      flight.missed = crossingHeight < flight.section.height(flight.section.distanceAtX(flight.section.landingX));
     }
     flight.position.addScaledVector(flight.velocity, h);
     flight.position.y -= 0.5 * this.options.gravity * h * h;
@@ -175,13 +176,18 @@ export class MiniPhysics {
         continue;
       }
       // Clamp RK stages to nonnegative speed: the safety catch cannot do forward work.
+      const travel = (at: number, speed: number) => speed / (this.track.metric?.(at) ?? 1);
+      const k1 = travel(s, v);
+      const s2 = s + k1*h/2;
       const v2 = Math.max(0, v + (a1 * h) / 2),
-        a2 = this.force(s + (v * h) / 2, v2);
+        a2 = this.force(s2, v2);
+      const k2 = travel(s2, v2), s3 = s + k2*h/2;
       const v3 = Math.max(0, v + (a2 * h) / 2),
-        a3 = this.force(s + (v2 * h) / 2, v3);
+        a3 = this.force(s3, v3);
+      const k3 = travel(s3, v3), s4 = s + k3*h;
       const v4 = Math.max(0, v + a3 * h),
-        a4 = this.force(s + v3 * h, v4);
-      this.distance += (h / 6) * (v + 2 * v2 + 2 * v3 + v4);
+        a4 = this.force(s4, v4);
+      this.distance += (h / 6) * (k1 + 2 * k2 + 2 * k3 + travel(s4, v4));
       this.velocity = Math.max(0, v + (h / 6) * (a1 + 2 * a2 + 2 * a3 + a4));
       if (this.velocity < 0.05 && a1 <= 0) this.velocity = 0;
       const jump = this.track.jumpAt?.(this.distance);

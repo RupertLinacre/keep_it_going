@@ -1125,3 +1125,7 @@ kbd {
 
 .difficulty-select { width: 100%; margin-bottom: 0; }
 .difficulty-help { font-size: 12px; line-height: 1.5; color: #687e70; margin: 8px 0 20px; }
+/* One quiet planning cue remains visible alongside the arithmetic on phones. */
+.prompt .height-guide { color: #527b69; font-size: .85rem; font-weight: 600; margin: .3rem 0; }
+.mode-button[hidden] { display: none; }
+.start-footnote a { display: block; margin-top: .75rem; color: #527b69; }

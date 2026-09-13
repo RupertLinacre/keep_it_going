@@ -12,7 +12,7 @@ export function mountGame(
   root: HTMLElement,
   difficulty: Difficulty,
   restart: () => void,
-  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void } = {},
+  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean } = {},
 ): () => void {
   const controller = new AbortController();
   let disposed = false;
@@ -123,7 +123,7 @@ export function mountGame(
         <div class="eyebrow">RIDE COMPLETE</div>
         <h2>${result.message.startsWith("Splash!") ? "Into the drink!" : "Keep it going?"}</h2>
         <p>${result.message}</p>
-        <div class="result-score">${result.score.toLocaleString()} <span>points · ${result.correct} ${result.correct === 1 ? "boost" : "boosts"}</span></div>
+        <div class="result-score">${result.score.toLocaleString()} <span>points · ${result.correct} ${settings.heightMode ? result.correct === 1 ? "lift" : "lifts" : result.correct === 1 ? "boost" : "boosts"}</span></div>
         ${ride ? `<div class="ride-result-grid">
           <div><span>Distance</span><strong>${Math.floor(ride.distance).toLocaleString()} <small>m</small></strong></div>
           <div><span>Longest train</span><strong>${ride.longestTrain} <small>coaches</small></strong></div>
@@ -205,7 +205,7 @@ export function mountGame(
   }
 
   try {
-    game = new Mini(host, settings.round?.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed, multiplayer: !!network, riderRole: network?.role });
+    game = new Mini(host, settings.round?.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed, multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode });
     game.opponent = ghost;
     ghost?.configure(game.track, network?.opponentDifficulty ?? "normal");
     if (network) { ghost!.push(snapshotRide(game, 0)); syncRaceOverlay(); network.ready(); }

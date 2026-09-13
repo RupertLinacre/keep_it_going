@@ -2,13 +2,15 @@ import { Box3, Vector3 } from "three";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
 const bounds = new WeakMap<MiniSection, Box3>();
+const revisions = new WeakMap<MiniSection, number>();
 /** Immutable geometry bounds, cached once per section rather than scanned per frame. */
 export function sectionBounds(section: MiniSection) {
   let box = bounds.get(section);
-  if (!box) {
+  if (!box || revisions.get(section) !== section.revision) {
     box = new Box3();
     for (const frame of section.frames) box.expandByPoint(frame.position);
     bounds.set(section, box);
+    revisions.set(section, section.revision);
   }
   return box;
 }

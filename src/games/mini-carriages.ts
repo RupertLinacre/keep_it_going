@@ -120,7 +120,7 @@ export class MiniCarriages {
       position: new THREE.Vector3(), derailed: false, airTime: MINI_COACH_HOP_DURATION, wheelStrain: 0, liftPeak: 0 };
   }
   frame(coach: Coach, distance: number, alpha = 1) {
-    const frame = this.sample(distance - coach.offset);
+    const frame = this.sample(this.track.followerDistance(distance, coach.offset));
     // Tethered coaches follow the same rail position and orientation. Their only
     // extra degree of freedom is height in world space, never yaw or lateral drift.
     const lift = coach.previousLift + (coach.lift - coach.previousLift) * alpha;
@@ -143,7 +143,7 @@ export class MiniCarriages {
   }
   poses(distance: number, alpha = 1) {
     return [...this.coaches.slice(0, MINI_VISIBLE_CARTS), ...(this.incoming ? [this.incoming] : [])]
-      .filter(c => distance - c.offset >= this.track.sections[0].start)
+      .filter(c => this.track.followerDistance(distance, c.offset) >= this.track.sections[0].start)
       .map(coach => ({ coach, frame: this.frame(coach, distance, alpha) }));
   }
   cameraSubjects() {
@@ -286,9 +286,9 @@ export class MiniCarriages {
         this.arrived++;
       }
     }
-    const frames = this.coaches.map(coach => this.sample(distance - coach.offset));
+    const frames = this.coaches.map(coach => this.sample(this.track.followerDistance(distance, coach.offset)));
     const outward = frames.map((frame, index) => {
-      const section = this.track.sectionAt(distance - this.coaches[index].offset);
+      const section = this.track.sectionAt(this.track.followerDistance(distance, this.coaches[index].offset));
       return isHump(section.kind) && section.kind !== "invertedhill"
         ? outwardForce(frame, speed, this.gravity) : 0;
     });
@@ -306,7 +306,7 @@ export class MiniCarriages {
           this.refills++;
         }
       }
-      if (distance - coach.offset < this.track.sections[0].start) continue;
+      if (this.track.followerDistance(distance, coach.offset) < this.track.sections[0].start) continue;
       const index = this.coaches.indexOf(coach);
       if (coach.cargo && coach.grace === 0) {
         coach.parcelStrain = Math.max(0, coach.parcelStrain + (outward[index] > MINI_PARCEL_RETENTION ? outward[index] / MINI_PARCEL_RETENTION - 1 : -4) * dt);
@@ -322,8 +322,8 @@ export class MiniCarriages {
     for (const coach of coaches) coach.previousLift = coach.lift;
     for (let i = 0; i < coaches.length; i++) {
       const coach = coaches[i], frame = frames[i];
-      const section = this.track.sectionAt(distance - coach.offset);
-      const retained = distance - coach.offset >= this.track.sections[0].start;
+      const section = this.track.sectionAt(this.track.followerDistance(distance, coach.offset));
+      const retained = this.track.followerDistance(distance, coach.offset) >= this.track.sections[0].start;
       coach.couplingLoad = Math.max(0, outward[i] - MINI_COUPLING_LOAD_THRESHOLD);
       coach.wheelStrain = Math.max(0, coach.wheelStrain + (outward[i] / MINI_COACH_RETENTION - 1) * dt);
       coach.airTime = Math.min(MINI_COACH_HOP_DURATION, coach.airTime + dt);

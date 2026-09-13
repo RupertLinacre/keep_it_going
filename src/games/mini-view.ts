@@ -1,7 +1,8 @@
 import { groundBounds, RaceSpacing } from "./mini-world";
 import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
 import * as THREE from "three";
-import { mergeStaticMeshes, railGeometries } from "./mini-mesh";
+import { mergeStaticMeshes, railGeometries, refreshRails } from "./mini-mesh";
+import { HeightTrack } from "./height-track";
 import { MiniTrack, type MiniSection } from "./mini-track";
 import {
   MINI_CART_SPACING,
@@ -243,15 +244,20 @@ export class MiniView {
   }
   private build(section: MiniSection) {
     const group = new THREE.Group();
+    const dynamic = this.track instanceof HeightTrack;
+    const railBuffers: { from: number; to: number; rails: THREE.BufferGeometry[] }[] = [];
     const ranges = section.kind === "jump"
       ? [[section.start, section.takeoff - 0.03], [section.distanceAtX(section.landingX), section.end]]
       : [[section.start, section.end]];
-    for (const [from, to] of ranges)
-      railGeometries(section, from, to).forEach((geometry, i) => {
+    for (const [from, to] of ranges) {
+      const rails = railGeometries(section, from, to);
+      railBuffers.push({ from, to, rails });
+      rails.forEach((geometry, i) => {
         const rail = new THREE.Mesh(geometry, this.railMaterial(i));
         rail.castShadow = rail.receiveShadow = true;
         group.add(rail);
       });
+    }
     const count = Math.ceil(section.length / 0.65);
     const sleepers = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.55, 0.13, 0.18),
@@ -278,6 +284,7 @@ export class MiniView {
     sleepers.count = sleeperCount;
     group.add(sleepers);
     const supports: THREE.Vector3[] = [];
+    const supportDistances: number[] = [];
     for (let s = section.start + 0.8; s < section.end; s += 2.4) {
       if (!section.hasRail(s)) continue;
       const f = section.sample(s);
@@ -285,8 +292,10 @@ export class MiniView {
       const onTower = section.kind === "triplehelix"
         ? local.x > section.width * 0.57
         : section.kind === "ascendinghelix" && Math.abs(local.x - section.width * 0.24) < section.width * 0.17;
-      if (!onTower && f.up.y > 0.2 && Math.abs(f.tangent.y) < 0.88)
+      if ((dynamic || !onTower) && f.up.y > 0.2 && Math.abs(f.tangent.y) < 0.88) {
         supports.push(f.position.clone().sub(section.origin));
+        supportDistances.push(s);
+      }
     }
     const posts = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.1, 0.14, 1, 6),
@@ -313,7 +322,7 @@ export class MiniView {
     posts.castShadow = true;
     posts.receiveShadow = true;
     group.add(posts, feet);
-    if (section.kind === "triplehelix" || section.kind === "ascendinghelix") {
+    if (!dynamic && (section.kind === "triplehelix" || section.kind === "ascendinghelix")) {
       const rising = section.kind === "ascendinghelix";
       const radius = section.width * (rising ? 0.12 : 0.095);
       const height = section.amplitude + section.origin.y;
@@ -381,7 +390,33 @@ export class MiniView {
       tree.scale.setScalar(0.7 + random(i + 5) * 0.5);
       group.add(tree);
     }
-    mergeStaticMeshes(group);
+    if (dynamic) {
+      let revision = section.revision;
+      group.userData.refresh = () => {
+        if (section.revision === revision) return;
+        revision = section.revision;
+        for (const { from, to, rails } of railBuffers) refreshRails(section, from, to, rails);
+        let at = 0;
+        for (let i = 0; i < count; i++) {
+          const s = section.start + i / count * section.length;
+          if (!section.hasRail(s)) continue;
+          const f = section.sample(s);
+          dummy.position.copy(f.position).sub(section.origin).addScaledVector(f.up, -.14);
+          dummy.quaternion.copy(f.rotation); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
+          sleepers.setMatrixAt(at++, dummy.matrix);
+        }
+        sleepers.instanceMatrix.needsUpdate = true;
+        supportDistances.forEach((s, i) => {
+          const p = section.sample(s).position;
+          const height = Math.max(.1, p.y - .15);
+          dummy.quaternion.identity(); dummy.scale.set(1, height, 1);
+          dummy.position.set(p.x - section.origin.x, height/2 - section.origin.y, p.z - section.origin.z);
+          dummy.updateMatrix(); posts.setMatrixAt(i, dummy.matrix);
+        });
+        posts.instanceMatrix.needsUpdate = true;
+        sleepers.computeBoundingSphere(); posts.computeBoundingSphere();
+      };
+    } else mergeStaticMeshes(group);
     group.traverse(object => { object.updateMatrix(); object.matrixAutoUpdate = false; });
     this.pieces.set(section.id, group);
     this.scene.add(group);
@@ -429,6 +464,7 @@ export class MiniView {
     for (const section of visibleSections) {
       if (!this.pieces.has(section.id)) this.build(section);
       const piece = this.pieces.get(section.id)!;
+      piece.userData.refresh?.();
       if (piece.position.x !== section.origin.x - anchor || piece.position.y !== section.origin.y || piece.position.z !== section.origin.z + this.laneOffset) {
         piece.position.set(section.origin.x - anchor, section.origin.y, section.origin.z + this.laneOffset);
         piece.updateMatrix();
@@ -469,7 +505,7 @@ export class MiniView {
     // Detached coaches and loose cargo still get the full airborne camera treatment.
     const subjects = [
       ...(poses?.slice(0, MINI_STARTING_CARTS).filter(p => p.coach !== effects?.incoming
-        && (p.frame.airborne || p.coach.lift > 0.05)).map(p => p.frame.position) ?? []),
+        && (this.track instanceof HeightTrack || p.frame.airborne || p.coach.lift > 0.05)).map(p => p.frame.position) ?? []),
       ...(effects?.cameraSubjects() ?? []),
     ];
     subjects.unshift(f.position);

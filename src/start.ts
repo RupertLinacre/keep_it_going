@@ -11,7 +11,7 @@ function readSettings(): { tables: number[]; name: string; difficulty: Difficult
   catch { return { tables: [...DEFAULT_TABLES], name: "", difficulty: "normal" }; }
 }
 
-export function mountStart(root: HTMLElement, play: (tables: number[], difficulty: Difficulty) => void, connect: (session: RaceSession) => void) {
+export function mountStart(root: HTMLElement, play: (tables: number[], difficulty: Difficulty) => void, connect: (session: RaceSession) => void, heightMode = false) {
   const controller = new AbortController();
   const settings = readSettings();
   const selected = new Set(settings.tables);
@@ -22,9 +22,9 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   root.innerHTML = `
     <section class="start-screen container">
       <div class="start-intro">
-        <span class="start-kicker">A LITTLE MATHS. A LOT OF MOMENTUM.</span>
-        <h1>How far can<br>you keep it going<span>?</span></h1>
-        <p>Answer to boost. Fly through the loops.<br>Keep your train rolling.</p>
+        <span class="start-kicker">${heightMode ? "THE HEIGHT EXPERIMENT · SOLO" : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
+        <h1>${heightMode ? "A little maths.<br>A little higher<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
+        <p>${heightMode ? "Every answer lifts the track beneath you.<br>Earn height, then let gravity do the work." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
         <svg class="start-rails" viewBox="0 0 640 250" aria-hidden="true">
           <path d="M-20 208 C85 208 70 100 155 100 S230 223 308 213 C417 198 441 22 355 22 C255 22 251 211 430 211 S555 110 670 134" fill="none" stroke="#a2c7bc" stroke-width="12"/>
           <path d="M-20 198 C85 198 70 90 155 90 S230 213 308 203 C417 188 441 12 355 12 C255 12 251 201 430 201 S555 100 670 124" fill="none" stroke="#edb079" stroke-width="5"/>
@@ -33,13 +33,13 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
       </div>
       <div class="start-card">
         <div data-choose>
-          <span class="start-kicker">ALL ABOARD</span><h2>Choose your ride</h2>
+          <span class="start-kicker">ALL ABOARD</span><h2>${heightMode ? "Build height. Go further." : "Choose your ride"}</h2>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
           <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty.</p>
+          <p class="difficulty-help" id="difficulty-help">${heightMode ? "Answer before the next climb. Each correct answer raises your section by 30 metres, with no instant speed boost." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
-            <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
+            <button class="mode-button mode-duo" data-two ${heightMode ? "hidden" : ""}><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
           </div>
           <details class="table-settings"><summary>Times tables <span data-table-summary></span></summary>
             <p>Choose the tables you’d like to practise. In a race, the host chooses for both players.</p>
@@ -47,7 +47,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
             <div class="table-shortcuts"><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
             <p class="setup-error" data-table-error role="status"></p>
           </details>
-          <p class="start-footnote">A correct answer gives you a boost automatically.</p>
+          <p class="start-footnote">${heightMode ? 'Correct answers lift automatically. <a href="?mode=classic">Play the original solo / two-player game →</a>' : 'A correct answer gives you a boost automatically. <a href="?mode=height">Try the height experiment →</a>'}</p>
         </div>
         <div data-join-setup hidden>
           <button class="text-button back-button" data-back>← Back</button>
@@ -153,6 +153,6 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   }, { signal: controller.signal });
   q("[data-join-form]").addEventListener("submit", event => { event.preventDefault(); open("guest"); }, { signal: controller.signal });
   updateTables();
-  if (validCode(invite)) show("join-setup");
+  if (!heightMode && validCode(invite)) show("join-setup");
   return () => { disposed = true; controller.abort(); off?.(); };
 }

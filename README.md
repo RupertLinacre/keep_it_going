@@ -1,5 +1,7 @@
 # Keep it going
 
+**This branch defaults to the solo height experiment:** correct answers raise the occupied track section by 30 metres over one second, rather than giving a speed impulse. Earn height before the next climb and use gravity to carry you through it. Open `?mode=classic` for the original solo/multiplayer game described below. See [the height experiment notes](docs/height-experiment.md) for the mechanic, implementation and verification.
+
 A miniature coaster game about keeping your momentum. Start with six coaches rolling gently over the top of a 22-metre hill at 2 m/s (about 7 km/h), then gather speed down the first drop. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.
 
 The start screen has two choices: **1 player** starts immediately; **2 players** opens a private invite lobby for a friend. There is no computer opponent. Open **Times tables** before starting to select any combination from 1–12, with shortcuts for all tables or 2, 5 and 10. Your selection is remembered on this device.

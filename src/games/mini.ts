@@ -1,4 +1,6 @@
 import { RaceSpacing } from "./mini-world";
+import { HeightTrack, HEIGHT_PER_ANSWER } from "./height-track";
+import { heightGuide } from "./height-guide";
 import type { RiderRole } from "../multiplayer/identity";
 import { rideResistance } from "../difficulty";
 import { BaseGame } from "./base";
@@ -55,13 +57,18 @@ export class Mini extends BaseGame {
   riderRole: RiderRole = "host";
   readonly raceSpacing = new RaceSpacing();
   readonly multiplayer: boolean;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole } = {}) {
+  readonly heightMode: boolean;
+  readonly recordId: "mini" | "height";
+  private pendingLifts = 0;
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean } = {}) {
     super(host);
+    this.heightMode = !!options.heightMode;
+    this.recordId = this.heightMode ? "height" : "mini";
     this.riderRole = options.riderRole ?? "host";
     this.multiplayer = !!options.multiplayer;
-    this.personalBest = bestRide(host.difficulty);
+    this.personalBest = bestRide(host.difficulty, this.recordId);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
-    this.track = new MiniTrack(seed);
+    this.track = this.heightMode ? new HeightTrack(seed) : new MiniTrack(seed);
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => this.physics.sample(distance);
@@ -75,7 +82,7 @@ export class Mini extends BaseGame {
     }
   }
   setup() {
-    this.readouts = new MiniReadouts(this.host.stage);
+    if (!this.heightMode) this.readouts = new MiniReadouts(this.host.stage);
     this.view = new MiniView(this.host.stage, this.track, { multiplayer: this.multiplayer, role: this.riderRole, spacing: this.raceSpacing });
   }
   get travelled() {
@@ -92,12 +99,16 @@ export class Mini extends BaseGame {
   panel() {
     const shown = this.acceptedAnswer ?? this;
     this.host.panel(
-      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${shown.a} × ${shown.b} = <span class="answer-display" role="status">${shown.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? "Correct!" : ""}</p><p class="keyboard-hint">Type the correct answer to boost automatically</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
+      `<div class="prompt" data-feedback="${this.answerFeedback}"><h2>${shown.a} × ${shown.b} = <span class="answer-display" role="status">${shown.answer || "?"}</span></h2><p class="answer-feedback" role="status">${this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct" ? this.heightMode ? `↑ +${HEIGHT_PER_ANSWER} m ${this.pendingLifts ? "saved for landing" : "track lift"}` : "Correct!" : ""}</p>${this.heightMode ? '<p class="height-guide">Answer early to raise your track</p>' : ''}<p class="keyboard-hint">${this.heightMode ? "Correct answers raise this section. Gravity supplies the speed." : "Type the correct answer to boost automatically"}</p></div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`,
     );
   }
   hud() {
     const bestJump = Math.max(this.personalBest.jump, this.physics.bestJump);
-    this.approach = this.ended ? undefined : jumpApproach(this.track, this.physics);
+    this.approach = this.ended || this.heightMode ? undefined : jumpApproach(this.track, this.physics);
+    if (this.track instanceof HeightTrack) {
+      const guide = this.host.stage.parentElement?.querySelector(".height-guide");
+      if (guide) guide.textContent = this.ended ? "The ride stopped. Earn height earlier next time." : heightGuide(this.track, this.physics);
+    }
     if (this.ended) this.stalling = false;
     else if (this.elapsed >= this.guideAt) {
       this.stalling = approachingStall(this.physics);
@@ -108,7 +119,9 @@ export class Mini extends BaseGame {
       { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
       { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
       { label: "YOUR TRAIN", value: `${this.cartCount} ${this.cartCount === 1 ? "coach" : "coaches"}` },
-      { label: "BEST JUMP", value: bestJump ? `${bestJump.toFixed(1)} m` : "—" },
+      this.track instanceof HeightTrack
+        ? { label: "TRACK RAISED", value: `+${this.track.elevation(this.physics.distance).toFixed(0)} m` }
+        : { label: "BEST JUMP", value: bestJump ? `${bestJump.toFixed(1)} m` : "—" },
     ]);
   }
   action(value: string) {
@@ -143,10 +156,14 @@ export class Mini extends BaseGame {
       this.answerFeedbackUntil = this.elapsed + 0.8;
       if (Number(this.answer) === this.a * this.b) {
         this.answerFeedback = "correct";
-        this.lastImpulse = this.physics.impulse();
+        if (this.track instanceof HeightTrack) {
+          if (this.physics.flight) this.pendingLifts++;
+          else this.track.raise(this.physics.distance);
+          this.lastImpulse = 0;
+        } else this.lastImpulse = this.physics.impulse();
         this.flash = 0.5;
         this.good(
-          `${this.a} × ${this.b} = ${this.a * this.b}. Big forward boost!`,
+          this.heightMode ? `↑ +${HEIGHT_PER_ANSWER} m of track height` : `${this.a} × ${this.b} = ${this.a * this.b}. Big forward boost!`,
         );
         this.bestStreak = Math.max(this.bestStreak, this.combo);
         this.guideAt = 0;
@@ -178,9 +195,9 @@ export class Mini extends BaseGame {
     this.hud();
     if (water) this.carriages.splash(this.physics.sample(this.physics.distance));
     this.host.sound("bad");
-    record("mini", this.host.difficulty, this.score);
-    recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
-    this.finish(false, water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.", {
+    record(this.recordId, this.host.difficulty, this.score);
+    recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
+    this.finish(false, this.heightMode ? "The train ran out of momentum. Raise your track before the next climb." : water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.", {
       distance: this.travelled, bestDistance: Math.max(this.personalBest.distance, this.travelled),
       bestJump: this.physics.bestJump, longestTrain: this.longestTrain, peakSpeed: this.physics.peakSpeed,
       bestStreak: this.bestStreak, newDistanceRecord: this.travelled > this.personalBest.distance,
@@ -205,6 +222,14 @@ export class Mini extends BaseGame {
     }
     this.track.ensure(this.physics.distance + this.physics.velocity * dt,
       this.multiplayer ? Math.max(600, this.physics.velocity * 14) : 230);
+    if (this.track instanceof HeightTrack) {
+      // A free-flying train cannot be lifted by its rails. Save those answers
+      // until it lands, and keep the landing geometry still during the flight.
+      if (!this.physics.flight) {
+        while (this.pendingLifts > 0) { this.track.raise(this.physics.distance); this.pendingLifts--; }
+        this.track.advance(dt);
+      }
+    }
     let shed = false;
     const previousSpills = this.carriages.spilled;
     const previousImpacts = this.carriages.impacts;
@@ -226,8 +251,8 @@ export class Mini extends BaseGame {
       this.score += bonus;
       this.jumpBonusUntil = this.elapsed + 4;
       this.jumpWasRecord = distance > Math.max(previousBestJump, this.personalBest.jump) + 0.05;
-      record("mini", this.host.difficulty, this.score);
-      recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
+      record(this.recordId, this.host.difficulty, this.score);
+      recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
       this.host.feedback(`${distance.toFixed(1)} m jump! +${bonus} bonus points`);
       this.host.sound("win");
     } else if (shed) {
@@ -245,8 +270,8 @@ export class Mini extends BaseGame {
       this.hudAt = this.elapsed + 0.1;
     }
     if (this.elapsed >= this.recordedAt + 10) {
-      record("mini", this.host.difficulty, this.score);
-      recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
+      record(this.recordId, this.host.difficulty, this.score);
+      recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
       this.recordedAt = this.elapsed;
     }
   }
@@ -266,7 +291,7 @@ export class Mini extends BaseGame {
       );
     } else if (this.opponent) drawRaceFallback(this, ctx);
     else this.fallback(ctx);
-    if (!this.compactHud?.matches && this.elapsed >= this.readoutsAt) {
+    if (!this.heightMode && !this.compactHud?.matches && this.elapsed >= this.readoutsAt) {
       this.readoutsAt = this.elapsed + 0.1;
       const reloading = this.carriages.coaches.filter(coach => coach.refill > 0);
       this.readouts?.render({
@@ -398,8 +423,8 @@ export class Mini extends BaseGame {
     }
   }
   destroy() {
-    record("mini", this.host.difficulty, this.score);
-    recordRide(this.host.difficulty, this.travelled, this.physics.bestJump);
+    record(this.recordId, this.host.difficulty, this.score);
+    recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
     this.readouts?.destroy();
     this.view?.destroy();
   }

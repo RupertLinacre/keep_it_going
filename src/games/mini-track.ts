@@ -11,6 +11,7 @@ export type MiniKind =
 export const isHump = (kind: MiniKind) =>
   ["firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
 export interface MiniRail {
+  metric?(distance: number): number;
   readonly startDistance?: number;
   jumpAt?(distance: number): MiniSection | undefined;
   hasRail?(distance: number): boolean;
@@ -46,6 +47,8 @@ function verticalHill(t: number, width: number, height: number) {
 
 /** One immutable, metre-scale piece. Its rail frames are shared by rendering and physics. */
 export class MiniSection implements MiniRail {
+  revision = 0;
+  launchLiftSlope = 0;
   readonly frames: RailFrame[] = [];
   readonly distances: number[] = [];
   readonly length: number;
@@ -197,7 +200,11 @@ export class MiniSection implements MiniRail {
     return this.start + THREE.MathUtils.lerp(this.distances[i], this.distances[i + 1], t - i);
   }
   /** Exact tangent of the quadratic launch ramp, independent of mesh sampling. */
-  get launchTangent() { return new THREE.Vector3(1, 10 * this.amplitude / this.width, 0).normalize(); }
+  get launchTangent() {
+    const tangent = new THREE.Vector3(1, 10 * this.amplitude / this.width, 0).normalize();
+    tangent.y += this.launchLiftSlope;
+    return tangent.normalize();
+  }
   get takeoff() { return this.distanceAtX(this.origin.x + this.width * 0.2); }
   get landingX() { return this.origin.x + this.width * 0.64; }
   hasRail(distance: number) {
@@ -231,8 +238,14 @@ export class MiniSection implements MiniRail {
     const { a, b } = this.indices(distance);
     return (
       (this.frames[b].position.y - this.frames[a].position.y) /
-      (this.distances[b] - this.distances[a])
+      ((this.distances[b] - this.distances[a]) * this.metric(distance))
     );
+  }
+  /** Physical metres per route metre; only a raised track changes this ratio. */
+  metric(distance: number) {
+    if (!this.revision) return 1;
+    const { a, b } = this.indices(distance);
+    return this.frames[b].position.distanceTo(this.frames[a].position) / (this.distances[b] - this.distances[a]);
   }
   sample(distance: number): RailFrame {
     const { a, b, blend } = this.indices(distance),
@@ -436,6 +449,8 @@ export class MiniTrack implements MiniRail {
   slope(distance: number) {
     return this.sectionAt(distance).slope(distance);
   }
+  metric(distance: number) { return this.sectionAt(distance).metric(distance); }
+  followerDistance(distance: number, offset: number) { return distance - offset; }
   height(distance: number) {
     return this.sectionAt(distance).height(distance);
   }
