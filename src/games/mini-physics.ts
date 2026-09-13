@@ -6,6 +6,8 @@ import { tiltedGravity } from "./mini-tilt";
 
 export interface MiniPhysicsOptions {
   gravity: number;
+  uphillGravity?: number;
+  downhillGravity?: number;
   mass: number;
   drag: number;
   rolling: number;
@@ -19,14 +21,15 @@ export function railDrag(track: MiniRail, distance: number, drag: number) {
   return drag + .008 * Math.min(1, (track.waterDepth?.(distance) ?? 0) / .55);
 }
 export function railAcceleration(track: MiniRail, s: number, v: number,
-  options: Pick<MiniPhysicsOptions, "gravity" | "drag" | "rolling" | "tailwind"> & { worldTilt?: number }) {
+  options: Pick<MiniPhysicsOptions, "gravity" | "drag" | "rolling" | "tailwind"> & { worldTilt?: number; uphillGravity?: number; downhillGravity?: number }) {
   const angle = options.worldTilt;
   let slope: number;
   if (angle) {
     const t = track.sample(s).tangent;
     slope = Math.cos(angle)*t.y - Math.sin(angle)*t.x;
   } else slope = track.slope(s);
-  return options.tailwind - options.gravity*slope - railDrag(track, s, options.drag)*v*v - options.rolling*Math.tanh(v*5);
+  const gravity = slope >= 0 ? options.uphillGravity ?? options.gravity : options.downhillGravity ?? options.gravity;
+  return options.tailwind - gravity*slope - railDrag(track, s, options.drag)*v*v - options.rolling*Math.tanh(v*5);
 }
 
 /** Metres, seconds, kilograms. A one-way catch supplies the constraint force at rest.
@@ -97,7 +100,10 @@ export class MiniPhysics {
     const flight = this.flight!;
     // The lead coach's jump guide remains magnetic during gravity flip. Loose
     // cargo still floats upward; the train gets a short, readable landing arc.
-    const { down: gravity, x: gravityX } = tiltedGravity(this.options.gravity < 0 ? 9.81 : this.options.gravity, this.options.worldTilt);
+    const directionalGravity = flight.velocity.y >= 0
+      ? this.options.uphillGravity ?? this.options.gravity : this.options.downhillGravity ?? this.options.gravity;
+    const { down: gravity, x: gravityX } = tiltedGravity(
+      this.options.gravity < 0 ? 9.81 : directionalGravity, this.options.worldTilt);
     const previous = flight.position.clone();
     if (previous.x < flight.section.landingX && previous.x + flight.velocity.x * h + .5 * gravityX * h*h >= flight.section.landingX) {
       const dx = flight.section.landingX - previous.x, vx = flight.velocity.x;

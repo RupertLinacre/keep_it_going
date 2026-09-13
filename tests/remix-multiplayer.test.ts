@@ -60,7 +60,8 @@ test('opponent prediction uses each rider’s power physics and flooded-track re
     const ghost=new OpponentGhost(track),predicted=(ghost as any).predict(s,.12) as RideState;
     const dt=.2*(1-Math.exp(-.12/.2)),options=powerPhysics(kind,'normal');
     const drag=options.drag+.008*Math.min(1,track.waterDepth(distance)/.55);
-    const acceleration=options.tailwind-options.gravity*track.slope(distance)-drag*625-options.rolling;
+    const slope=track.slope(distance),gravity=slope>=0?options.uphillGravity:options.downhillGravity;
+    const acceleration=options.tailwind-gravity*slope-drag*625-options.rolling;
     assert.ok(Math.abs(predicted.bodies[0].rail!.speed-(25+acceleration*dt))<.3,`${kind} prediction respects rail forces`);
     assert.ok(predicted.power!.remaining<20);
   }

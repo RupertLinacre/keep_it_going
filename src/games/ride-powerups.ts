@@ -9,10 +9,10 @@ import { downhillTilt, tiltedGravity } from "./mini-tilt";
 export const POWER_DURATION = 20;
 export const POWERUPS = {
   ice: { name: "Ice glide", icon: "❄", color: "#367fab", sky: "#e0f0f6", description: "Less friction. More glide.", instruction: "Snowy rails · resistance reduced by 75%" },
-  reverse: { name: "Gravity flip", icon: "↑", color: "#8962c1", sky: "#e9e1f3", description: "Up is the new down.", instruction: "Climbs build speed · loose cargo floats upward" },
+  reverse: { name: "Gravity flip", icon: "↑", color: "#8962c1", sky: "#e9e1f3", description: "Up is the new down.", instruction: "2g up on climbs · 1g down on descents" },
   cargo: { name: "Cargo carnival", icon: "▣", color: "#bb7133", sky: "#f6edda", description: "Double cargo. A few surprises.", instruction: "8 boxes per wagon · red TNT bursts when spilled" },
-  lift: { name: "Sky lift", icon: "↟", color: "#418b69", sky: "#e4f1d9", description: "Your answers raise the railway.", instruction: "Correct answers lift this section by 30 m" },
-  heavy: { name: "Heavy metal", icon: "↓", color: "#b46c45", sky: "#efe4db", description: "Bigger drops. Heavier climbs.", instruction: "1.65× gravity · save momentum for climbs" },
+  lift: { name: "Sky lift", icon: "↟", color: "#418b69", sky: "#e4f1d9", description: "Your answers raise the railway.", instruction: "Lift the track · struggling climbs also get a boost" },
+  heavy: { name: "Heavy metal", icon: "↓", color: "#b46c45", sky: "#efe4db", description: "Bigger drops. Heavier climbs.", instruction: "1g uphill · 3g downhill" },
   wind: { name: "Tailwind", icon: "»", color: "#427f81", sky: "#e0eee9", description: "The wind is on your side.", instruction: "A steady push carries you along the rails" },
   tilt: { name: "Downhill drift", icon: "↘", color: "#b27f32", sky: "#f2ebd8", description: "The whole board tips downhill.", instruction: "22° downhill tilt · gravity builds your speed" },
 } as const;
@@ -29,7 +29,9 @@ export type RacePowerState = { active?: RacePowerKind; remaining: number; age: n
 export function powerPhysics(kind: PowerKind | undefined, difficulty: Difficulty) {
   const base = rideResistance(difficulty);
   return {
-    gravity: kind === "reverse" ? -7.2 : kind === "heavy" ? 9.81*1.65 : 9.81,
+    gravity: kind === "reverse" ? -9.81*2 : kind === "heavy" ? 9.81*3 : 9.81,
+    uphillGravity: kind === "reverse" ? -9.81*2 : 9.81,
+    downhillGravity: kind === "heavy" ? 9.81*3 : 9.81,
     drag: base.drag * (kind === "ice" ? .25 : 1),
     rolling: base.rolling * (kind === "ice" ? .25 : 1),
     tailwind: kind === "wind" ? 3.2 : 0,

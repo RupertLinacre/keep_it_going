@@ -26,7 +26,7 @@ function drift<T extends Motion>(body: T, dt: number, gravity = 9.81): T {
   if (!body.velocity) return body;
   const position = body.position.map((v, i) => v + body.velocity![i]*dt) as Vec;
   // Only predict airborne motion briefly. The next authoritative state handles contact.
-  const g = gravity < 0 && body.id?.startsWith("coach-") ? 9.81 : gravity;
+  const g = body.id?.startsWith("coach-") && (gravity < 0 || gravity > 9.81 && body.velocity[1] > 0) ? 9.81 : gravity;
   position[1] = Math.max(.15, position[1] - .5*g*dt*dt);
   const rotation = new Quaternion(...body.rotation);
   if (body.spin) {

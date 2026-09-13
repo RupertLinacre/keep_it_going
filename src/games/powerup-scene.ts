@@ -3,7 +3,7 @@ import type { MiniTrack } from "./mini-track";
 import type { RailFrame } from "./mini-rail";
 import { POWERUPS, type PowerKind, type PowerVisualState } from "./ride-powerups";
 
-const fract = (n: number) => n - Math.floor(n);
+import { weatherPoint, weatherRock } from "./powerup-weather";
 /** A bounded effects layer: one gate, one weather buffer and eight rocks.
  * No per-frame geometry creation or full-screen postprocessing. */
 export class PowerupScene {
@@ -74,17 +74,10 @@ export class PowerupScene {
     const strength = Math.min(1, power.age * 3, power.remaining);
     this.weatherMaterial.color.set(kind === "ice" ? "#ffffff" : info.color);
     this.weatherMaterial.opacity = strength * (kind === "reverse" || kind === "wind" ? .45 : .6);
-    const pos = this.weatherPositions, cx = frame.position.x - anchor, cy = Math.max(6, frame.position.y);
+    const pos = this.weatherPositions, cx = frame.position.x - anchor;
     for (let i = 0; i < 120; i++) {
-      const rx = fract(Math.sin(i*127.1 + power.seed) * 43758.54), rz = fract(Math.sin(i*311.7 + 7) * 4159.93);
-      const phase = fract(i*.618 + time*(kind === "heavy" ? .9 : kind === "reverse" || kind === "lift" ? -.25 : .3));
-      let x = cx - 38 + rx*85, y = cy - 18 + (1-phase)*52, z = frame.position.z - 17 + rz*34;
-      let dx = 0, dy = kind === "ice" || kind === "cargo" ? .25 : kind === "heavy" ? 2.4 : .9, dz = 0;
-      if (kind === "wind") {
-        x = cx - 45 + fract(rx + time*.48)*90; y = cy - 5 + phase*16;
-        dx = 3.2; dy = .12; dz = .15;
-      } else if (kind === "ice") x += Math.sin(time + i)*1.7;
-      else if (kind === "lift") { x = cx - 12 + rx*24; z = frame.position.z - 7 + rz*14; }
+      const point = weatherPoint(i, power.seed, kind, time, frame.position);
+      const { y, z, dx, dy, dz } = point, x = point.x - anchor;
       const at = i*6;
       pos[at] = x; pos[at+1] = y; pos[at+2] = z;
       pos[at+3] = x+dx; pos[at+4] = y+dy; pos[at+5] = z+dz;
@@ -93,11 +86,10 @@ export class PowerupScene {
     if (this.rocks.visible) {
       (this.rocks.material as THREE.MeshStandardMaterial).color.set(kind === "reverse" ? "#ab91cc" : "#ad8970");
       for (let i = 0; i < 8; i++) {
-        const phase = fract(power.age*(kind === "reverse" ? .075 : .38) + i*.127);
-        this.dummy.position.set(cx + (i-3)*9, kind === "reverse" ? .7 + phase*30 : .7 + (1-phase*phase)*28,
-          frame.position.z + (i%2 ? -1 : 1)*(7 + i));
-        this.dummy.rotation.set(time*.4+i, time*.7+i, i);
-        this.dummy.scale.setScalar((.5 + i*.09)*strength); this.dummy.updateMatrix();
+        const rock = weatherRock(i, power.seed, kind, time, frame.position);
+        this.dummy.position.set(rock.x-anchor, rock.y, rock.z);
+        this.dummy.rotation.set(time*.4+rock.spin, time*.7+rock.spin, rock.spin);
+        this.dummy.scale.setScalar(rock.size*strength); this.dummy.updateMatrix();
         this.rocks.setMatrixAt(i, this.dummy.matrix);
       }
       this.rocks.instanceMatrix.needsUpdate = true;

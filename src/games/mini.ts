@@ -1,7 +1,8 @@
 import { RaceSpacing } from "./mini-world";
 import { HeightTrack, HEIGHT_PER_ANSWER } from "./height-track";
-import { heightGuide } from "./height-guide";
+import { heightGuide, skyLiftBoostEnergy } from "./height-guide";
 import { RidePowerups, POWERUPS } from "./ride-powerups";
+import { weatherPoint } from "./powerup-weather";
 import { PowerupHud } from "./powerup-hud";
 import type { RiderRole } from "../multiplayer/identity";
 import { rideResistance } from "../difficulty";
@@ -112,13 +113,13 @@ export class Mini extends BaseGame {
   panel() {
     const shown = this.acceptedAnswer ?? this;
     const feedback = this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct"
-      ? this.answerWasLift ? `↑ +${HEIGHT_PER_ANSWER} m ${this.pendingLifts ? "saved for landing" : "track lift"}` : "Correct!" : "";
+      ? this.answerWasLift ? `↑ +${HEIGHT_PER_ANSWER} m ${this.pendingLifts ? "saved for landing" : this.lastImpulse > 0 ? "track lift + boost" : "track lift"}` : "Correct!" : "";
     this.host.panel(`
       <div class="prompt" data-feedback="${this.answerFeedback}">
         <h2>${shown.a} × ${shown.b} = <span class="answer-display" role="status">${shown.answer || "?"}</span></h2>
         <p class="answer-feedback" role="status">${feedback}</p>
         ${this.liftingAnswers ? '<p class="height-guide">Answer early to raise your track</p>' : ''}
-        <p class="keyboard-hint">${this.liftingAnswers ? "Correct answers raise this section. Gravity supplies the speed." : "Type the correct answer to boost automatically"}</p>
+        <p class="keyboard-hint">${this.liftingAnswers ? this.remixMode ? "Answers raise this section; struggling climbs also get a boost." : "Correct answers raise this section. Gravity supplies the speed." : "Type the correct answer to boost automatically"}</p>
       </div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`);
   }
   hud() {
@@ -179,9 +180,10 @@ export class Mini extends BaseGame {
         this.answerFeedback = "correct";
         this.answerWasLift = this.liftingAnswers;
         if (this.track instanceof HeightTrack && this.liftingAnswers) {
+          const rescue = this.remixMode ? skyLiftBoostEnergy(this.track, this.physics) : 0;
           if (this.physics.flight) this.pendingLifts++;
           else this.track.raise(this.physics.distance);
-          this.lastImpulse = 0;
+          this.lastImpulse = rescue ? this.physics.impulse(this.physics.options.mass * (Math.sqrt(this.physics.velocity**2 + 2*rescue)-this.physics.velocity)) : 0;
         } else this.lastImpulse = this.physics.impulse();
         this.flash = 0.5;
         this.good(
@@ -389,10 +391,9 @@ export class Mini extends BaseGame {
     ];
     if (theme && power !== "tilt") {
       ctx.save(); ctx.globalAlpha = .4;
-      for (let i = 0; i < 60; i++) {
-        const phase = ((i*.618 + this.elapsed*(power === "reverse" || power === "lift" ? -.25 : power === "heavy" ? 1 : .3))%1+1)%1;
-        const x = (i*173.2 + (power === "wind" ? this.elapsed*220 : 0))%1100, y = phase*570;
-        line(ctx, [[x,y],[x+(power === "wind" ? 24 : 0),y+(power === "ice" ? 3 : 12)]], theme.color, 2);
+      for (let i = 0; i < 120; i++) {
+        const p = weatherPoint(i, this.track.seed, power!, this.elapsed, frame.position);
+        line(ctx, [project(p.x,p.y),project(p.x+p.dx,p.y+p.dy)], theme.color, 2);
       }
       ctx.restore();
     }

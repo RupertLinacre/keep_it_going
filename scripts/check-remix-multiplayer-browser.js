@@ -100,12 +100,12 @@ async page => {
       if(!pool)throw new Error('No flooded piece');
       window.raceFixture=false;g.powerups.finish(g.physics,g.carriages);g.powerups.gate={kind:'wind',distance:pool.end+1000,id:99};
       g.physics.distance=pool.start-15;g.physics.previousDistance=g.physics.distance;g.physics.velocity=34;g.physics.flight=undefined;g.physics.traces=[];g.carriages.explosions.length=0;
-      window.pool=pool;if(g.view)g.view.cameraRig.height=0;
+      g.carriages.floodEntries=0;window.pool=pool;if(g.view)g.view.cameraRig.height=0;
     });
     await page.waitForFunction(()=>window.raceGame.carriages.floodEntries>0);await phone.waitForFunction(()=>window.raceGame.carriages.floodEntries>0);
     await page.waitForTimeout(300);
     report.splash=await Promise.all([inspect(page),inspect(phone)]);
-    check(report.splash.every(g=>g.ownFlood&&g.remoteFlood&&(!g.webgl||g.drops>0&&g.splashSheets>0)),'Both lanes render large splashes');
+    check(report.splash.every(g=>g.ownFlood&&g.remoteFlood&&(!g.webgl||g.drops>0&&g.splashSheets>0)),'Both lanes render large splashes: '+JSON.stringify(report.splash));
     await phone.screenshot({path:`output/playwright/remix-race-splash-mobile${suffix}.png`,scale:'css'});
     await page.waitForFunction(()=>window.raceGame.physics.distance>window.pool.end);
     await phone.waitForFunction(()=>window.raceGame.physics.distance>window.pool.end);

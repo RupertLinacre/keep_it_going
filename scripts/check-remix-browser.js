@@ -74,7 +74,7 @@ async (page) => {
     await page.waitForTimeout(600); await answer(page); await page.waitForTimeout(500);
     const result = await report(page); portraits.push({ kind, ...result });
     if (result.active !== kind || result.ended || result.overflow) throw new Error(JSON.stringify(result));
-    if (result.actions.some(a => a.lift ? a.before !== a.after : a.after <= a.before)) throw new Error('Wrong answer mechanism');
+    if (result.actions.some(a => a.lift ? a.after < a.before || a.after*a.after-a.before*a.before > 600.01 : a.after <= a.before)) throw new Error('Wrong answer mechanism');
   }
   await page.keyboard.press('p');
   const context = await page.context().browser().newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });

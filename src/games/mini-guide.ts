@@ -34,7 +34,8 @@ export function jumpApproach(track: MiniTrack, physics: MiniPhysics): JumpApproa
     const step = Math.min(0.25, jump.takeoff - at);
     const nextHeight = track.height(at + step);
     const drag = physics.dragAt(at + step/2);
-    const resistance = gravity * (nextHeight - height) / step + rolling;
+    const g = nextHeight >= height ? physics.options.uphillGravity ?? gravity : physics.options.downhillGravity ?? gravity;
+    const resistance = g * (nextHeight - height) / step + rolling;
     const decay = Math.exp(-2 * drag * step);
     speedSquared = drag > 0
       ? speedSquared * decay - resistance * -Math.expm1(-2 * drag * step) / drag
@@ -48,7 +49,10 @@ export function jumpApproach(track: MiniTrack, physics: MiniPhysics): JumpApproa
   launch.x += jump.width * 0.2; launch.y += jump.amplitude;
   const speed = Math.sqrt(speedSquared);
   const time = (jump.landingX - launch.x) / (speed * tangent.x);
-  const clearance = launch.y + speed * tangent.y * time - gravity * time * time / 2 - jump.origin.y;
+  const up = gravity < 0 ? 9.81 : physics.options.uphillGravity ?? gravity;
+  const down = gravity < 0 ? 9.81 : physics.options.downhillGravity ?? gravity;
+  const vy = speed*tangent.y, apex = Math.max(0,vy/up);
+  const clearance = launch.y + (time <= apex ? vy*time-up*time*time/2 : vy*apex-up*apex*apex/2-down*(time-apex)**2/2) - jump.origin.y;
   // A little margin avoids calling a barely grazing landing safe.
   return { distance: jump.takeoff - physics.distance, clearance, ready: clearance >= 0.75 };
 }

@@ -5,6 +5,7 @@ import { clamp } from "../math";
 import type { Mini } from "../games/mini";
 import { isParcelWagon, parcelPresentation } from "../games/mini-config";
 import { lanePosition, mirrorRotation, snapshotRide } from "./ghost";
+import { weatherPoint } from "../games/powerup-weather";
 import { POWERUPS } from "../games/ride-powerups";
 
 /** A small software-rendered two-lane view keeps the race playable without WebGL. */
@@ -49,11 +50,9 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
     const kind = state.power?.active, leader = state.bodies[0];
     if (kind && leader && Math.abs(leader.position[0]-lead.x)<130) {
       const info=POWERUPS[kind];ctx.save();ctx.globalAlpha=.35;
-      for(let i=0;i<40;i++) {
-        const phase=((i*.618+state.time*(kind==="reverse"?-.25:kind==="heavy"?.9:.3))%1+1)%1;
-        const p=new Vector3(leader.position[0]-22+(i*7.13)%44,leader.position[1]-4+(1-phase)*24,leader.position[2]+(i%9-4)*2);
-        if(kind==="wind")p.x=leader.position[0]-25+((i*.73+state.time*.5)%1)*50;
-        const q=p.clone().add(new Vector3(kind==="wind"?2:0,kind==="ice"?.2:kind==="heavy"?2:.7,0));
+      for(let i=0;i<120;i++) {
+        const point=weatherPoint(i,game.track.seed,kind,state.time,{x:leader.position[0],y:leader.position[1],z:leader.position[2]});
+        const p=new Vector3(point.x,point.y,point.z),q=p.clone().add(new Vector3(point.dx,point.dy,point.dz));
         line(ctx,[project(p,rival),project(q,rival)],info.color,2);
       }
       ctx.restore();

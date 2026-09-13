@@ -87,7 +87,7 @@ test("all physics modifiers restore the chosen difficulty exactly when they expi
     for (let i = 0; i < 10; i++) power.apply(physics, carriages);
     if (kind === "ice") assert.equal(physics.options.drag, rideResistance("hard").drag*.25);
     if (kind === "reverse") assert.ok(physics.options.gravity < 0);
-    if (kind === "heavy") assert.equal(physics.options.gravity, 9.81*1.65);
+    if (kind === "heavy") assert.equal(physics.options.gravity, 9.81*3);
     if (kind === "wind") assert.equal(physics.options.tailwind, 3.2);
     power.update(20, track, physics, carriages);
     assert.equal(physics.options.gravity, 9.81); assert.equal(carriages.gravity, 9.81);
