@@ -12,6 +12,8 @@ import {
 } from "./mini-config";
 import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
+import { lanePosition, mirrorRotation, raceLaneOffset } from "../multiplayer/ghost";
+import type { RideState } from "../multiplayer/protocol";
 import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
@@ -23,6 +25,10 @@ export class MiniView {
   readonly camera = new THREE.OrthographicCamera(-32, 32, 15, -15, 0.1, 220);
   readonly renderer: THREE.WebGLRenderer;
   readonly train: THREE.InstancedMesh[] = [];
+  multiplayer = false;
+  private laneOffset = 0;
+  private laneGeneration = -1;
+  private readonly opponentPieces = new Map<number, THREE.Group>();
   cartCount = MINI_STARTING_CARTS;
   renderedCartCount = MINI_STARTING_CARTS;
   private trainParts: ModelPart[];
@@ -88,10 +94,10 @@ export class MiniView {
     this.wagonParts = this.instanceModel(this.car("#ffffff", true), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.parcelParts = this.instanceModel(this.parcel(), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
     this.train.push(...[...this.trainParts, ...this.wagonParts].map(part => part.mesh));
-    this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#ffffff", MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
-    this.debris = this.instances(new THREE.BoxGeometry(1, 1, 1), "#ffffff", MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
-    this.impactFlashes = this.instances(new THREE.IcosahedronGeometry(1, 1), "#ffe6a6", MINI_MAX_EXPLOSIONS);
-    this.impactRings = this.instances(new THREE.TorusGeometry(1, 0.035, 6, 40), "#f6ad62", MINI_MAX_EXPLOSIONS);
+    this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#ffffff", 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS));
+    this.debris = this.instances(new THREE.BoxGeometry(1, 1, 1), "#ffffff", 2 * MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
+    this.impactFlashes = this.instances(new THREE.IcosahedronGeometry(1, 1), "#ffe6a6", 2 * MINI_MAX_EXPLOSIONS);
+    this.impactRings = this.instances(new THREE.TorusGeometry(1, 0.035, 6, 40), "#f6ad62", 2 * MINI_MAX_EXPLOSIONS);
     this.scene.add(this.lamp);
     this.resize = new ResizeObserver(() => {
       const w = stage.clientWidth,
@@ -359,13 +365,13 @@ export class MiniView {
     this.pieces.set(section.id, group);
     this.scene.add(group);
   }
-  private release(group: THREE.Object3D) {
+  private release(group: THREE.Object3D, disposeGeometry = true) {
     const geometries = new Set<THREE.BufferGeometry>();
     group.traverse((object) => {
       if (object instanceof THREE.Mesh) geometries.add(object.geometry);
       if (object instanceof THREE.InstancedMesh) object.dispose();
     });
-    geometries.forEach((g) => g.dispose());
+    if (disposeGeometry) geometries.forEach((g) => g.dispose());
     this.scene.remove(group);
   }
   render(
@@ -377,28 +383,48 @@ export class MiniView {
     effects?: MiniCarriages,
     time = 0,
     alpha = 1,
+    opponent?: RideState,
   ) {
     const flights = effects?.flights ?? [], parcels = effects?.parcels ?? [], explosions = effects?.explosions ?? [];
     const dt = clamp(time - this.lastTime, 0, 0.05) || 1 / 60;
     this.lastTime = time;
     const state = `${distance}:${velocity}:${flash}:${close}:${cartCount}:${this.track.generated}:${effects?.spilled}:${effects?.refills}:${time}:${flights.map(c => c.age)}:${parcels.map(p => p.age + p.groundedFor)}:${explosions.map(e => e.age)}`;
-    if (state === this.lastState && this.cameraRig.settled) return;
+    if (!this.multiplayer && state === this.lastState && this.cameraRig.settled) return;
     this.lastState = state;
     const ids = new Set(this.track.sections.map((s) => s.id));
     for (const [id, mesh] of this.pieces)
       if (!ids.has(id)) {
+        const mirrored = this.opponentPieces.get(id);
+        if (mirrored) { this.release(mirrored, false); this.opponentPieces.delete(id); }
         this.release(mesh);
         this.pieces.delete(id);
       }
+    if (this.multiplayer && this.laneGeneration !== this.track.generated) {
+      this.laneOffset = raceLaneOffset(this.track);
+      this.laneGeneration = this.track.generated;
+    }
+    const lane = (position: THREE.Vector3, rival = false) => lanePosition(position, this.multiplayer ? this.laneOffset : 0, rival);
     const poses = effects?.poses(distance, alpha);
     const f = poses?.[0]?.frame ?? this.track.sample(distance),
       anchor = Math.floor(f.position.x / 25) * 25;
     for (const section of this.track.sections) {
       if (!this.pieces.has(section.id)) this.build(section);
       const piece = this.pieces.get(section.id)!;
-      if (piece.position.x !== section.origin.x - anchor || piece.position.y !== section.origin.y || piece.position.z !== section.origin.z) {
-        piece.position.set(section.origin.x - anchor, section.origin.y, section.origin.z);
+      if (piece.position.x !== section.origin.x - anchor || piece.position.y !== section.origin.y || piece.position.z !== section.origin.z + this.laneOffset) {
+        piece.position.set(section.origin.x - anchor, section.origin.y, section.origin.z + this.laneOffset);
         piece.updateMatrix();
+      }
+      if (this.multiplayer) {
+        let mirrored = this.opponentPieces.get(section.id);
+        if (!mirrored) {
+          // Clone transforms and instance buffers; rails reuse their built geometry/materials.
+          mirrored = piece.clone(true);
+          mirrored.scale.z = -1;
+          this.opponentPieces.set(section.id, mirrored);
+          this.scene.add(mirrored);
+        }
+        mirrored.position.set(section.origin.x - anchor, section.origin.y, -section.origin.z - this.laneOffset);
+        mirrored.updateMatrix();
       }
     }
     // Frame taller hills from the side. Fade the influence of approaching
@@ -412,7 +438,7 @@ export class MiniView {
           clamp((f.position.x + 65 - p.x) / 22, 0, 1);
         skyline = Math.max(skyline, 4 + (p.y - 4) * influence);
       }
-    const framing = coasterFraming(f.position, skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches);
+    const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches);
     // Follow the head of a long train. New arrivals enter from behind without
     // pulling the camera hundreds of metres back to its ever-growing tail.
     // Detached coaches and loose cargo still get the full airborne camera treatment.
@@ -422,7 +448,19 @@ export class MiniView {
       ...(effects?.cameraSubjects() ?? []),
     ];
     subjects.unshift(f.position);
-    this.cameraRig.update(framing.focus, framing.height, this.aspect, subjects, dt);
+    const framedSubjects = subjects.map(p => lane(p));
+    if (this.multiplayer) {
+      // Always show the pair of lanes; a distant rival gets a distance indicator
+      // instead of dragging the local player out of view.
+      // Keep the normal framing centred on our own lane. The camera can widen
+      // towards the rival, but its 3× cap must never push our train off screen.
+      framing.focus.z = lane(f.position).z;
+      framedSubjects.push(lane(f.position, true));
+      const lead = opponent?.bodies[0];
+      if (lead && Math.abs(lead.position[0] - f.position.x) < 45)
+        framedSubjects.push(lane(new THREE.Vector3(...lead.position), true));
+    }
+    this.cameraRig.update(framing.focus, framing.height, this.aspect, framedSubjects, dt);
     const height = this.cameraRig.height;
     const focus = this.cameraRig.focus.clone();
     focus.x -= anchor;
@@ -444,22 +482,22 @@ export class MiniView {
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
     const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
-    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1) => {
+    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
       if (isParcelWagon(index)) {
-        open.push(matrix); openColors.push(index);
+        open.push(matrix); openColors.push(this.multiplayer ? (rival ? -1 : -2) : index);
         if (loaded) for (const offset of parcelPresentation(loaded, cargoAge)) {
           if (offset.scale <= 0) continue;
           cargo.push(matrix.clone().multiply(new THREE.Matrix4().compose(
             new THREE.Vector3(offset.x, offset.y, offset.z), new THREE.Quaternion(), new THREE.Vector3().setScalar(offset.scale))));
         }
-      } else { closed.push(matrix); closedColors.push(index); }
+      } else { closed.push(matrix); closedColors.push(this.multiplayer ? (rival ? -1 : -2) : index); }
     };
     const attached = poses ?? Array.from({ length: count }, (_, index) => ({
       frame: this.track.sample(distance - index * MINI_CART_SPACING), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0, cargoAge: 1 },
     }));
     for (const { frame, coach } of attached) {
-      const position = frame.position.clone();
+      const position = lane(frame.position);
       position.x -= anchor;
       const screen = position.clone().project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
@@ -467,19 +505,36 @@ export class MiniView {
     }
     this.renderedCartCount = open.length + closed.length;
     for (const cart of flights) {
-      const position = cart.position.clone();
+      const position = lane(cart.position);
       position.x -= anchor;
       addCar(position, cart.rotation, cart.colorIndex, cart.cargo);
     }
     for (const parcel of parcels) {
-      const position = parcel.position.clone(); position.x -= anchor;
+      const position = lane(parcel.position); position.x -= anchor;
       cargo.push(new THREE.Matrix4().compose(position, parcel.rotation, new THREE.Vector3(1, 1, 1)));
+    }
+    if (opponent) {
+      for (const body of opponent.bodies) {
+        const position = lane(new THREE.Vector3(...body.position), true); position.x -= anchor;
+        const screen = position.clone().project(this.camera);
+        if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
+        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true);
+      }
+      for (const parcel of opponent.parcels) {
+        const position = lane(new THREE.Vector3(...parcel.position), true); position.x -= anchor;
+        if (Math.abs(position.x - f.position.x + anchor) > 130) continue;
+        cargo.push(new THREE.Matrix4().compose(position, mirrorRotation(new THREE.Quaternion(...parcel.rotation)), new THREE.Vector3(1, 1, 1)));
+      }
     }
     this.drawModel(this.trainParts, closed, closedColors);
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);
     const dummy = new THREE.Object3D();
-    const links = effects?.links(distance, poses) ?? [];
+    const links = (effects?.links(distance, poses) ?? []).map(link => ({ ...link, start: lane(link.start), end: lane(link.end) }));
+    if (opponent) for (const link of opponent.links) {
+      if (Math.abs(link.start[0] - f.position.x) < 130)
+        links.push({ ...link, start: lane(new THREE.Vector3(...link.start), true), end: lane(new THREE.Vector3(...link.end), true) });
+    }
     for (const [i, link] of links.entries()) {
       const direction = link.end.clone().sub(link.start);
       dummy.position.copy(link.start).add(link.end).multiplyScalar(0.5);
@@ -496,16 +551,23 @@ export class MiniView {
     this.couplings.instanceMatrix.needsUpdate = true;
     if (this.couplings.instanceColor) this.couplings.instanceColor.needsUpdate = true;
     let chunks = 0, flashes = 0, rings = 0;
-    for (const explosion of explosions) {
+    const allExplosions = [
+      ...explosions.map(explosion => ({ ...explosion, rival: false })),
+      ...(opponent?.impacts ?? []).filter(e => Math.abs(e.position[0] - f.position.x) < 130).map(e => ({
+        position: new THREE.Vector3(...e.position), age: e.age, water: e.water, colorIndex: e.color, rival: true,
+        particles: e.particles.map(p => ({ position: new THREE.Vector3(...p.position), size: p.size })),
+      })),
+    ];
+    for (const explosion of allExplosions) {
       for (const [i, particle] of explosion.particles.entries()) {
-        dummy.position.copy(particle.position); dummy.position.x -= anchor;
+        dummy.position.copy(lane(particle.position, explosion.rival)); dummy.position.x -= anchor;
         dummy.rotation.set(explosion.age * 3 + i, explosion.age * 2, i * 0.7);
         dummy.scale.setScalar(particle.size * 2 * Math.max(0, 1 - explosion.age / 2));
         dummy.updateMatrix();
         this.debris.setMatrixAt(chunks, dummy.matrix);
         this.debris.setColorAt(chunks++, explosion.water ? new THREE.Color(i % 3 ? "#58b9c9" : "#d9ffff") : i % 3 ? CART_COLORS[explosion.colorIndex % CART_COLORS.length] : new THREE.Color("#ffa451"));
       }
-      dummy.position.copy(explosion.position); dummy.position.x -= anchor;
+      dummy.position.copy(lane(explosion.position, explosion.rival)); dummy.position.x -= anchor;
       dummy.rotation.set(0, 0, 0);
       if (explosion.age < 0.3 && !explosion.water) {
         dummy.scale.setScalar(2.2 * (1 - explosion.age / 0.3)); dummy.updateMatrix();
@@ -525,12 +587,12 @@ export class MiniView {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
-    this.lamp.position.copy(f.position).addScaledVector(f.up, 0.6);
+    this.lamp.position.copy(lane(f.position)).addScaledVector(f.up, 0.6);
     this.lamp.position.x -= anchor;
     this.lamp.intensity = flash > 0 ? flash * 12 : 0;
     this.board.position.x = focus.x;
     this.board.position.z = this.cameraRig.focus.z;
-    this.board.scale.set(Math.max(1, height * this.aspect / 150), 1, Math.max(1, height / 40, (Math.abs(f.position.z - this.board.position.z) + 12) / 13.5));
+    this.board.scale.set(Math.max(1, height * this.aspect / 150), 1, Math.max(1, height / 40, (Math.abs(f.position.z + this.laneOffset - this.board.position.z) + 12) / 13.5));
     this.renderer.render(this.scene, this.camera);
   }
   private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[]) {
@@ -554,7 +616,7 @@ export class MiniView {
         if (part.body)
           part.mesh.setColorAt(
             index,
-            CART_COLORS[colorIndices[index] % CART_COLORS.length],
+            colorIndices[index] === -1 ? new THREE.Color("#e48670") : colorIndices[index] === -2 ? new THREE.Color("#68bdb0") : CART_COLORS[colorIndices[index] % CART_COLORS.length],
           );
       });
       part.mesh.instanceMatrix.clearUpdateRanges();

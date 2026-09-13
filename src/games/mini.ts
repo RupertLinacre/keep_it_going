@@ -8,6 +8,9 @@ import { approachingStall, jumpApproach, type JumpApproach } from "./mini-guide"
 import { MiniCarriages } from "./mini-carriages";
 import { numberPad } from "./input";
 import { multiplication } from "../math";
+import { questionSequence } from "../questions";
+import type { OpponentGhost } from "../multiplayer/ghost";
+import { drawRaceFallback } from "../multiplayer/fallback";
 import { gradient, line, roundRect, circle } from "../draw";
 import { bestRide, record, recordRide } from "../storage";
 import {
@@ -44,9 +47,12 @@ export class Mini extends BaseGame {
   private readouts?: MiniReadouts;
   private readoutsAt = 0;
   private readonly compactHud = typeof window !== "undefined" ? window.matchMedia("(max-width: 800px), (hover: none) and (pointer: coarse)") : undefined;
-  constructor(host: Host, seed?: number) {
+  private nextQuestion?: () => [number, number];
+  opponent?: OpponentGhost;
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean } = {}) {
     super(host);
     this.personalBest = bestRide(host.difficulty);
+    if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
     this.track = new MiniTrack(seed);
     this.physics = new MiniPhysics(this.track);
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
@@ -55,6 +61,7 @@ export class Mini extends BaseGame {
     this.hud();
     try {
       this.setup();
+      if (options.multiplayer && this.view) this.view.multiplayer = true;
     } catch (error) {
       console.warn("WebGL unavailable; using the miniature side view.", error);
     }
@@ -70,7 +77,7 @@ export class Mini extends BaseGame {
     return this.carriages.coaches.length;
   }
   next() {
-    [this.a, this.b] = multiplication(this.host.difficulty);
+    [this.a, this.b] = this.nextQuestion?.() ?? multiplication(this.host.difficulty);
     this.answer = "";
     this.panel();
   }
@@ -238,8 +245,10 @@ export class Mini extends BaseGame {
         this.carriages,
         this.elapsed,
         this.physics.renderAlpha,
+        this.opponent?.sample(),
       );
-    } else this.fallback(ctx);
+    } else if (this.opponent) drawRaceFallback(this, ctx);
+    else this.fallback(ctx);
     if (!this.compactHud?.matches && this.elapsed >= this.readoutsAt) {
       this.readoutsAt = this.elapsed + 0.1;
       const reloading = this.carriages.coaches.filter(coach => coach.refill > 0);

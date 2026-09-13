@@ -9,6 +9,7 @@ async (page) => {
     };
   });
   await page.goto(page.url());
+  await page.getByRole('button', { name: '1 player Jump straight in' }).click();
   await page.locator('.mini-canvas').waitFor();
   await page.evaluate(async () => {
     // Reuse the loaded modules, including Vite's HMR timestamp if present.

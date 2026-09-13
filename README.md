@@ -2,6 +2,14 @@
 
 A miniature coaster game about keeping your momentum. Start with six coaches rolling gently over the top of a 22-metre hill at 2 m/s (about 7 km/h), then gather speed down the first drop. Solve multiplication products to boost; the ride ends when the train stops or misses a water jump.
 
+The start screen has two choices: **1 player** starts immediately; **2 players** opens a private invite lobby for a friend. There is no computer opponent. Open **Times tables** before starting to select any combination from 1–12, with shortcuts for all tables or 2, 5 and 10. Your selection is remembered on this device.
+
+In a two-player race, the host shares a four-character code or copies an invite link. The other player chooses **2 players**, enters the code, and joins; invite links prefill the code. Once both are connected, the host starts a shared three-second countdown. Both receive the host’s chosen times tables, the same shuffled question sequence and the same generated course. The questions advance at each person’s own pace. Whoever travels further wins once both trains have stopped or splashed down; equal distances at the displayed tenth of a metre are a draw.
+
+Your teal train runs in the foreground. Your friend’s coral train runs on a reflected track behind it: turns towards the camera on your track turn away on theirs. Both views keep their own rider in front. A compact distance comparison remains visible on phones. Rear-coach lift, flying coaches, loose parcels and impact effects are sent to the other player. Either player can pause both trains with **P** or **Escape**; switching away also pauses the race. Both must be unpaused to continue. The result screen offers a rematch that begins only once both players choose it. Returning to the start screen leaves the connection.
+
+The pre-multiplayer release is preserved in the annotated Git tag **v2.1** (`10570a1`). See [the multiplayer notes](docs/multiplayer.md) for connection behaviour, rendering and verification.
+
 The ride grows with the distance you travel. After the opening drop, discover heartline rolls, wave turns, double dips, sustained upside-down stalls, top hats, Immelmann turns, dive loops, interlocking loops, and a fantasy loop within a loop. Rising sky spirals grow from two to eight turns; hills become taller and steeper, and loops become enormous. Familiar corkscrews, vertical climbs, protected inverted crests and occasional three-turn helter-skelter descents remain part of the ride.
 
 The track director alternates demanding elements with lower recovery sections. Each complete element returns to a forward heading, a narrow route corridor and the same base elevation, so the railway keeps travelling broadly in a straight line. Crossings in compound loops have separate lanes. Correct answers always give the same energy boost: the track itself makes later runs harder. See [the element and balance notes](docs/ride-design.md) for the reference, progression and reproducible playtests.
@@ -12,7 +20,7 @@ Open wagons refill 2.5 seconds after spilling. They begin with two parcels, then
 
 Water jumps have a real gap in the rails. The first gap is shorter so an early hesitation is less punishing; later jumps retain their full width. The landing straight is short; faster flights can rejoin a following track element. An approaching-jump preview accounts for hills and drag to tell you whether you can coast across or need another boost. Clear the far edge and land to collect ten bonus points per metre flown. Live airtime distance, a landing bonus and new jump records appear on desktop.
 
-On desktop, type the correct answer to boost automatically; **C** changes the view and **P** pauses. Phones and tablets use a large three-column touch keypad with delete and submit keys. The mobile layout fits the viewport in portrait and landscape, showing only the coaster, question and keypad during play. Brief answer feedback appears beside the question; stats, track labels, physics messages and the camera control are hidden. The header contains just the logo on all devices. An amber answer underline warns of an imminent stall without adding text. On enormous structures, the camera follows the train upward instead of making it a dot in the distance.
+On desktop, type the correct answer to boost automatically; **C** changes the view and **P** pauses. Phones and tablets use a large three-column touch keypad with delete and submit keys. The mobile layout fits the viewport in portrait and landscape, showing only the coaster, question and keypad during play. Brief answer feedback appears beside the question; stats, track labels, physics messages and the camera control are hidden. The header contains the logo, a start-screen button and the track-gallery link. An amber answer underline warns of an imminent stall without adding text. On enormous structures, the camera follows the train upward instead of making it a dot in the distance.
 
 On desktop, the live score shows your current answer streak. Correct answers boost immediately on both keyboard and touch input. The completed equation stays visible for 350 ms before the next question appears; typing early moves on without losing the new digit. Partial answers and typos remain editable; use Backspace or the delete key to correct them. If coasting would stop the train within the next few seconds, a momentum warning prompts another answer; slow downhill travel doesn't trigger it. Distance and jump records are saved separately for each difficulty. At the end, a ride card shows your score and a replay button, with detailed ride statistics on desktop and a brief pause to see the splash before the card appears.
 
@@ -53,9 +61,9 @@ Open `tracks.html` (or use **Track gallery** above the game) to browse all 25 el
 
 ### Deploy to GitHub Pages
 
-Game URL (after enabling Pages): https://rupertlinacre.github.io/keep_it_going/
+Game URL (after enabling Pages): https://rupertlinacre.com/keep_it_going/
 
-Track gallery: https://rupertlinacre.github.io/keep_it_going/tracks.html
+Track gallery: https://rupertlinacre.com/keep_it_going/tracks.html
 
 One-time repository-owner setup: open **Settings → Pages**, choose **Deploy from a branch**, select **gh-pages** and **/(root)**, and save. This requires admin access; write access alone can publish the branch but cannot enable the site.
 

@@ -10,24 +10,49 @@ import "@fontsource/dm-sans/latin-700.css";
 import "./style.css";
 import { mountGame } from "./runner";
 import { save } from "./storage";
+import { mountStart } from "./start";
+import { unlockAudio } from "./audio";
+import type { RaceSession } from "./multiplayer/session";
+import type { Round } from "./multiplayer/protocol";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let cleanup: (() => void) | undefined;
+let session: RaceSession | undefined;
+let disconnectStart: (() => void) | undefined;
 
-function render() {
-  cleanup?.();
+function shell(playing: boolean) {
+  cleanup?.(); cleanup = undefined;
+  app.classList.toggle("at-start", !playing);
+  window.scrollTo(0, 0);
   app.innerHTML = `
     <div class="tiny-utility container">
       <img class="game-logo" src="${import.meta.env.BASE_URL}images/keep-it-going-logo.png" alt="Keep it going" width="2172" height="724" />
+      ${playing ? `<button class="text-button menu-link" data-menu>Start screen</button>` : ""}
       <a class="track-gallery-link" href="${import.meta.env.BASE_URL}tracks.html">Track gallery ↗</a>
-    </div>
-    <main id="main-content"></main>`;
-
-  cleanup = mountGame(
-    app.querySelector<HTMLElement>("#main-content")!,
-    save.difficulty,
-    render,
-  );
+    </div><main id="main-content"></main>`;
+  app.querySelector("[data-menu]")?.addEventListener("click", menu);
+  return app.querySelector<HTMLElement>("#main-content")!;
 }
-
-render();
+function solo(tables: number[]) {
+  unlockAudio();
+  cleanup = mountGame(shell(true), save.difficulty, () => solo(tables), { tables, menu });
+}
+function race(round: Round) {
+  unlockAudio();
+  cleanup = mountGame(shell(true), "normal", () => {}, { tables: round.tables, network: session, round, menu });
+}
+function menu() {
+  if (app.querySelector(".standalone-game")) {
+    const url = new URL(location.href); url.searchParams.delete("join");
+    history.replaceState(null, "", url);
+  }
+  disconnectStart?.(); disconnectStart = undefined;
+  session?.close(); session = undefined;
+  cleanup = mountStart(shell(false), solo, connected => {
+    disconnectStart?.();
+    session = connected;
+    disconnectStart = session.on("prepare", race);
+  });
+}
+window.addEventListener("pagehide", () => session?.close());
+menu();
