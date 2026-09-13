@@ -47,9 +47,11 @@ Open `tracks.html` (or use **Track gallery** above the game) to browse all 25 el
 
 ### Deploy to GitHub Pages
 
-Live game: https://rupertlinacre.github.io/keep_it_going/
+Game URL (after enabling Pages): https://rupertlinacre.github.io/keep_it_going/
 
 Track gallery: https://rupertlinacre.github.io/keep_it_going/tracks.html
+
+One-time repository-owner setup: open **Settings → Pages**, choose **Deploy from a branch**, select **gh-pages** and **/(root)**, and save. This requires admin access; write access alone can publish the branch but cannot enable the site.
 
 Run `npm ci` after cloning, then publish with:
 
