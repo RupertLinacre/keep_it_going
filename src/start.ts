@@ -47,7 +47,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <details class="table-settings"><summary>Times tables <span data-table-summary></span></summary>
             <p>Choose the tables you’d like to practise. In a race, the host chooses for both players.</p>
             <div class="table-chips" role="group" aria-label="Times tables">${ALL_TABLES.map(n => `<label><input type="checkbox" name="table" value="${n}" ${selected.has(n) ? "checked" : ""}><span>${n}×</span></label>`).join("")}</div>
-            <div class="table-shortcuts"><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
+            <div class="table-shortcuts"><button class="text-button" data-tables="default">Default · 2–12</button><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
             <p class="setup-error" data-table-error role="status"></p>
           </details>
           ${remixMode ? `<details class="remix-settings"><summary>Course seed & ride surprises</summary>
@@ -55,7 +55,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
             <input class="setup-input" id="course-seed" maxlength="40" placeholder="Leave blank for a fresh ride" value="${escape(new URL(location.href).searchParams.get("seed") || "")}">
             <p class="difficulty-help">Use the same seed to replay a course and its power-up order. Words work too.</p>
             <ul class="power-menu">${POWER_KINDS.map(kind => `<li><i style="--power-color:${POWERUPS[kind].color}">${POWERUPS[kind].icon}</i><span><strong>${POWERUPS[kind].name}</strong><small>${POWERUPS[kind].description}</small></span></li>`).join("")}</ul>
-            <p class="difficulty-help">One power-up at a time, for 20 seconds. Sky lift and Downhill drift are solo only. Races share the other five powers, collected independently. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
+            <p class="difficulty-help">Earn power-ups with four correct answers between pickups. Each lasts 20 seconds. Races include six powers, including Sky lift, collected independently. Downhill drift is solo only. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
           </details>` : ""}
           <p class="start-footnote">${remixMode ? 'Correct answers boost automatically. <a href="?mode=classic">Play the original solo / two-player game →</a>' : 'A correct answer gives you a boost automatically. <a href="?mode=remix">Try the remix →</a>'}</p>
         </div>
@@ -63,7 +63,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <button class="text-button back-button" data-back>← Back</button>
           <span class="start-kicker">BETTER TOGETHER</span><h2>Bring a friend</h2>
           <p class="setup-copy">Two tracks. The same questions.<br>Whoever travels furthest wins.</p>
-          ${remixMode ? '<p class="difficulty-help">Race on the same fresh course with five surprise powers. Sky lift and Downhill drift stay in solo play.</p>' : ''}
+          ${remixMode ? '<p class="difficulty-help">Race on the same fresh course with six surprise powers. Sky lift raises your own track; Downhill drift stays in solo play.</p>' : ''}
           <label class="setup-label" for="multiplayer-difficulty">Your difficulty</label>
           <select class="setup-input difficulty-select" id="multiplayer-difficulty">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
           <p class="difficulty-help">Choose a challenge that suits you. Your friend can choose a different level.</p>
@@ -149,7 +149,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     if (button.hasAttribute("data-lobby-back")) { off?.(); session?.close(); show("join-setup"); }
     if (button.dataset.tables) {
       selected.clear();
-      const values = button.dataset.tables === "all" ? ALL_TABLES : button.dataset.tables === "easy" ? [2, 5, 10] : [];
+      const values = button.dataset.tables === "default" ? DEFAULT_TABLES : button.dataset.tables === "all" ? ALL_TABLES : button.dataset.tables === "easy" ? [2, 5, 10] : [];
       values.forEach(n => selected.add(n));
       root.querySelectorAll<HTMLInputElement>('[name="table"]').forEach(input => { input.checked = selected.has(Number(input.value)); });
       updateTables();
