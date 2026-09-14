@@ -76,7 +76,7 @@ npx tsx scripts/playtest-remix.ts         # 24 rides, up to three minutes each
 
 ## GitHub Pages
 
-The Vite build uses relative asset paths, so it works from a repository subdirectory. The workflow in `.github/workflows/pages.yml` tests and builds the site whenever `main` is pushed, or when run manually. Publishing is a separate step using `npm run deploy` below.
+The Vite build uses relative asset paths, so the same build works at the stable URL or under `/next/`. The workflow in `.github/workflows/pages.yml` tests and builds pushes to `main` and `feature/adventure-worlds`, or runs manually. Publishing is a separate step using the commands below.
 
 GitHub Pages serves the `gh-pages` branch. No repository-name configuration is required.
 
@@ -86,19 +86,26 @@ Open `tracks.html` (or use **Track gallery** above the game) to browse all 26 el
 
 ### Deploy to GitHub Pages
 
-Game URL (after enabling Pages): https://rupertlinacre.com/keep_it_going/
+| Source branch | Command | Published game |
+| --- | --- | --- |
+| `main` | `npm run deploy` | https://rupertlinacre.com/keep_it_going/ |
+| `feature/adventure-worlds` (or a future preview branch) | `npm run deploy:next` | https://rupertlinacre.com/keep_it_going/next/ |
 
-Track gallery: https://rupertlinacre.com/keep_it_going/tracks.html
+Each version has its own `tracks.html` gallery alongside the game. Multiplayer invite and course links retain the version's path.
 
 One-time repository-owner setup: open **Settings → Pages**, choose **Deploy from a branch**, select **gh-pages** and **/(root)**, and save. This requires admin access; write access alone can publish the branch but cannot enable the site.
 
-Run `npm ci` after cloning, then publish with:
+Run `npm ci` after cloning. Commit and push source changes, then publish the current branch's preview with:
 
 ```sh
-npm run deploy
+npm run deploy:next
 ```
 
-The command builds both pages and pushes the contents of `dist/` to the `gh-pages` branch on `origin`. GitHub Pages serves that branch’s root. You need Git push access to `RupertLinacre/keep_it_going`. Source code stays on `main`; commit and push source changes separately. Deployment is manual, so pushing `main` alone does not publish. Generated recordings in `output/` stay local.
+To release stable, check out `main` and run `npm run deploy`. Stable deployment refuses to run from another branch. Both commands check that tracked changes are committed, run the tests, build both pages, and publish through `scripts/deploy.mjs`. Each replaces only its own files and removes obsolete bundles while preserving the other version. Root domain configuration is also preserved. `release.json` beside each game records its source branch, commit and build time.
+
+Keep source code in normal Git branches: `next/` exists only in the generated `gh-pages` output, not as a second source tree. When the preview is ready, merge its source branch into `main` and deploy stable. Keep the deployment script on both branches; do not use the old raw `gh-pages -d dist` command, which would remove the preview during a stable update.
+
+You need Git push access to `RupertLinacre/keep_it_going`. Source commits are pushed separately from deployment; pushing a source branch alone does not publish. Generated recordings in `output/` stay local.
 
 ### Ride difficulty
 

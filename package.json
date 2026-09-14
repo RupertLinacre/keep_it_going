@@ -9,8 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "tsx --test tests/*.test.ts",
     "playtest": "tsx scripts/playtest.ts",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist --nojekyll"
+    "deploy": "node scripts/deploy.mjs stable",
+    "deploy:next": "node scripts/deploy.mjs next"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",
