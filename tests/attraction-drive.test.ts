@@ -48,3 +48,23 @@ test('mirrored scenery follows each rider and light positions survive render-ori
  assert.ok(lights.trains.value[0].distanceTo(beforeTilt.applyMatrix4(world.matrixWorld))<1e-6);
  scene.destroy();
 });
+
+test('reading light positions cannot consume a tilted scene update before static rails inherit it',async()=>{
+ const {Scene,Group,Matrix4}=await import('three');
+ const {AdventureScene}=await import('../src/games/adventure-scene');
+ const {MiniTrack}=await import('../src/games/mini-track');
+ const world=new Scene();world.matrixAutoUpdate=false;
+ const rails=new Group();rails.position.set(12,4,0);rails.updateMatrix();rails.matrixAutoUpdate=false;world.add(rails);
+ const track=new MiniTrack(42,{generative:true}),view=new AdventureScene(world);
+ world.updateMatrixWorld(true);
+ for(const [angle,anchor]of [[.15,0],[.38,25],[.2,50],[0,75]]){
+  world.rotation.z=-angle;world.position.set(anchor*.1,3,0);world.updateMatrix();
+  view.render(track,track.startDistance,anchor,0,angle+2);
+  // This is the renderer's normal update, deliberately without force=true.
+  world.updateMatrixWorld();
+  const expected=new Matrix4().multiplyMatrices(world.matrix,rails.matrix);
+  assert.ok(rails.matrixWorld.elements.every((v,i)=>Math.abs(v-expected.elements[i])<1e-8),
+   'Static rails must receive every entry, moving-origin and exit transform');
+ }
+ view.destroy();
+});

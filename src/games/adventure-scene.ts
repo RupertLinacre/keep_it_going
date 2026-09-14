@@ -37,6 +37,7 @@ export class AdventureScene {
   private beams: T.InstancedMesh;
   private actorMeshes: Record<Actor["kind"],T.InstancedMesh>;
   private dummy = new T.Object3D();
+  private lightTransform = new T.Matrix4();
   private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
   constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld; tunnelCutaway?: boolean } = {}) {
     scene.add(this.group);
@@ -224,7 +225,15 @@ export class AdventureScene {
   render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number, opponentDistance?: number) {
     if(this.reducedMotion?.matches)time=0;
     this.luminous.clock.value=time;
-    this.group.updateWorldMatrix(true,false);
+    // Read the pending transform without updating ancestor world matrices.
+    // The scene deliberately disables matrixAutoUpdate. Updating only its
+    // ancestors here would clear its dirty flag before the renderer propagates
+    // Downhill Drift to static rails, leaving them behind the moving train.
+    this.lightTransform.identity();
+    for(let node:T.Object3D|null=this.group;node;node=node.parent){
+      if(node.matrixAutoUpdate)node.updateMatrix();
+      this.lightTransform.premultiply(node.matrix);
+    }
     for(let rider=0;rider<2;rider++)for(let tail=0;tail<2;tail++){
       const point=this.luminous.trains.value[rider*2+tail];
       if(rider && !laneOffset){point.set(1e6,1e6,1e6);continue;}
@@ -232,7 +241,7 @@ export class AdventureScene {
       point.x-=anchor;point.z=(point.z+laneOffset)*(rider?-1:1);
       // Downhill drift rotates the whole scene; compare lamps and trains in
       // that same transformed space so the glow remains beside the carriages.
-      point.applyMatrix4(this.group.matrixWorld);
+      point.applyMatrix4(this.lightTransform);
     }
     const visible = track.sections.filter(s=>s.start<distance+350);
     const ids = new Set(visible.map(s=>s.id));

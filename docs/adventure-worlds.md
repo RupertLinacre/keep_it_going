@@ -78,3 +78,9 @@ Four render-space train positions (front and trailing point per rider) drive the
 Validation: `tests/attraction-drive.test.ts` covers speed response, coasting, pause, reduced motion, teleports, frame-rate independence, rider separation and render-origin changes. `scripts/check-reactive-attractions-browser.js` drives through the windmill, loop and carousel on desktop and phone layouts while checking response, layout and browser errors. Real-time night-world checks recorded 16.7 ms median and 18.7 ms p99 frame intervals on both layouts, with no frame over 50 ms (Chromium on Apple M4; phone emulation).
 
 All 143 tests and the production build passed. Connected desktop/phone checks also passed with WebGL enabled and disabled on the phone. The light-position test includes Downhill Drift’s scene transform. Reports: `output/playwright/reactive-attractions-validation.json`.
+
+## Downhill Drift transform regression
+
+The reactive light-position calculation previously called `updateWorldMatrix(true, false)`. With the game scene’s automatic matrix updates disabled, this cleared the parent’s pending update before the renderer could propagate its tilt to static rail meshes. The train and scenery rotated while the rails could retain their previous transform. Lights now compose the pending local transforms into a separate matrix, preserving the renderer’s update flags.
+
+A regression test fails with the previous implementation and verifies entry, changing render origins, and exit with static rails. All 144 tests and the build pass. Desktop/mobile browser checks verify exact rail/board transform agreement, including the windmill, gorge, tunnel, loop and carousel. A 25-second ride covering power expiry remained playable at 60 FPS; no browser errors. Reports: `output/playwright/downhill-drift-regression-validation.json`.
