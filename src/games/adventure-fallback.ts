@@ -63,6 +63,22 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       }
       ctx.lineTo(...project(new Vector3(section.origin.x+section.span,0,section.origin.z)));ctx.closePath();ctx.fill();
     }
+    if(section.kind==='mountainpass'){
+      const band=(top:(p:Vector3,t:number)=>void,bottom:(p:Vector3,t:number)=>void,color:string)=>{
+        ctx.fillStyle=color;ctx.beginPath();
+        for(let i=0;i<=48;i++){
+          const t=i/48,p=section.frames[Math.round(section.resolution*t)].position.clone();top(p,t);
+          if(i===0)ctx.moveTo(...project(p));else ctx.lineTo(...project(p));
+        }
+        for(let i=48;i>=0;i--){const t=i/48,p=section.frames[Math.round(section.resolution*t)].position.clone();bottom(p,t);ctx.lineTo(...project(p))}
+        ctx.closePath();ctx.fill();
+      };
+      band((p,t)=>{p.y+=Math.sin(Math.PI*t)*(16+3*Math.sin(t*29)**2)},p=>{p.y-=.7},'#899ea8');
+      band((p,t)=>{p.y+=Math.sin(Math.PI*t)*(16+3*Math.sin(t*29)**2)},(p,t)=>{p.y+=Math.sin(Math.PI*t)*(13+3*Math.sin(t*29)**2)},'#dce7e4');
+      band(p=>{p.y-=.7},p=>{p.y=.3},'#708c97');
+      const a=project(new Vector3(section.origin.x,.1,section.origin.z)),b=project(new Vector3(section.origin.x+section.span,.1,section.origin.z));
+      ctx.strokeStyle='#72c6d0';ctx.lineWidth=scale*.7;ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+    }
     if(section.kind==='pondbridge'||section.kind==='ravinebridge'){
       const p=section.frames[Math.round(section.resolution*.5)].position.clone(),bridge=section.kind==='ravinebridge';
       const [x,y]=project(new Vector3(p.x,.1,p.z));ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
@@ -95,7 +111,21 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       }
       ctx.globalAlpha=1;
     }
-    if(section.kind==='tunnel'||section.kind==='pumpkintunnel'){
+    if(section.kind==='tunnel'){
+      const p=section.sample(section.start+section.length*.5).position,[x,y]=project(p);
+      ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
+      // A side cutaway through a substantial snow-capped mountain. The real
+      // train is drawn afterwards, so low-powered devices keep it readable.
+      ctx.fillStyle='#91a6ae';ctx.beginPath();ctx.moveTo(-16,-.7);ctx.lineTo(-14,9);ctx.lineTo(-8,15);
+      ctx.lineTo(-3,18);ctx.lineTo(1,16);ctx.lineTo(6,19);ctx.lineTo(14,9);ctx.lineTo(16,-.7);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#e3ece7';ctx.beginPath();ctx.moveTo(-8,15);ctx.lineTo(-3,18);ctx.lineTo(1,16);ctx.lineTo(6,19);
+      ctx.lineTo(9,15);ctx.lineTo(5,16);ctx.lineTo(1,14);ctx.lineTo(-3,16);ctx.closePath();ctx.fill();
+      rect(-14,-.5,28,4.2,'#526c79');
+      for(const tx of [-14,14]){rect(tx-.3,-.5,.6,4.7,'#d2ceba');rect(tx-1,3.7,2,.6,'#e1d8bd')}
+      for(let tx=-12;tx<=12;tx+=3){oval(tx,2.8,.15,.22,'#ffdfa0');if(tx%2===0)triangle(tx,.1,.2,.7,'#8dd5d8')}
+      ctx.restore();
+    }
+    if(section.kind==='pumpkintunnel'){
       const p=section.sample(section.start+section.length*.5).position,[x,y]=project(p);
       ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
       // Side cutaway, matching the readable open wall of the 3D model.

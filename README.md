@@ -9,13 +9,13 @@ Leave the optional course seed blank for a fresh ride on every restart, or enter
 On the `feature/adventure-worlds` branch, Remix travels through four worlds:
 
 - **Baa Baa Meadows:** Sheep Shuffle on grassy banks, Lily Pad Bridge over ducks and flowers, and a loop around a working windmill.
-- **Marmalade Mountains:** Mountain Pass with a summit goat, Glowstone Tunnel with glowing crystals, and a timber Waterfall Viaduct. Snowy peaks and cable cars frame the route.
+- **Marmalade Mountains:** Mountain Gorge with a cliff-edge railway and river below, a proper arched Glowstone Tunnel through a snowy mountain, and a timber Waterfall Viaduct. Snowy peaks and cable cars frame the route.
 - **Starlight Carnival:** Rainbow Midway, Marquee Loop and Carousel Climb. Chasing bulbs, sweeping light beams, glowing fountains, ticket booths, spinning carousels and Ferris wheels make this a night-time funfair.
 - **Pumpkin Party:** three Pumpkin Hops, a giant Pumpkin Portal and a three-turn descent around a crooked Witch’s Hat. Friendly ghosts, bats and glowing cottages keep it playful.
 
 Worlds change on section boundaries near 900, 1,900 and 3,000 course metres. Beyond 4,200 metres, another adventure begins with new arrangements and additional elements. Hills remain bounded so later rides retain a visible train. Each world introduces all three signature pieces before its shuffled challenges. The track gallery has a world selector and animated scenery previews for all twelve attractions.
 
-The same seed creates the same journey in solo and multiplayer. Both players retain personal difficulty and identity colours. Mountains and other backdrops sit behind both lanes; summit terrain and tunnels follow each lane. World scenery never requests camera zoom. WebGL and software fallback renderers both support the worlds; ambient animation respects reduced-motion preferences.
+The same seed creates the same journey in solo and multiplayer. Both players retain personal difficulty and identity colours. Mountains and other backdrops sit behind both lanes; rocky ledges and tunnels follow each lane. The gorge’s high wall sits behind both riders; tunnel cutaways open independently as each train passes. World scenery never requests camera zoom. WebGL and software fallback renderers both support the worlds; ambient animation respects reduced-motion preferences.
 
 `npm test` includes world progression, all twelve attraction guarantees across 80 seeds, geometric continuity, energy conservation, later-course limits, scenery disposal and reduced-motion behaviour. `npx tsx scripts/playtest-worlds.ts` runs the full game with explicit answer-timing profiles. Browser scripts `scripts/check-worlds-browser.js` and `scripts/check-worlds-multiplayer-browser.js` cover frame pacing and real two-player connections. `scripts/check-world-attractions-browser.js` captures every signature on desktop/phone, and `scripts/check-world-gallery-browser.js` checks the world-filtered gallery. See [world design and validation](docs/adventure-worlds.md).
 

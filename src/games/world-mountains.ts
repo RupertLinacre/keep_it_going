@@ -31,61 +31,7 @@ export function mountainScenery(m:WorldModel,x:number,back:number,front:number,r
   }
 }
 
-/** A mesh following this particular summit route. The railway sits on its ridge. */
-export function mountainRidge(m:WorldModel,section:MiniSection) {
-  const vertices:number[]=[], rows:number[][]=[];
-  for(let i=0;i<=48;i++) {
-    const f=section.frames[Math.round(section.resolution*i/48)];
-    const y=Math.max(.2,f.position.y-1.5);
-    rows.push([-14,-6,0,3.4,10].flatMap((z,j)=>[f.position.x-section.origin.x,
-      [0,y*.65,y,y,0][j],f.position.z-section.origin.z+z]));
-  }
-  for(let i=0;i<48;i++)for(let j=0;j<4;j++) {
-    const a=rows[i].slice(j*3,j*3+3),b=rows[i+1].slice(j*3,j*3+3),c=rows[i].slice((j+1)*3,(j+2)*3),d=rows[i+1].slice((j+1)*3,(j+2)*3);
-    vertices.push(...a,...c,...b,...b,...c,...d);
-  }
-  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geometry.computeVertexNormals();
-  m.add(geometry,'#96a391',[0,0,0]);geometry.dispose();
-  const summit=section.frames[Math.round(section.resolution*.5)].position;
-  const x=summit.x-section.origin.x,z=summit.z-section.origin.z-3,y=summit.y;
-  m.add(G.pole,'#786956',[x,y+1,z],[.07,3,.07]);
-  m.add(G.box,'#f2b653',[x+.6,y+2,z],[1.2,.7,.07]);
-  // A little summit lookout and a friendly mountain goat on the outer ledge.
-  m.add(G.box,'#e5d2ae',[x-3,y-.5,z],[4,.22,2.4]);
-  m.add(G.round,'#d9ccb0',[x-3,y+.4,z],[.85,.52,.45]);
-  m.add(G.round,'#e8dec4',[x-2.25,y+.75,z],[.32,.42,.32]);
-  for(const dx of [-3.5,-2.5])for(const dz of [-.28,.28])m.add(G.pole,'#7c766d',[x+dx,y-.15,z+dz],[.07,.7,.07]);
-  for(const dz of [-.2,.2])m.add(G.cone,'#8e8478',[x-2.3,y+1.3,z+dz],[.08,.7,.08],[0,0,.25]);
-  m.add(G.round,'#514f53',[x-2.07,y+.87,z+.28],[.05,.055,.03]);
-  for(let i=0;i<6;i++)m.add(G.rock,'#e2e8dc',[x-7+i*2,y-1.6,z-1.5],[1.8,.2,1.1]);
-}
-
-/** Open camera-facing wall: enter a real roofed tunnel without losing the train. */
-export function tunnelModel(material:T.Material,luminous:T.Material,halloween=false) {
-  const m=new WorldModel(),rock=halloween?'#776478':'#7b8990',trim=halloween?'#e5a55a':'#d4c9af';
-  const radius=4.3, length=15;
-  // Back wall and a cutaway roof; the near half stays open to the viewer.
-  m.add(G.box,rock,[-4,2.4,0],[1,4.8,length]);
-  const shell=new T.CylinderGeometry(radius+.55,radius+.55,length,14,1,true,Math.PI,Math.PI*.5);
-  // Cylinder axis becomes the track axis. Only its back/upper arc is filled.
-  m.add(shell,rock,[0,1,0],[1,1,1],[Math.PI/2,0,0]);shell.dispose();
-  for(const z of [-7.5,-2.5,2.5,7.5]) {
-    for(let i=0;i<=10;i++) {
-      const a=Math.PI*i/10;
-      m.add(G.box,trim,[Math.cos(a)*radius,1+Math.sin(a)*radius,z],[.65,1.1,.5],[0,0,a-Math.PI/2]);
-    }
-    for(const x of [-4.3,4.3])m.add(G.box,trim,[x,.5,z],[.65,1,.5]);
-    m.add(G.pole,'#665e5d',[-2.5,3.6,z],[.055,.8,.055]);
-    m.add(G.round,halloween?'#ffad4e':'#ffe8a2',[-2.5,3.05,z],[.25,.4,.25],[],true);
-  }
-  // Jewel-like crystals make the cutaway a discovery, not just a grey tube.
-  for(let i=0;i<9;i++) {
-    const z=-6+i*1.5,h=.7+(i%3)*.45;
-    m.add(G.cone,i%2?'#83d6dc':'#baa9e4',[-3.2,h/2,z],[.33,h,.33],[0,0,(i%3-1)*.2],true);
-    if(i%2===0)m.add(G.cone,'#cbe6e4',[-2.8,.3,z+.3],[.19,.6,.19],[0,0,-.2],true);
-  }
-  return m.finish(material,luminous);
-}
+export { mountainGorge as mountainRidge, mountainTunnel as tunnelModel } from "./mountain-landforms";
 
 /** A high timber trestle, with a river and waterfall far below the coaches. */
 export function ravineBridge(m: WorldModel, section: MiniSection) {

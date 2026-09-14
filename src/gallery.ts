@@ -27,8 +27,8 @@ const descriptions: Record<MiniKind, string> = {
   carouselhelix: "Two rising turns wind around a spinning carousel before sweeping down the exit ramp.",
   pumpkintunnel: "Dive through a giant smiling pumpkin, with a cutaway side to keep the train in view.",
   witchhat: "Climb to the tip of a giant crooked witch’s hat, then swirl down three turns around its brim.",
-  mountainpass: "A winding railway climbs a mountain ridge before swooping down the other side.",
-  tunnel: "A gentle valley runs through a short lantern-lit tunnel.",
+  mountainpass: "A narrow railway ledge winds up a steep, snow-dusted gorge above a turquoise river.",
+  tunnel: "An arched tunnel passes through a rocky mountain, with stone portals, lamps and glowstone inside.",
   lanternrun: "Rolling hills trace a parade of glowing lanterns.",
   pumpkinhop: "Three playful little hops through the pumpkin patch.",
   noninvertingloop:
@@ -104,7 +104,7 @@ app.innerHTML = `
 <section class="explorer" aria-label="Interactive track viewer">
 <div class="piece-heading"><div><p class="eyebrow" id="piece-number"></p><h2 id="piece-title"></h2></div><div class="step-buttons"><button id="previous" aria-label="Previous section">←</button><button id="next" aria-label="Next section">→</button></div></div>
 <p id="description"></p>
-<div class="viewport"><div class="camera-tools" role="group" aria-label="Camera views"><button data-view="perspective" aria-pressed="true">3D</button><button data-view="side" aria-pressed="false">Side</button><button data-view="top" aria-pressed="false">Top</button><button id="reset">Reset view</button></div><div class="stage" aria-label="3D track. Drag to orbit, scroll or pinch to zoom."></div><div class="viewer-footer"><span>Drag to orbit · scroll or pinch to zoom</span><button id="play"></button></div></div>
+<div class="viewport"><div class="camera-tools" role="group" aria-label="Camera views"><button data-view="perspective" aria-pressed="true">3D</button><button data-view="side" aria-pressed="false">Side</button><button data-view="top" aria-pressed="false">Top</button><button id="reset">Reset view</button><button id="tunnel-cutaway" aria-pressed="false" hidden>Inside tunnel</button></div><div class="stage" aria-label="3D track. Drag to orbit, scroll or pinch to zoom."></div><div class="viewer-footer"><span>Drag to orbit · scroll or pinch to zoom</span><button id="play"></button></div></div>
 <div class="details"><div class="progression"><label for="distance">Later in the ride <output id="distance-value"></output></label><input id="distance" type="range" min="0" max="20" step="1" value="${distance}" /><div class="range-ends"><span>Opening scale</span><span>20 km</span></div></div><dl class="metrics"><div><dt>Height above entry</dt><dd id="height"></dd></div><div><dt>Rail length</dt><dd id="length"></dd></div><div><dt>Turns</dt><dd id="turns"></dd></div></dl></div>
 <p class="footnote">The same track geometry and growth rules as the game. The little coach is a direction marker, moving at a constant preview speed—not a physics simulation. The opening hill and recovery pieces grow little or not at all.</p>
 </section></main>`;
@@ -202,6 +202,7 @@ function fit() {
 }
 function rebuild() {
   attraction?.destroy(); attraction=undefined;
+  $("#tunnel-cutaway").hidden=kind!=="tunnel";$("#tunnel-cutaway").setAttribute("aria-pressed","false");
   const world = WORLDS.find(w=>w.pieces.includes(kind));
   scene.background = new THREE.Color(world?.sky ?? '#e6eee8');
   materials.ground.color.set(world?.ground ?? '#d5e3c3');
@@ -368,6 +369,11 @@ app.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(
       fit();
     }),
 );
+$("#tunnel-cutaway").onclick = () => {
+  const reveal=$("#tunnel-cutaway").getAttribute("aria-pressed")!=="true";
+  $("#tunnel-cutaway").setAttribute("aria-pressed",String(reveal));
+  attraction?.setTunnelCutaway(reveal);
+};
 $("#reset").onclick = () => {
   view = "perspective";
   fit();

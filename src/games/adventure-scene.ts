@@ -1,3 +1,4 @@
+import { tunnelRevealAt } from "./mountain-landforms";
 import { FairgroundLights, fairgroundBeamMaterial } from "./world-lighting";
 import { sheepBanks, lilyBridge, meadowWindmill, duckModel } from "./world-meadow";
 import { halloweenScenery, pumpkinHops, pumpkinTunnel, witchHat, witchHatCenter, ghostModel, batModel } from "./world-halloween";
@@ -11,7 +12,7 @@ import { seededRandom } from "./mini-rail";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
 type Actor = { kind: "sheep" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "carousel" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number };
-type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group };
+type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
  * Static scenery is batched; animated creatures share a small instance buffer. */
@@ -36,7 +37,7 @@ export class AdventureScene {
   private actorMeshes: Record<Actor["kind"],T.InstancedMesh>;
   private dummy = new T.Object3D();
   private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
-  constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld } = {}) {
+  constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld; tunnelCutaway?: boolean } = {}) {
     scene.add(this.group);
     const sheep = new WorldModel();
     sheep.add(G.round, "#fff5de", [0, 1.05, 0], [1, .64, .65]);
@@ -126,7 +127,7 @@ export class AdventureScene {
         for(let j=0;j<3;j++)actors.push({kind:'bat',x:x-12+random()*24,y:7+random()*3,z:back+3,phase:random()*6.28,size:.7+random()*.3});
       } else this.meadow(model, actors, x, back, front, random);
     }
-    let formation:T.Group|undefined;
+    let formation:T.Group|undefined, gorgeWall:T.Group|undefined;
     if (['sheepbank','pondbridge','windmillloop'].includes(section.kind)) {
       const attraction=new WorldModel();
       if(section.kind==='sheepbank')sheepBanks(attraction,section);
@@ -166,18 +167,21 @@ export class AdventureScene {
       for(let i=0;i<3;i++)actors.push({kind:'ghost',x:x+(i-1)*4,y:section.origin.y+section.amplitude*.45+i,z:z+8,phase:i*2,size:.9,onTrack:true});
     }
     if(section.kind==='mountainpass') {
-      const ridge=new WorldModel();mountainRidge(ridge,section);formation=ridge.finish(this.material,this.luminous);this.group.add(formation);
+      const ridge=new WorldModel(),cliffs=new WorldModel();mountainRidge(ridge,section,cliffs);
+      formation=ridge.finish(this.material,this.luminous);gorgeWall=cliffs.finish(this.material,this.luminous);this.group.add(formation,gorgeWall);
     }
     if(section.kind==='tunnel'||section.kind==='pumpkintunnel') {
       const base=new WorldModel(),f=section.sample(section.start+section.length*.5).position;
-      base.add(G.box,world.id==='halloween'?'#b69a72':'#a0ada8',[f.x-section.origin.x,(f.y-.3)/2,f.z-section.origin.z],[16,f.y-.3,8]);
+      if(section.kind==='tunnel') {
+        base.add(G.rock,'#9caeb0',[f.x-section.origin.x,-.1,f.z-section.origin.z],[21,(f.y+.2)*1.2,12.5]);
+      } else base.add(G.box,'#b69a72',[f.x-section.origin.x,(f.y-.3)/2,f.z-section.origin.z],[16,f.y-.3,8]);
       formation=base.finish(this.material,this.luminous);this.group.add(formation);
     }
     const root = model.finish(this.material, this.luminous);
     this.group.add(root);
     const tunnel=['tunnel','pumpkintunnel'].includes(section.kind)?(section.kind==='pumpkintunnel'||world.id==='halloween'?pumpkinTunnel(this.material,this.luminous):tunnelModel(this.material,this.luminous)):undefined;
     if(tunnel)this.group.add(tunnel);
-    return { root, actors, section, tunnel, formation };
+    return { root, actors, section, tunnel, formation, gorgeWall };
   }
   private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
     // Broad, overlapping hills read as a landscape rather than miniature cones.
@@ -212,7 +216,8 @@ export class AdventureScene {
       actors.push({kind:"mill",x:mx,y:6,z:mz+1.6,phase:r()*6.28,size:1});
     }
   }
-  render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number) {
+  setTunnelCutaway(reveal: boolean) { this.options.tunnelCutaway = reveal; }
+  render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number, opponentDistance?: number) {
     if(this.reducedMotion?.matches)time=0;
     this.luminous.clock.value=time;
     const visible = track.sections.filter(s=>s.start<distance+350);
@@ -225,6 +230,13 @@ export class AdventureScene {
       if(!tile) { tile=this.build(section,track);this.tiles.set(section.id,tile); }
       tile.root.position.set(section.origin.x-anchor,0,section.origin.z);
       for(const mesh of tile.root.children) mesh.position.z=laneOffset?(mesh.userData.front?laneOffset:-laneOffset-2*section.origin.z):0;
+      if(tile.gorgeWall) {
+        // The high gorge wall frames both riders from behind. Mirroring a tall
+        // wall beside each lane would put a mountain in front of the opponent.
+        const bounds=sectionBounds(section);
+        const bend=Math.max(Math.abs(bounds.min.z-section.origin.z),Math.abs(bounds.max.z-section.origin.z));
+        tile.gorgeWall.position.set(section.origin.x-anchor,0,laneOffset?-section.origin.z-laneOffset-2*bend:section.origin.z);
+      }
       if(tile.formation) {
         tile.formation.position.set(section.origin.x-anchor,0,section.origin.z+laneOffset);
         if(laneOffset) {
@@ -237,10 +249,17 @@ export class AdventureScene {
         tile.tunnel.position.copy(f.position);tile.tunnel.position.x-=anchor;tile.tunnel.position.z+=laneOffset;
         tile.tunnel.quaternion.copy(f.rotation);
         if(laneOffset) {
-          if(!tile.mirrorTunnel){tile.mirrorTunnel=tile.tunnel.clone();this.group.add(tile.mirrorTunnel)}
+          if(!tile.mirrorTunnel){
+            tile.mirrorTunnel=tile.tunnel.clone();
+            tile.mirrorTunnel.traverse(o=>{if(o instanceof T.Mesh && o.userData.mountainCover)o.material=(o.material as T.Material).clone()});
+            this.group.add(tile.mirrorTunnel);
+          }
           tile.mirrorTunnel.position.copy(tile.tunnel.position);tile.mirrorTunnel.position.z*=-1;
           tile.mirrorTunnel.quaternion.set(-f.rotation.x,-f.rotation.y,f.rotation.z,f.rotation.w);tile.mirrorTunnel.scale.z=-1;
         }
+        const ownReveal=this.options.attractionsOnly?(this.options.tunnelCutaway?1:0):tunnelRevealAt(section,distance);
+        this.revealTunnel(tile.tunnel,ownReveal,1);
+        if(tile.mirrorTunnel)this.revealTunnel(tile.mirrorTunnel,tunnelRevealAt(section,opponentDistance??distance),-1);
       }
       for(const actor of tile.actors) for(const mirror of actor.onTrack && laneOffset ? [false,true] : [false]) {
         const mesh=this.actorMeshes[actor.kind],index=counts[actor.kind]++;
@@ -276,10 +295,24 @@ export class AdventureScene {
       const mesh=this.actorMeshes[kind];mesh.count=Math.min(192,counts[kind]);mesh.instanceMatrix.needsUpdate=true;
     }
   }
+  private revealTunnel(group:T.Group,reveal:number,side:number) {
+    group.traverse(o=>{
+      if(!(o instanceof T.Mesh)||!o.userData.mountainCover)return;
+      const material=o.material as T.Material;
+      const opacity=o.userData.mountainCover===side?1-reveal*.9:1;
+      const transparent=opacity<.999;
+      if(material.transparent!==transparent){material.transparent=transparent;material.depthWrite=!transparent;material.needsUpdate=true;}
+      material.opacity=opacity;o.castShadow=!transparent;
+    });
+  }
   private release(tile: Tile) {
     tile.root.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});
     tile.root.removeFromParent();
+    tile.gorgeWall?.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});tile.gorgeWall?.removeFromParent();
     tile.formation?.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});tile.formation?.removeFromParent();tile.mirrorFormation?.removeFromParent();
+    const owned=new Set<T.Material>();
+    for(const tunnel of [tile.tunnel,tile.mirrorTunnel])tunnel?.traverse(o=>{if(o instanceof T.Mesh && o.userData.mountainCover)owned.add(o.material as T.Material)});
+    owned.forEach(material=>material.dispose());
     tile.tunnel?.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});tile.tunnel?.removeFromParent();tile.mirrorTunnel?.removeFromParent();
   }
   destroy() {

@@ -27,7 +27,7 @@ export const ELEMENT_NAMES: Record<MiniKind, string> = {
   ravinebridge: "WATERFALL VIADUCT",
   midwayloop: "MARQUEE LOOP", carouselhelix: "CAROUSEL CLIMB",
   pumpkintunnel: "PUMPKIN PORTAL", witchhat: "WITCH’S HAT",
-  mountainpass: "MOUNTAIN PASS", tunnel: "GLOWSTONE TUNNEL", lanternrun: "RAINBOW MIDWAY", pumpkinhop: "PUMPKIN HOPS",
+  mountainpass: "MOUNTAIN GORGE", tunnel: "GLOWSTONE TUNNEL", lanternrun: "RAINBOW MIDWAY", pumpkinhop: "PUMPKIN HOPS",
   noninvertingloop: "NON-INVERTING LOOP", pretzelknot: "PRETZEL KNOT", cobraroll: "COBRA ROLL",
   station: "BREATHER", firsthill: "FIRST DROP", hill: "AIRTIME HILL", skyhill: "SKY-HIGH CLIMB",
   dip: "VALLEY RUN", loop: "VERTICAL LOOP", corkscrew: "CORKSCREW", helix: "HELIX",

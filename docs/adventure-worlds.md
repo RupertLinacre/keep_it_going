@@ -7,7 +7,7 @@ Work branch: `feature/adventure-worlds`. Remix progresses through four distance-
 | World | Three signature track pieces | Scenery and animation |
 | --- | --- | --- |
 | Baa Baa Meadows | **Sheep Shuffle**, **Lily Pad Bridge**, **Windmill Loop** | Track-shaped grassy banks, flower beds, hay bales, hopping sheep, ducks swimming amongst lilies, curved timber decking and turning sails inside the loop silhouette. |
-| Marmalade Mountains | **Mountain Pass**, **Glowstone Tunnel**, **Waterfall Viaduct** | Snowy peaks, pines, cable cars and chalets. The summit has a lookout, flag and goat. Glowing crystals fill the cutaway tunnel; a high timber trestle crosses a turquoise ravine beside falling water. |
+| Marmalade Mountains | **Mountain Gorge**, **Glowstone Tunnel**, **Waterfall Viaduct** | A narrow railway ledge climbs above a turquoise river between tall, faceted cliffs. Glowstone Tunnel is a continuous arched bore through a snowy mountain, with stone portals, warm lamps and crystals. The camera-facing lower wall fades while the train passes; the summit stays solid. A high timber Waterfall Viaduct crosses a ravine beside falling water. |
 | Starlight Carnival | **Rainbow Midway**, **Marquee Loop**, **Carousel Climb** | A night-time funfair with ticket/candy-floss booths, bunting, garlands, chasing bulbs, soft sweeping stage beams, coloured fountains, a rotating carousel and Ferris wheels with upright cabins. The loop wears a glowing star; two rising turns circle the carousel. |
 | Pumpkin Party | **Pumpkin Hops**, **Pumpkin Portal**, **Witch’s Hat** | Three distinct crests, a giant cutaway pumpkin, and a climb followed by three descending spirals around a crooked hat. Amber lanterns, rosy-cheeked ghosts, fluttering bats, smiling pumpkins, vines and warm windows keep it friendly. |
 
@@ -17,7 +17,7 @@ Generative scale stops growing at 2×. Base-course height caps are 30 / 38 / 38 
 
 ## Rendering and playability
 
-Scenery uses baked vertex colours and merged material batches. Twelve fixed-capacity instance buffers cover creatures, rides, waterfall spray and stage beams. Each buffer holds at most 192 actors. Old scenery tiles and their geometry are released as the track scrolls past. Mirrored race formations share geometry and dispose it exactly once.
+Scenery uses baked vertex colours and merged material batches. Twelve fixed-capacity instance buffers cover creatures, rides, waterfall spray and stage beams. Each buffer holds at most 192 actors. Old scenery tiles and their geometry are released as the track scrolls past. Mirrored race formations share geometry and dispose it exactly once. The gorge uses one high wall behind both race lanes so it cannot hide the opponent, with separate solid ledges beneath each train. Tunnel wall materials are independent per rider, fade according to that rider’s position, and are released with the scenery tile.
 
 Fairground bulbs use one shared shader with a baked phase per bulb. Their brightness travels smoothly around loops and garlands on an approximately 4.5-second cycle. Ordinary lamps remain steady. Coloured fountain streams use the same material. Stage beams are translucent instanced geometry; they do not add shadow-casting spotlights or a full-screen bloom pass. Carousels rotate, wheel cabins remain upright, and the waterfall spray falls from a fixed location.
 
@@ -44,16 +44,27 @@ Reproducible scripts:
 - `npx tsx scripts/playtest-worlds.ts` (`--distance=950` etc. for a single world checkpoint)
 - `scripts/check-world-attractions-browser.js` — all twelve desktop/phone visual fixtures
 - `scripts/check-world-gallery-browser.js` — world selector and decorated previews
+- `scripts/check-mountain-landforms-browser.js` — closed tunnel, inside view and gorge on desktop/phone
 - `scripts/check-worlds-browser.js` — six measured seconds per world/layout after warm-up
 - `scripts/check-worlds-multiplayer-browser.js` — two actual connected clients, plus optional software phone
 - `scripts/check-world-transitions-browser.js` — continuous 125-second ride, including streaming and transitions
 
 Browser scripts run through `playwright-cli run-code` against Vite. Screenshots and measurement JSON are saved locally in `output/playwright/` (ignored by Git). Checkpoint screenshots are distinct from real-time performance tests. Frame measurements use Chromium / ANGLE Metal on an Apple M4; phone emulation does not replace testing on a physical low-end phone.
 
-## Final performance results
+## World-wide performance baseline
 
 All **135 tests** and the production build passed. Eight real-time world/layout measurements recorded a 16.7 ms median and 18.7 ms p99 (approximately 60 FPS), with no frame over 50 ms. Visible draw counts ranged from 73 to 132.
 
 The continuous desktop ride ran 125 seconds, travelled 5.88 km and answered 77 questions. It covered all four worlds and returned to the mountains, ending still in play. Every world's p99 was 18.7 ms. The only frame over 50 ms was 98.1 ms at game time zero, during initial construction; there were none during the ride or world transitions. It finished with five scenery tiles and 85 geometry buffers.
 
 Combined measurements, simulations and visual-check reports are saved in `output/playwright/world-refinement-validation.json`.
+
+The gallery shows the closed tunnel exterior by default. **Inside tunnel** toggles its cutaway for inspection; this control is only present on Glowstone Tunnel. The gorge and tunnel also have matching silhouettes in the software renderer.
+
+## Mountain gorge and tunnel refinement
+
+All **139 tests** and the production build pass. New checks cover the unobstructed tunnel bore and enclosure, entry/exit reveal timing, independent race materials and disposal, the shared gorge wall behind both lanes, and solid ledges visible from either side.
+
+Two ten-second real-time rides passed through Mountain Gorge, Glowstone Tunnel and Waterfall Viaduct on desktop and a DPR-2 phone layout, answering every 1.5 seconds on Easy. Both recorded 599 frame intervals with a 16.7 ms median, 17.6 ms p95 and 17.7 ms p99; no interval exceeded 50 ms. These are browser measurements on the same Apple M4, not physical phone benchmarks.
+
+Real connected desktop/phone races were visually checked at all three mountain attractions, then repeated with WebGL disabled on the phone. Both versions retained player colours, matching positions, readable trains and working controls without browser errors. The gallery checks cover the opaque exterior and explicit inside view on both layouts. Detailed reports are in `output/playwright/mountain-refinement-validation.json`.
