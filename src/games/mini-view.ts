@@ -812,7 +812,8 @@ export class MiniView {
     if (this.track.options.generative) {
       const world = adventureAt(Math.max(0,this.track.sectionAt(distance).start)).world;
       this.adventureScene ??= new AdventureScene(this.scene);
-      this.adventureScene.render(this.track,distance,anchor,this.laneOffset,time,opponent?.distance);
+      this.adventureScene.render(this.track,distance,anchor,this.laneOffset,time,opponent?.distance,
+        effects?.gravity??9.81,opponent?.power?.active==='reverse'?-19.62:opponent?.power?.active==='heavy'?29.43:9.81);
       const blend=1-Math.exp(-dt*1.5), dark=world.darkness;
       const sky=new THREE.Color(world.sky), ground=new THREE.Color(world.ground);
       if(powerups?.active) {

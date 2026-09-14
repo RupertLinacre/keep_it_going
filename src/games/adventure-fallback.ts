@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import type { MiniTrack, MiniSection } from './mini-track';
 import { AttractionDrive } from './attraction-drive';
+import { SceneryFlight } from './scenery-flight';
 import { adventureAt } from './adventure-worlds';
 import { carouselCenter } from "./world-night";
 import { witchHatCenter } from "./world-halloween";
@@ -8,9 +9,10 @@ import { seededRandom } from './mini-rail';
 
 const reducedMotion=typeof matchMedia==="function"?matchMedia("(prefers-reduced-motion: reduce)"):undefined;
 const drives=new WeakMap<MiniSection,[AttractionDrive,AttractionDrive]>();
+const flights=new WeakMap<MiniSection,Map<string,{body:SceneryFlight,time:number}>>();
 
 /** Lightweight world landmarks for devices that cannot create a WebGL context. */
-export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTrack,distance:number,time:number,project:(p:Vector3)=>[number,number],scale:number,rider=0) {
+export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTrack,distance:number,time:number,project:(p:Vector3)=>[number,number],scale:number,rider=0,gravity=9.81) {
   if(reducedMotion?.matches)time=0;
   const lead=track.sample(distance).position.clone(),tail=track.sample(distance-15).position.clone();
   const oval=(x:number,y:number,rx:number,ry:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill()};
@@ -21,6 +23,12 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
     const world=adventureAt(section.start).world;
     if(!drives.has(section))drives.set(section,[new AttractionDrive(),new AttractionDrive()]);
     const drive=drives.get(section)![rider];drive.update(time,distance,section.start,section.end,!!reducedMotion?.matches);
+    if(!flights.has(section))flights.set(section,new Map());
+    const float=(key:string,phase:number)=>{
+      const cache=flights.get(section)!,id=`${rider}:${key}`;
+      if(!cache.has(id))cache.set(id,{body:new SceneryFlight(phase),time});
+      const state=cache.get(id)!;state.body.update(time-state.time,gravity);state.time=time;return state.body.height;
+    };
     const n=Math.min(10,Math.ceil(section.span/28)),r=seededRandom(track.seed^Math.imul(section.id+17,17041));
     for(let i=0;i<n;i++){
       const x=section.origin.x+section.span*(i+.5)/n,[px,py]=project(new Vector3(x,0,section.origin.z));
@@ -31,7 +39,7 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
         oval(0,0,20,6+r()*8,'#8cbb73');
         rect(5,0,.4,4,'#9d805a');oval(5.2,4.4,2.5,2.3,'#689e67');
         for(let j=0;j<2;j++){
-          const sx=-7+j*5,sy=Math.sin(time*.9+phase)*.08;
+          const sx=-7+j*5,sy=Math.sin(time*.9+phase)*.08+float(`sheep:${i}:${j}`,phase+j);
           for(const dx of [-.5,.5])rect(sx+dx-.08,sy,.16,.5,'#646a62');
           oval(sx,.8+sy,.9,.5,'#fff3d8');oval(sx+.8,1+sy,.3,.32,'#60646a');oval(sx+.92,1.09+sy,.06,.07,'#fff8dd');
         }
@@ -49,10 +57,12 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       }else{
         rect(5,0,3.5,4.7,'#a18dab');triangle(6.6,4.7,3,3.2,'#6f5c83');rect(6,0,1,2.4,'#ffdfa2');
         for(const tx of [-8,-4,1]){
+          ctx.save();ctx.translate(0,float(`pumpkin:${i}:${tx}`,phase+tx));
           oval(tx,.8,1,.8,'#e69b53');rect(tx-.1,1.5,.2,.5,'#849c67');
           triangle(tx-.36,.85,.13,.23,'#ffe6a1');triangle(tx+.32,.85,.13,.23,'#ffe6a1');rect(tx-.3,.42,.6,.1,'#ffe6a1');
+          ctx.restore();
         }
-        const gy=4+Math.sin(time+phase)*.5;
+        const gy=4+Math.sin(time+phase)*.5+float(`ghost:${i}`,phase);
         oval(-4,gy,.7,.95,'#ebdff4');triangle(-4,gy-.7,.85,1.4,'#ebdff4');
         oval(-4.25,gy+.2,.08,.12,'#665479');oval(-3.8,gy+.2,.08,.12,'#665479');
       }

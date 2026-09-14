@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 import type { MiniSection } from './mini-track';
+export type PumpkinPlacement = (x:number,y:number,z:number,size:number,color?:string)=>void;
 
 export function pumpkin(m:WorldModel,x:number,y:number,z:number,size:number,color='#ed984c') {
   for(let i=0;i<7;i++) {
@@ -11,10 +12,10 @@ export function pumpkin(m:WorldModel,x:number,y:number,z:number,size:number,colo
   for(const side of [-1,1])m.add(G.cone,'#ffe5a0',[x+side*size*.31,y+size*.85,z+size*.82],[size*.15,size*.28,size*.07],[],true);
   for(let i=0;i<5;i++)m.add(G.box,'#ffdf8e',[x+(i-2)*size*.13,y+size*(.37+.035*(i-2)**2),z+size*.86],[size*.14,size*.09,size*.055],[],true);
 }
-export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number) {
+export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {
   m.add(G.round,'#65566e',[x,-2,back-20],[24,10+r()*5,15]);
   m.add(G.round,'#574860',[x+12,-2,back-39],[27,16+r()*7,20]);
-  for(let i=0;i<6;i++)pumpkin(m,x-13+r()*26,.1,front+1+r()*8,.65+r()*.75,i%2?'#e7a44f':'#d98852');
+  for(let i=0;i<6;i++)place(x-13+r()*26,.1,front+1+r()*8,.65+r()*.75,i%2?'#e7a44f':'#d98852');
   for(let i=0;i<4;i++) {
     const tx=x-13+i*8,tz=back+2, lean=(r()-.5)*.3;
     m.add(G.pole,'#827386',[tx,2.8,tz],[.27,5.6,.27],[0,0,lean]);
@@ -35,7 +36,7 @@ export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,
       m.add(G.box,'#6c5b79',[hx+dx,3.1,hz+1.95],[.09,1.2,.09]);
     }
     m.add(G.pole,'#aa91ae',[hx+1.1,6.2,hz-.5],[.35,2.6,.35],[0,0,-.14]);
-    pumpkin(m,hx+2.8,.1,hz+2.1,1);
+    place(hx+2.8,.1,hz+2.1,1);
   }
   // Candy-coloured fence lanterns make the darkness inviting.
   for(let i=0;i<5;i++) {
@@ -46,11 +47,11 @@ export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,
   }
 }
 
-export function pumpkinHops(m:WorldModel,section:MiniSection) {
+export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {
   for(let i=0;i<3;i++) {
     const f=section.frames[Math.round(section.resolution*(i+.5)/3)];
     const x=f.position.x-section.origin.x,z=f.position.z-section.origin.z-5;
-    pumpkin(m,x,0,z,2.3+i*.25);
+    place(x,0,z,2.3+i*.25);
     m.add(G.pole,'#a99a78',[x-2,1.5,z+1],[.1,3,.1]);
     m.add(G.box,'#f6cd7a',[x-1.6,2.5,z+1],[1.5,.75,.12]);
     // Curving vines carry little lanterns beside each hop.
@@ -110,7 +111,7 @@ export function witchHatCenter(section:MiniSection) {
   const radius=section.width*.095;
   return {x:section.width*.68+radius*.2,z:section.hand*radius,radius};
 }
-export function witchHat(m:WorldModel,section:MiniSection) {
+export function witchHat(m:WorldModel,section:MiniSection,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {
   const {x,z,radius}=witchHatCenter(section),height=section.amplitude+2;
   // Keep the hat inside the coils; the train can always be seen outside it.
   m.add(G.pole,'#b194bd',[x,1.5,z],[radius-.4,.5,radius-.4]);
@@ -131,5 +132,5 @@ export function witchHat(m:WorldModel,section:MiniSection) {
     const p=f.position.clone().addScaledVector(f.right,1.55).addScaledVector(f.up,-.25);
     m.add(G.round,i%3?'#edb067':'#c6a9e6',[p.x-section.origin.x,p.y,p.z-section.origin.z],[.19,.25,.19],[],true,i*.24);
   }
-  for(const side of [-1,1])pumpkin(m,x+side*(radius+2),.1,z+radius,1.5);
+  for(const side of [-1,1])place(x+side*(radius+2),.1,z+radius,1.5);
 }

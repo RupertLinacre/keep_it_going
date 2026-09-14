@@ -417,7 +417,7 @@ export class Mini extends BaseGame {
     ctx.fillStyle = world?.earth ?? "#cfae8c"; ctx.fillRect(boardX, boardY, 3200, 16);
     ctx.fillStyle = world?.ground ?? "#d5e3c3"; ctx.fillRect(boardX, boardY - 5, 3200, 5);
     ctx.fillStyle = "#f7efdb"; ctx.fillRect(boardX, boardY, 3200, 2);
-    if(this.remixMode)drawAdventureFallback(ctx,this.track,this.physics.distance,this.elapsed,p=>project(p.x,p.y),scale);
+    if(this.remixMode)drawAdventureFallback(ctx,this.track,this.physics.distance,this.elapsed,p=>project(p.x,p.y),scale,0,this.carriages.gravity);
     if (this.powerups?.gate) {
       const gate = this.powerups.gate, f = this.track.sample(gate.distance), info = POWERUPS[gate.kind];
       const [x,y] = project(f.position.x, f.position.y+2.4);
