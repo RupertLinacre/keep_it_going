@@ -23,7 +23,7 @@ test('the director introduces each world signature at its next section and bound
    for(const section of track.sections){
     if(seen.has(section.id))continue;seen.add(section.id);
     const stage=adventureAt(section.start);
-    if(stage.stage!==lastWorld&&stage.index>0)assert.equal(section.kind,stage.world.challenges[0]);
+    if(stage.stage!==lastWorld&&stage.index>0)assert.equal(section.kind,stage.world.pieces[0]);
     lastWorld=stage.stage;
     assert.ok(section.turns<=4);assert.ok(section.frames.every(f=>Number.isFinite(f.position.y)));
     if(section.start>700)assert.ok(section.amplitude<=stage.world.maxHeight+.001,section.kind);
@@ -32,7 +32,7 @@ test('the director introduces each world signature at its next section and bound
  }
 });
 test('world-specific rails join upright, preserve energy and contain no discontinuous frames',()=>{
- for(const kind of ['mountainpass','tunnel','lanternrun','pumpkinhop'] as const)for(const seed of [1,42,73]){
+ for(const kind of new Set(WORLDS.flatMap(w=>w.pieces)))for(const seed of [1,42,73]){
   const s=createMiniSection(kind,1200,new Vector3(0,4,0),20,seededRandom(seed),true);
   const first=s.frames[0],last=s.frames.at(-1)!;
   assert.ok(first.position.distanceTo(new Vector3(0,4,0))<1e-6);
@@ -55,7 +55,7 @@ test('tunnels are guaranteed near mountain and pumpkin entrances across seeds',(
   for(let at=0;at<4800;at+=100){track.ensure(at);for(const s of track.sections)if(!seen.has(s.id)){seen.add(s.id);sections.push(s)}}
   for(const index of [1,3]){
    const first=sections.findIndex(s=>adventureAt(s.start).index===index);
-   assert.equal(sections[first+1].kind,'station');assert.equal(sections[first+2].kind,'tunnel');
+   assert.equal(sections[first+1].kind,'station');assert.equal(sections[first+2].kind,index===1?'tunnel':'pumpkintunnel');
    assert.equal(adventureAt(sections[first+2].start).index,index);
   }
  }
@@ -87,10 +87,45 @@ test('scenery prunes old tiles, bounds actors and disposes shared race geometry 
  for(let at=0;at<9000;at+=200){
   track.ensure(at);view.render(track,at,Math.floor(track.sample(at).position.x/25)*25,35,at/30);observe();
   assert.ok(view.tiles.size<=track.sections.length&&view.tiles.size<28);
-  assert.ok(view.group.children.length<=view.tiles.size*5+7);
+  assert.ok(view.group.children.length<=view.tiles.size*5+12);
   view.group.traverse(o=>{if(o instanceof InstancedMesh)assert.ok(o.count<=192)});
  }
  assert.ok([...geometries.values()].filter(n=>n===1).length>30,'Previous scenery was retired during the ride');
  view.destroy();assert.equal(scene.children.length,0);assert.equal(view.tiles.size,0);
  assert.ok([...geometries.values()].every(n=>n===1),'Owned/shared geometry released exactly once');
+});
+
+test('each adventure guarantees all twelve unique signature attractions before leaving their worlds',()=>{
+ const all=WORLDS.flatMap(w=>w.pieces);
+ assert.ok(WORLDS.every(w=>new Set(w.pieces).size>=3));
+ assert.equal(new Set(all).size,all.length,'Each signature belongs to one world');
+ for(let seed=1;seed<=80;seed++){
+  const track=new MiniTrack(seed,{generative:true}),seen=new Map<number,Set<string>>();
+  // Different ensure chunk sizes must not crowd a signature out of its world.
+  for(let at=0;at<9000;at+=137){
+   track.ensure(at,seed%2?230:600);
+   for(const s of track.sections){
+    const stage=adventureAt(s.start).stage;
+    if(!seen.has(stage))seen.set(stage,new Set());seen.get(stage)!.add(s.kind);
+   }
+  }
+  for(let stage=0;stage<8;stage++)for(const kind of WORLDS[stage%4].pieces)
+   assert.ok(seen.get(stage)?.has(kind),`seed ${seed}, stage ${stage}, missing ${kind}`);
+ }
+});
+
+test('fairground lighting and rides animate on game time and respect reduced motion',async()=>{
+ const {AdventureScene}=await import('../src/games/adventure-scene');
+ const {Scene,InstancedMesh}=await import('three');
+ const view=new AdventureScene(new Scene()),track=new MiniTrack(42,{generative:true});
+ track.ensure(2050);
+ const matrices=()=>view.group.children.filter(o=>o instanceof InstancedMesh).map(o=>Array.from((o as InstanceType<typeof InstancedMesh>).instanceMatrix.array));
+ view.render(track,2050,0,0,1);const a=matrices();
+ view.render(track,2050,0,0,2);assert.notDeepEqual(matrices(),a,'Visible fairground rides move');
+ const clock=(view as any).luminous.clock;assert.equal(clock.value,2);
+ const b=matrices();view.render(track,2050,0,0,2);assert.deepEqual(matrices(),b,'Paused clock holds the scene');
+ (view as any).reducedMotion={matches:true};
+ view.render(track,2050,0,0,3);const still=matrices();
+ view.render(track,2050,0,0,40);assert.deepEqual(matrices(),still);assert.equal(clock.value,0);
+ view.destroy();
 });

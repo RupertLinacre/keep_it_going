@@ -5,21 +5,26 @@ export interface AdventureWorld {
   id: WorldKind; name: string; icon: string; invitation: string;
   start: number; end: number; sky: string; ground: string; earth: string;
   rail: string; light: string; ambient: string; darkness: number; maxHeight: number;
+  pieces: readonly MiniKind[];
   challenges: readonly MiniKind[];
 }
 export const WORLDS: readonly AdventureWorld[] = [
   { id: "meadow", name: "Baa Baa Meadows", icon: "✿", invitation: "Wave to the sheep!", start: 0, end: 900,
     sky: "#c6e5e4", ground: "#a9cf77", earth: "#b29366", rail: "#ec9671", light: "#fff3cf", ambient: "#d8efdc", darkness: 0, maxHeight: 30,
-    challenges: ["hill", "loop", "helix", "doubledip", "waveturn", "splash"] },
+    pieces: ["sheepbank", "pondbridge", "windmillloop"],
+    challenges: ["sheepbank", "windmillloop", "pondbridge", "doubledip", "waveturn", "splash"] },
   { id: "mountain", name: "Marmalade Mountains", icon: "▲", invitation: "Up the mountain, through the tunnels!", start: 900, end: 1900,
     sky: "#becfdf", ground: "#9aaea5", earth: "#777f8c", rail: "#edb451", light: "#e5efff", ambient: "#cbd9ed", darkness: .12, maxHeight: 38,
-    challenges: ["mountainpass", "tunnel", "ascendinghelix", "skyhill", "jump", "mountainpass"] },
-  { id: "night", name: "Starlight Carnival", icon: "✦", invitation: "Follow the lights to the stars!", start: 1900, end: 3000,
+    pieces: ["mountainpass", "tunnel", "ravinebridge"],
+    challenges: ["mountainpass", "tunnel", "ravinebridge", "ascendinghelix", "jump", "skyhill"] },
+  { id: "night", name: "Starlight Carnival", icon: "✦", invitation: "Round the carousel. Through the lights!", start: 1900, end: 3000,
     sky: "#17213d", ground: "#344e61", earth: "#253246", rail: "#70e5df", light: "#bdceff", ambient: "#b2c5e6", darkness: 1, maxHeight: 38,
-    challenges: ["lanternrun", "noninvertingloop", "corkscrew", "interlockingloops", "helix", "lanternrun"] },
+    pieces: ["lanternrun", "midwayloop", "carouselhelix"],
+    challenges: ["lanternrun", "midwayloop", "carouselhelix", "noninvertingloop", "corkscrew", "interlockingloops"] },
   { id: "halloween", name: "Pumpkin Party", icon: "☾", invitation: "Friendly frights. Pumpkin delights!", start: 3000, end: 4200,
     sky: "#352440", ground: "#625571", earth: "#403548", rail: "#ffb35d", light: "#f0c1f5", ambient: "#b2a0cd", darkness: .85, maxHeight: 40,
-    challenges: ["pumpkinhop", "tunnel", "pretzelknot", "triplehelix", "zerogstall", "pumpkinhop"] },
+    pieces: ["pumpkinhop", "pumpkintunnel", "witchhat"],
+    challenges: ["pumpkinhop", "pumpkintunnel", "witchhat", "pretzelknot", "triplehelix", "zerogstall"] },
 ];
 export const WORLD_LAP = 4200;
 export function adventureAt(distance: number) {

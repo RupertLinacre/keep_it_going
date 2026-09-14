@@ -1,10 +1,15 @@
 import { Vector3 } from 'three';
 import type { MiniTrack } from './mini-track';
 import { adventureAt } from './adventure-worlds';
+import { carouselCenter } from "./world-night";
+import { witchHatCenter } from "./world-halloween";
 import { seededRandom } from './mini-rail';
+
+const reducedMotion=typeof matchMedia==="function"?matchMedia("(prefers-reduced-motion: reduce)"):undefined;
 
 /** Lightweight world landmarks for devices that cannot create a WebGL context. */
 export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTrack,distance:number,time:number,project:(p:Vector3)=>[number,number],scale:number) {
+  if(reducedMotion?.matches)time=0;
   const oval=(x:number,y:number,rx:number,ry:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill()};
   const rect=(x:number,y:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h)};
   const triangle=(x:number,y:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x-w,y);ctx.lineTo(x,y+h);ctx.lineTo(x+w,y);ctx.closePath();ctx.fill()};
@@ -48,7 +53,49 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       }
       ctx.restore();
     }
-    if(section.kind==='tunnel'){
+    // Signature silhouettes also work without WebGL. They use the same rail
+    // frames as the 3D version, and are drawn behind the real train and rails.
+    if(section.kind==='sheepbank'){
+      ctx.fillStyle='#96c473';ctx.beginPath();
+      const first=project(new Vector3(section.origin.x,0,section.origin.z));ctx.moveTo(...first);
+      for(let i=0;i<=40;i++){
+        const p=section.frames[Math.round(section.resolution*i/40)].position.clone();p.y-=1.4;ctx.lineTo(...project(p));
+      }
+      ctx.lineTo(...project(new Vector3(section.origin.x+section.span,0,section.origin.z)));ctx.closePath();ctx.fill();
+    }
+    if(section.kind==='pondbridge'||section.kind==='ravinebridge'){
+      const p=section.frames[Math.round(section.resolution*.5)].position.clone(),bridge=section.kind==='ravinebridge';
+      const [x,y]=project(new Vector3(p.x,.1,p.z));ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
+      oval(0,0,section.width*.3,1.5,bridge?'#69bfcf':'#7bbfc1');
+      if(bridge){rect(2,.3,3,p.y*.75,'#8bd6db');for(let i=0;i<6;i++)oval(2.5+(i%2)*1.7,.3+(1-(time*.7+i/6)%1)**2*p.y*.75,.1,.3,'#d8f0ed')}
+      else for(let i=0;i<7;i++){oval(-15+i*4,0,.7,.18,'#6b9e6e');if(i%2)oval(-15+i*4,.15,.2,.17,'#edbad0')}
+      ctx.restore();
+      ctx.strokeStyle='#c4a375';ctx.lineWidth=scale*.2;ctx.beginPath();
+      for(let d=0;d<=section.length;d+=6){const p=section.sample(section.start+d).position;ctx.moveTo(...project(new Vector3(p.x,0,p.z)));ctx.lineTo(...project(p))}ctx.stroke();
+    }
+    if(section.kind==='windmillloop'){
+      const y=section.origin.y+section.amplitude,[px,py]=project(new Vector3(section.origin.x+section.width*.5,y,section.origin.z));
+      ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
+      triangle(0,-y,2.7,y,'#e9d3a4');triangle(0,-1.5,3,3,'#d98d72');
+      ctx.rotate(time*.31);for(let i=0;i<4;i++){rect(-.5,0,1,section.amplitude*.57,'#fff0cc');ctx.rotate(Math.PI/2)}ctx.restore();
+    }
+    if(section.kind==='witchhat'||section.kind==='carouselhelix'){
+      const hat=section.kind==='witchhat',c=hat?witchHatCenter(section):carouselCenter(section);
+      const [px,py]=project(new Vector3(section.origin.x+c.x,0,section.origin.z+c.z));ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
+      if(hat){oval(0,1.5,c.radius-.4,.45,'#b099bf');triangle(0,1.5,c.radius-2,section.amplitude,'#aa8cb8');rect(-2.3,3,4.6,.9,'#dcaf66');oval(0,11,.7,.85,'#ffe1a2')}
+      else {rect(-c.radius,1,c.radius*2,1,'#c19bb7');triangle(0,7,c.radius+1,3,'#c896b9');for(let i=0;i<6;i++){const x=Math.sin(time*.3+i*Math.PI/3)*c.radius*.7;rect(x,2,.08,5,'#dcc493');oval(x,4,.5,.25,'#e9d8c4')}}
+      ctx.restore();
+    }
+    if(['midwayloop','carouselhelix','witchhat','lanternrun'].includes(section.kind)){
+      const colors=['#ffd298','#efa4ca','#b2e9d7','#c1aff0'];
+      for(let i=0;i<65;i++){
+        const f=section.sample(section.start+section.length*i/64),p=f.position.clone().addScaledVector(f.up,section.kind==='lanternrun'?4:-1);
+        const [x,y]=project(p);ctx.globalAlpha=.35+.65*(.5+.5*Math.sin(time*1.4-i*.28))**2;
+        oval(x,y,scale*.2,scale*.2,colors[Math.floor(i/5)%4]);
+      }
+      ctx.globalAlpha=1;
+    }
+    if(section.kind==='tunnel'||section.kind==='pumpkintunnel'){
       const p=section.sample(section.start+section.length*.5).position,[x,y]=project(p);
       ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
       // Side cutaway, matching the readable open wall of the 3D model.

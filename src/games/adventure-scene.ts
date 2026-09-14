@@ -1,14 +1,16 @@
-import { halloweenScenery, pumpkinHops, pumpkinTunnel, ghostModel, batModel } from "./world-halloween";
-import { nightScenery, lanternParade } from "./world-night";
-import { mountainScenery, mountainRidge, tunnelModel } from "./world-mountains";
+import { FairgroundLights, fairgroundBeamMaterial } from "./world-lighting";
+import { sheepBanks, lilyBridge, meadowWindmill, duckModel } from "./world-meadow";
+import { halloweenScenery, pumpkinHops, pumpkinTunnel, witchHat, witchHatCenter, ghostModel, batModel } from "./world-halloween";
+import { nightScenery, lanternParade, marqueeLoop, carouselClimb, carouselCenter, carouselModel, gondolaModel } from "./world-night";
+import { mountainScenery, mountainRidge, tunnelModel, ravineBridge } from "./world-mountains";
 import * as T from "three";
-import { adventureAt } from "./adventure-worlds";
+import { adventureAt, type AdventureWorld } from "./adventure-worlds";
 import { WorldModel, WORLD_SHAPES as G } from "./world-models";
 import { sectionBounds } from "./mini-world";
 import { seededRandom } from "./mini-rail";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
-type Actor = { kind: "sheep" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat"; x: number; y: number; z: number; phase: number; size: number };
+type Actor = { kind: "sheep" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "carousel" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number };
 type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
@@ -17,7 +19,8 @@ export class AdventureScene {
   readonly group = new T.Group();
   readonly tiles = new Map<number, Tile>();
   private material = new T.MeshStandardMaterial({ vertexColors: true, roughness: .92, flatShading: true });
-  private luminous = new T.MeshBasicMaterial({ vertexColors: true });
+  private luminous = new FairgroundLights();
+  private beamMaterial = fairgroundBeamMaterial();
   private sheep: T.InstancedMesh;
   private mills: T.InstancedMesh;
   private cables: T.InstancedMesh;
@@ -25,10 +28,15 @@ export class AdventureScene {
   private fireflies: T.InstancedMesh;
   private ghosts: T.InstancedMesh;
   private bats: T.InstancedMesh;
+  private ducks: T.InstancedMesh;
+  private spray: T.InstancedMesh;
+  private carousels: T.InstancedMesh;
+  private gondolas: T.InstancedMesh;
+  private beams: T.InstancedMesh;
   private actorMeshes: Record<Actor["kind"],T.InstancedMesh>;
   private dummy = new T.Object3D();
   private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
-  constructor(scene: T.Scene) {
+  constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld } = {}) {
     scene.add(this.group);
     const sheep = new WorldModel();
     sheep.add(G.round, "#fff5de", [0, 1.05, 0], [1, .64, .65]);
@@ -58,13 +66,19 @@ export class AdventureScene {
     for(let i=0;i<10;i++) {
       const a=i*Math.PI/5;
       wheel.add(G.box,'#718fb7',[Math.sin(a)*3.5,Math.cos(a)*3.5,0],[.065,7,.065],[0,0,-a],true);
-      wheel.add(G.round,i%2?'#ffd69c':'#e9a2cb',[Math.sin(a)*7,Math.cos(a)*7,0],[.65,.75,.6],[],true);
+      wheel.add(G.round,i%2?'#ffd69c':'#e9a2cb',[Math.sin(a)*7,Math.cos(a)*7,0],[.22,.22,.22],[],true,i*.7);
     }
     this.wheels=this.instances(wheel,true);
     const firefly=new WorldModel();firefly.add(G.round,'#c4f8a4',[0,0,0],[.1,.1,.1],[],true);
     this.fireflies=this.instances(firefly,true);
     this.ghosts=this.instances(ghostModel());this.bats=this.instances(batModel());
-    this.actorMeshes={sheep:this.sheep,mill:this.mills,cable:this.cables,wheel:this.wheels,firefly:this.fireflies,ghost:this.ghosts,bat:this.bats};
+    this.ducks=this.instances(duckModel());
+    const spray=new WorldModel();spray.add(G.round,"#d5f0f0",[0,0,0],[.18,.45,.18],[],true);this.spray=this.instances(spray,true);
+    this.carousels=this.instances(carouselModel());this.gondolas=this.instances(gondolaModel());
+    const beamGeometry=new T.CylinderGeometry(.22,0,1,16,1,true);beamGeometry.translate(0,.5,0);
+    this.beams=new T.InstancedMesh(beamGeometry,this.beamMaterial,192);this.beams.count=0;this.beams.frustumCulled=false;
+    this.beams.instanceMatrix.setUsage(T.DynamicDrawUsage);this.group.add(this.beams);
+    this.actorMeshes={sheep:this.sheep,mill:this.mills,cable:this.cables,wheel:this.wheels,firefly:this.fireflies,ghost:this.ghosts,bat:this.bats,duck:this.ducks,spray:this.spray,carousel:this.carousels,gondola:this.gondolas,beam:this.beams};
   }
   private instances(model: WorldModel, glow=false) {
     const source = model.finish(this.material, this.luminous).children[0] as T.Mesh;
@@ -74,14 +88,14 @@ export class AdventureScene {
   }
   private build(section: MiniSection, track: MiniTrack): Tile {
     const model = new WorldModel(true), actors: Actor[] = [];
-    const world = adventureAt(Math.max(0, section.start)).world;
+    const world = this.options.world ?? adventureAt(Math.max(0, section.start)).world;
     const random = seededRandom((track.seed ^ Math.imul(section.id + 17, 17041)) >>> 0);
     const bounds = sectionBounds(section);
     const back = -Math.max(10,Math.abs(bounds.min.z-section.origin.z),Math.abs(bounds.max.z-section.origin.z))-12;
     const front = Math.max(9, bounds.max.z - section.origin.z + 7);
     const span = section.span;
     const n = Math.min(12, Math.max(1, Math.ceil(span / 32)));
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < (this.options.attractionsOnly ? 0 : n); i++) {
       const x = span * (i+.5) / n;
       if(world.id==='mountain') {
         mountainScenery(model,x,back,front,random);
@@ -95,9 +109,17 @@ export class AdventureScene {
         if(i===0 && section.id%4===0) {
           const z=back-3;
           for(const side of [-1,1]) model.add(G.box,'#797aa7',[x+side*2.3,4.5,z],[.3,10,.3],[0,0,side*-.46]);
-          actors.push({kind:'wheel',x,y:9,z,phase:random()*6.28,size:1});
+          const phase=random()*6.28;
+          actors.push({kind:'wheel',x,y:9,z,phase,size:1});
+          for(let j=0;j<10;j++)actors.push({kind:'gondola',x,y:9,z:z+.2,phase:phase+j*Math.PI*2/10/.19,size:1});
         }
-        for(let j=0;j<10;j++)actors.push({kind:'firefly',x:x-14+random()*28,y:1+random()*3,z:front+random()*7,phase:random()*6.28,size:.7+random()});
+        if(i===0){
+          for(const dx of [-9,9]){
+            model.add(G.pole,'#73698a',[x+dx,.5,back+3],[.65,1,.65]);
+            actors.push({kind:'beam',x:x+dx,y:1,z:back+3,phase:random()*6.28,size:26});
+          }
+        }
+        for(let j=0;j<10;j++)actors.push({kind:'firefly' ,x:x-14+random()*28,y:1+random()*3,z:front+random()*7,phase:random()*6.28,size:.7+random()});
       } else if(world.id==='halloween') {
         halloweenScenery(model,x,back,front,random);
         for(let j=0;j<2;j++)actors.push({kind:'ghost',x:x-10+random()*20,y:2+random()*2,z:front+2+random()*5,phase:random()*6.28,size:.9+random()*.4});
@@ -105,29 +127,62 @@ export class AdventureScene {
       } else this.meadow(model, actors, x, back, front, random);
     }
     let formation:T.Group|undefined;
+    if (['sheepbank','pondbridge','windmillloop'].includes(section.kind)) {
+      const attraction=new WorldModel();
+      if(section.kind==='sheepbank')sheepBanks(attraction,section);
+      if(section.kind==='pondbridge') {
+        lilyBridge(attraction,section);
+        for(let i=0;i<4;i++)actors.push({kind:'duck',x:section.span*.4+i*1.3,y:.32,z:section.hand*4+9+i*.3,phase:i*.7,size:1,onTrack:true});
+      }
+      if(section.kind==='windmillloop') {
+        meadowWindmill(attraction,section);
+        actors.push({kind:'mill',x:section.width*.5,y:section.origin.y+section.amplitude,z:-3.1,phase:0,size:section.amplitude*.22,onTrack:true});
+      }
+      formation=attraction.finish(this.material,this.luminous);this.group.add(formation);
+    }
     if(section.kind==='pumpkinhop'||section.kind==='lanternrun') {
       const decoration=new WorldModel();
       if(section.kind==='pumpkinhop')pumpkinHops(decoration,section);else lanternParade(decoration,section);
       formation=decoration.finish(this.material,this.luminous);this.group.add(formation);
     }
+    if(section.kind==='ravinebridge') {
+      const viaduct=new WorldModel();ravineBridge(viaduct,section);formation=viaduct.finish(this.material,this.luminous);this.group.add(formation);
+      const p=section.frames[Math.round(section.resolution*.5)].position;
+      for(let i=0;i<14;i++)actors.push({kind:'spray',x:p.x-section.origin.x+1.7+(i%3)*1.2,y:p.y*.8,z:p.z-section.origin.z-9.6,phase:i/14,size:.8+(i%3)*.2,drop:p.y*.8,onTrack:true});
+    }
+    if(section.kind==='midwayloop'||section.kind==='carouselhelix') {
+      const attraction=new WorldModel();
+      if(section.kind==='midwayloop')marqueeLoop(attraction,section);
+      else {
+        carouselClimb(attraction,section);
+        const {x,z,radius}=carouselCenter(section);
+        actors.push({kind:'carousel',x,y:0,z,phase:0,size:radius/3.7,onTrack:true});
+      }
+      formation=attraction.finish(this.material,this.luminous);this.group.add(formation);
+    }
+    if(section.kind==='witchhat') {
+      const hat=new WorldModel();witchHat(hat,section);formation=hat.finish(this.material,this.luminous);this.group.add(formation);
+      const {x,z}=witchHatCenter(section);
+      for(let i=0;i<3;i++)actors.push({kind:'ghost',x:x+(i-1)*4,y:section.origin.y+section.amplitude*.45+i,z:z+8,phase:i*2,size:.9,onTrack:true});
+    }
     if(section.kind==='mountainpass') {
       const ridge=new WorldModel();mountainRidge(ridge,section);formation=ridge.finish(this.material,this.luminous);this.group.add(formation);
     }
-    if(section.kind==='tunnel') {
+    if(section.kind==='tunnel'||section.kind==='pumpkintunnel') {
       const base=new WorldModel(),f=section.sample(section.start+section.length*.5).position;
       base.add(G.box,world.id==='halloween'?'#b69a72':'#a0ada8',[f.x-section.origin.x,(f.y-.3)/2,f.z-section.origin.z],[16,f.y-.3,8]);
       formation=base.finish(this.material,this.luminous);this.group.add(formation);
     }
     const root = model.finish(this.material, this.luminous);
     this.group.add(root);
-    const tunnel=section.kind==='tunnel'?(world.id==='halloween'?pumpkinTunnel(this.material,this.luminous):tunnelModel(this.material,this.luminous)):undefined;
+    const tunnel=['tunnel','pumpkintunnel'].includes(section.kind)?(section.kind==='pumpkintunnel'||world.id==='halloween'?pumpkinTunnel(this.material,this.luminous):tunnelModel(this.material,this.luminous)):undefined;
     if(tunnel)this.group.add(tunnel);
     return { root, actors, section, tunnel, formation };
   }
   private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
     // Broad, overlapping hills read as a landscape rather than miniature cones.
-    m.add(G.round, r()>.5 ? "#88b968" : "#97c574", [x, -2, back-11], [24, 9+r()*8, 15]);
-    m.add(G.round, "#afcf84", [x+9, -2, back-31], [29, 18+r()*8, 20]);
+    m.add(G.round, r()>.5 ? "#88b968" : "#97c574", [x, -2, back-19], [24, 9+r()*8, 15]);
+    m.add(G.round, "#afcf84", [x+9, -2, back-38], [29, 18+r()*8, 20]);
     for(let i=0;i<3;i++) {
       const sx=x-9+r()*18, z=front+1+r()*5;
       actors.push({kind:"sheep",x:sx,y:.15,z,phase:r()*6.28,size:.8+r()*.35});
@@ -159,10 +214,11 @@ export class AdventureScene {
   }
   render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number) {
     if(this.reducedMotion?.matches)time=0;
+    this.luminous.clock.value=time;
     const visible = track.sections.filter(s=>s.start<distance+350);
     const ids = new Set(visible.map(s=>s.id));
     for (const [id,tile] of this.tiles) if(!ids.has(id)) { this.release(tile); this.tiles.delete(id); }
-    const counts:Record<Actor["kind"],number>={sheep:0,mill:0,cable:0,wheel:0,firefly:0,ghost:0,bat:0};
+    const counts:Record<Actor["kind"],number>={sheep:0,mill:0,cable:0,wheel:0,firefly:0,ghost:0,bat:0,duck:0,spray:0,carousel:0,gondola:0,beam:0};
     const leadX=track.sample(distance).position.x;
     for (const section of visible) {
       let tile=this.tiles.get(section.id);
@@ -186,25 +242,33 @@ export class AdventureScene {
           tile.mirrorTunnel.quaternion.set(-f.rotation.x,-f.rotation.y,f.rotation.z,f.rotation.w);tile.mirrorTunnel.scale.z=-1;
         }
       }
-      for(const actor of tile.actors) {
+      for(const actor of tile.actors) for(const mirror of actor.onTrack && laneOffset ? [false,true] : [false]) {
         const mesh=this.actorMeshes[actor.kind],index=counts[actor.kind]++;
         if(index>=192)continue;
         const phase=time*.9+actor.phase;
-        this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y, actor.z+(laneOffset&&actor.z<0?-section.origin.z-laneOffset:section.origin.z+laneOffset));
+        const worldZ = actor.onTrack ? (section.origin.z+actor.z+laneOffset)*(mirror?-1:1)
+          : actor.z+(laneOffset&&actor.z<0?-section.origin.z-laneOffset:section.origin.z+laneOffset);
+        this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y,worldZ);
         this.dummy.rotation.set(0,actor.kind==="sheep"?Math.sin(phase*.3)*.16+actor.phase:0,actor.kind==="mill"?phase*.35:Math.sin(phase)*.035);
         if(actor.kind==='ghost') {this.dummy.position.y+=Math.sin(phase)*.55;this.dummy.rotation.set(0,Math.sin(phase*.8)*.25,Math.sin(phase)*.08);}
         if(actor.kind==='bat') {this.dummy.position.x+=Math.sin(phase*.6)*2;this.dummy.position.y+=Math.cos(phase)*.6;this.dummy.rotation.set(0,Math.sin(phase*.5)*.4,0);}
         if(actor.kind==='wheel')this.dummy.rotation.set(0,0,phase*.19);
+        if(actor.kind==='gondola'){this.dummy.position.x-=Math.sin(phase*.19)*7;this.dummy.position.y+=Math.cos(phase*.19)*7;this.dummy.rotation.set(0,0,0);}
+        if(actor.kind==='carousel')this.dummy.rotation.set(0,time*.3,0);
+        if(actor.kind==='beam')this.dummy.rotation.set(Math.sin(phase*.25)*.22,0,Math.sin(phase*.4)*.42);
         if(actor.kind==='firefly') {
           this.dummy.position.x+=Math.sin(phase*.9)*.8;this.dummy.position.y+=Math.sin(phase)*.6;
           this.dummy.position.z+=Math.cos(phase*.7)*.6;
         }
+        if(actor.kind==='spray') {const fall=(time*.7+actor.phase)%1;this.dummy.position.y=.25+(actor.drop??12)*(1-fall*fall);this.dummy.rotation.set(0,0,0);}
+        if(actor.kind==='duck') {this.dummy.position.x+=Math.sin(phase*.25)*2;this.dummy.position.y+=Math.sin(phase)*.07;this.dummy.rotation.set(0,Math.sin(phase*.25)*.3,0);}
         if(actor.kind==='cable') {this.dummy.position.x+=Math.sin(phase*.24)*9;this.dummy.rotation.set(0,0,Math.sin(phase)*.025);}
         if(actor.kind==='sheep' && !this.reducedMotion?.matches) {
           const passing=(leadX-section.origin.x-actor.x+8)/16;
           this.dummy.position.y+=passing>0&&passing<1?Math.sin(passing*Math.PI)*.7:0;
         }
         this.dummy.scale.setScalar(actor.size*(actor.kind==='firefly'?.5+.5*Math.sin(phase*.7)**2:1));if(actor.kind==='bat')this.dummy.scale.y*=.35+.65*Math.abs(Math.sin(time*5+actor.phase));
+        if(mirror){this.dummy.quaternion.x*=-1;this.dummy.quaternion.y*=-1;}
         this.dummy.updateMatrix();mesh.setMatrixAt(index,this.dummy.matrix);
       }
     }
@@ -220,7 +284,7 @@ export class AdventureScene {
   }
   destroy() {
     this.tiles.forEach(tile=>this.release(tile));this.tiles.clear();
-    for(const mesh of [this.sheep,this.mills,this.cables,this.wheels,this.fireflies,this.ghosts,this.bats]) {mesh.geometry.dispose();mesh.dispose()}
-    this.material.dispose();this.luminous.dispose();this.group.removeFromParent();
+    for(const mesh of [this.sheep,this.mills,this.cables,this.wheels,this.fireflies,this.ghosts,this.bats,this.ducks,this.spray,this.carousels,this.gondolas,this.beams]) {mesh.geometry.dispose();mesh.dispose()}
+    this.material.dispose();this.luminous.dispose();this.beamMaterial.dispose();this.group.removeFromParent();
   }
 }

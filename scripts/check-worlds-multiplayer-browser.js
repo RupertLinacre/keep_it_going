@@ -78,16 +78,21 @@ async page => {
       g.physics.distance=section.start+section.length*.5;g.physics.previousDistance=g.physics.distance;g.physics.velocity=0;g.physics.flight=undefined;g.physics.traces=[];
       g.carriages.parcels.length=0;g.carriages.flights.length=0;g.carriages.explosions.length=0;
     });
+    for(const p of [page,phone])await p.evaluate(async()=>{
+      const {MiniTrack}=await import('/src/games/mini-track.ts');
+      const track=new MiniTrack(window.raceGame.track.seed,{generative:true});track.ensure(0,5000);
+      window.worldRaceSections=track.sections.slice();
+    });
     report.worlds=[];
-    for(const [kind,min,max]of [['mountainpass',900,1900],['tunnel',900,1900],['lanternrun',1900,3000],['pumpkinhop',3000,4200],['tunnel',3000,4200]]){
+    for(const [kind,min,max]of [['sheepbank',0,900],['pondbridge',0,900],['windmillloop',0,900],['mountainpass',900,1900],['tunnel',900,1900],['ravinebridge',900,1900],['lanternrun',1900,3000],['midwayloop',1900,3000],['carouselhelix',1900,3000],['pumpkinhop',3000,4200],['pumpkintunnel',3000,4200],['witchhat',3000,4200]]){
       for(const p of [page,phone])await p.evaluate(({kind,min,max})=>{
         const g=window.raceGame;
-        for(let at=g.physics.distance;at<min+50;at+=100)g.track.ensure(at,600);
-        g.track.ensure(min+50,600);
+        const route=window.worldRaceSections;
+        g.track.sections.splice(0,g.track.sections.length,...route.filter(s=>s.end>=min-180));
         const s=g.track.sections.find(s=>s.kind===kind&&s.start>=min&&s.start<max);
         if(!s)throw Error('Missing world section '+kind+' at '+min);
         g.physics.distance=s.start+s.length*.48;g.physics.previousDistance=g.physics.distance;g.physics.velocity=0;g.physics.flight=undefined;g.physics.traces=[];
-        g.track.ensure(g.physics.distance,600);g.powerups.finish(g.physics,g.carriages);g.powerups.gate=undefined;
+        g.powerups.finish(g.physics,g.carriages);g.powerups.gate=undefined;
         g.carriages.coaches.forEach(c=>{c.lift=0;c.liftSpeed=0});if(g.view)g.view.cameraRig.height=0;
       },{kind,min,max});
       await page.waitForTimeout(1800);
@@ -104,6 +109,11 @@ async page => {
       await page.screenshot({path:`output/playwright/world-race-${views[0].world}-${kind}-desktop${suffix}.png`});
       await phone.screenshot({path:`output/playwright/world-race-${views[0].world}-${kind}-mobile${suffix}.png`});
     }
+    for(const p of [page,phone])await p.evaluate(async()=>{
+      const {MiniTrack}=await import('/src/games/mini-track.ts'),g=window.raceGame;
+      const track=new MiniTrack(g.track.seed,{generative:true});track.ensure(g.physics.distance,600);
+      g.track=track;g.physics.track=track;g.carriages.track=track;g.opponent.track=track;if(g.view)g.view.track=track;
+    });
     report.powers=[];
     const kinds=['ice','reverse','cargo','heavy','wind'];
     for(let i=0;i<kinds.length;i++){
@@ -118,8 +128,8 @@ async page => {
     }
     await page.screenshot({path:`output/playwright/remix-race-desktop${suffix}.png`,scale:'css'});await phone.screenshot({path:`output/playwright/remix-race-mobile${suffix}.png`,scale:'css'});
     await page.keyboard.press('p');await phone.getByRole('heading',{name:'Parent paused.'}).waitFor();
-    const before=await Promise.all([page.evaluate(()=>window.raceGame.powerups.remaining),phone.evaluate(()=>window.raceGame.powerups.remaining)]);
-    await page.waitForTimeout(500);const after=await Promise.all([page.evaluate(()=>window.raceGame.powerups.remaining),phone.evaluate(()=>window.raceGame.powerups.remaining)]);
+    const before=await Promise.all([page.evaluate(()=>[window.raceGame.powerups.remaining,window.raceGame.view?.adventureScene.luminous.clock.value]),phone.evaluate(()=>[window.raceGame.powerups.remaining,window.raceGame.view?.adventureScene.luminous.clock.value])]);
+    await page.waitForTimeout(500);const after=await Promise.all([page.evaluate(()=>[window.raceGame.powerups.remaining,window.raceGame.view?.adventureScene.luminous.clock.value]),phone.evaluate(()=>[window.raceGame.powerups.remaining,window.raceGame.view?.adventureScene.luminous.clock.value])]);
     check(JSON.stringify(before)===JSON.stringify(after),'Pause freezes both power clocks');await page.locator('[data-overlay="resume"]').click();
     for(const p of [page,phone])await p.evaluate(()=>{
       const g=window.raceGame;g.track.ensure(g.physics.distance,2500);const pool=g.track.sections.find(s=>s.kind==='splash');

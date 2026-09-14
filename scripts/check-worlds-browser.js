@@ -1,13 +1,14 @@
 // Run with playwright-cli against Vite. Real game updates + real-time frame pacing.
 async page => {
  const base=await page.evaluate(()=>new URL('/',location.href).href),report=[],errors=[];
+ const requested=await page.evaluate(()=>window.attractionWorld||'all');
  const phone=await page.context().browser().newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});
  try {
   for(const mobile of [false,true]) {
    const p=mobile?await phone.newPage():page;
    p.on('pageerror',e=>errors.push(e.message));
    if(!mobile)await p.setViewportSize({width:1440,height:900});
-   for(const [world,target]of [['meadow',180],['mountain',1120],['night',2120],['halloween',3220]]) {
+   for(const [world,target]of [['meadow',180],['mountain',1120],['night',2120],['halloween',3220]].filter(([w])=>requested==='all'||w===requested)) {
     await p.goto(base+'?mode=remix&seed=42');
     await p.evaluate(async()=>{
      const url=performance.getEntriesByType('resource').find(e=>e.name.includes('/src/games/mini.ts')).name;

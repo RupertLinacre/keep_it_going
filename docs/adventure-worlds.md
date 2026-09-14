@@ -1,43 +1,59 @@
 # Adventure worlds — design and validation
 
-Work branch: `feature/adventure-worlds`. Default Remix rides now follow four distance-based worlds. Classic remains available.
+Work branch: `feature/adventure-worlds`. Remix progresses through four distance-based worlds. Classic remains available. This document describes the refined version with twelve signature attractions.
 
-## 1. Baa Baa Meadows
+## The four worlds
 
-Rolling low-poly hills, flower meadows, farm fences, gently animated sheep and windmills. Scenery is seeded, fixed in world space, batched by material, and excluded from camera framing. Both race lanes use the same course and scenery. The question and controls stay level and legible.
+| World | Three signature track pieces | Scenery and animation |
+| --- | --- | --- |
+| Baa Baa Meadows | **Sheep Shuffle**, **Lily Pad Bridge**, **Windmill Loop** | Track-shaped grassy banks, flower beds, hay bales, hopping sheep, ducks swimming amongst lilies, curved timber decking and turning sails inside the loop silhouette. |
+| Marmalade Mountains | **Mountain Pass**, **Glowstone Tunnel**, **Waterfall Viaduct** | Snowy peaks, pines, cable cars and chalets. The summit has a lookout, flag and goat. Glowing crystals fill the cutaway tunnel; a high timber trestle crosses a turquoise ravine beside falling water. |
+| Starlight Carnival | **Rainbow Midway**, **Marquee Loop**, **Carousel Climb** | A night-time funfair with ticket/candy-floss booths, bunting, garlands, chasing bulbs, soft sweeping stage beams, coloured fountains, a rotating carousel and Ferris wheels with upright cabins. The loop wears a glowing star; two rising turns circle the carousel. |
+| Pumpkin Party | **Pumpkin Hops**, **Pumpkin Portal**, **Witch’s Hat** | Three distinct crests, a giant cutaway pumpkin, and a climb followed by three descending spirals around a crooked hat. Amber lanterns, rosy-cheeked ghosts, fluttering bats, smiling pumpkins, vines and warm windows keep it friendly. |
 
-Validation: desktop 1440×900 and mobile 390×844 visual review. Opening scene: 82 draw calls, 224,382 triangles, 48 geometry buffers; no browser errors. All 127 existing tests passed. Nine actual-game simulations (seeds 1, 42, 73; 4.8s answers on Very easy, 3.2s on Easy, 2s on Medium; 94% answer probability and ±20% timing jitter) reached the mountains in 24–33 seconds. These are design assumptions, not measured child performance.
+World boundaries are near 900 / 1,900 / 3,000 course metres, at the next section start. Another adventure begins after 4,200 metres. Every world starts with its three signature pieces, separated by short breathers. Its remaining pieces are shuffled, with varied shapes/proportions and additional inversions unlocked on subsequent adventures. A long random element cannot displace a signature beyond the next world boundary.
 
-World announcements fade after 3.8 seconds; a small journey badge remains. No new controls are required.
+Generative scale stops growing at 2×. Base-course height caps are 30 / 38 / 38 / 40 metres, with at most four turns. Sky lift retains its ability to raise the course further. Scenery is excluded from camera framing; the existing 3× zoom cap remains.
 
-## 2. Marmalade Mountains
+## Rendering and playability
 
-Snow-capped peaks, alpine pools, pines, chalets, slowly travelling cable cars and a summit flag. The new Mountain Pass climbs a winding ridge built from its actual rail geometry. Lantern-lit tunnels have a camera-facing cutaway to keep the whole train readable. Tunnels follow the track when Sky lift raises it.
+Scenery uses baked vertex colours and merged material batches. Twelve fixed-capacity instance buffers cover creatures, rides, waterfall spray and stage beams. Each buffer holds at most 192 actors. Old scenery tiles and their geometry are released as the track scrolls past. Mirrored race formations share geometry and dispose it exactly once.
 
-Validation: summit and tunnel desktop/phone screenshots inspected; opened the first roof further after it obscured coaches. Nine simulations reached Starlight in 48–64 seconds. New tests check world boundaries, deterministic signature pieces, bounded later elements, smooth upright joins and energy conservation for all four new shapes. All 130 tests pass.
+Fairground bulbs use one shared shader with a baked phase per bulb. Their brightness travels smoothly around loops and garlands on an approximately 4.5-second cycle. Ordinary lamps remain steady. Coloured fountain streams use the same material. Stage beams are translucent instanced geometry; they do not add shadow-casting spotlights or a full-screen bloom pass. Carousels rotate, wheel cabins remain upright, and the waterfall spray falls from a fixed location.
 
-## 3. Starlight Carnival
+Animations use game time, so pausing freezes them. Reduced-motion mode holds both lighting and decorative rides still. The question panel and mobile keypad are unchanged; world welcomes fade to a small journey badge.
 
-Cool night lighting with warm train illumination, luminous rails, scattered stars, fireflies, mushroom lamps, reflected lights, fairground pavilions and rotating illuminated wheels. Lantern Parade has seven pairs of lanterns tracing its rolling hills. Kept wheels occasional after the first visual check felt too crowded. World welcomes now sit low in the view to avoid covering the train.
+Both racers generate the same seeded course, with personal difficulties and consistent identity colours. Shared landscape sits behind both lanes. Track-specific structures and their animated parts appear on each mirrored lane. Protocol **7** separates this course generator from older protocol 5/6 builds; no additional per-frame network payload is needed.
 
-Validation: actual browser game advanced through normal question/physics updates into night; desktop and phone captures checked. No browser errors; the initial scene was 100 draw calls and 160,426 triangles. Nine timing-profile simulations reached Pumpkin Party in 63–94 seconds.
+The Canvas fallback includes recognisable world landmarks and all signature silhouettes. The track gallery filters by world and previews the actual attraction scenery and animation, with all original sections still available.
 
-## 4. Pumpkin Party
+## Validation of this refinement
 
-Glowing smiling pumpkins, gently bobbing ghosts with rosy cheeks, flapping bats, crooked lit cottages, candy lantern fences and a giant pumpkin tunnel. Pumpkin Hops puts three smaller crests through a pumpkin patch. No jump scares or flashing horror effects. The pumpkin tunnel and mountain tunnel are guaranteed just after each world's first landmark. The initial director could postpone a tunnel beyond the next border; this was caught in the artwork checks and corrected.
+- Geometry tests cover all twelve signatures: finite frames, smooth tangents, perpendicular rail frames, upright joins and energy conservation without drag.
+- An 80-seed test spans two complete adventures per seed, using different generation lookaheads. Every world includes all three unique signature pieces.
+- Later-course tests retain bounded heights and turns while allowing encore inversions.
+- A 9 km scenery lifecycle test checks bounded tiles/actors and exactly one disposal of each owned/shared geometry. Separate checks verify animation, pause and reduced-motion behaviour.
+- Each world was developed and visually checked before continuing to the next. Desktop 1440×900 and phone 390×844 captures cover every attraction. Visual review corrected the bridge waterfall clipping, overly dense spiral supports, a dark witch’s hat, and a rail-origin offset in the new gallery previews.
+- Nine full-game simulations used seeds 1, 42 and 73 with 4.8-second answers on Very easy, 3.2 seconds on Easy and 2 seconds on Medium, 94% answer success and ±20% timing jitter. All nine reached 4.4 km without ending, in 99–126 seconds. These are explicit design assumptions, not measured child performance.
+- Real PeerJS desktop/phone races passed normal keyboard and touch answers, all twelve mirrored attractions, matching positions and colours, five independent powers, eight-box/TNT replication, simultaneous flooded splashes, shared pause, small/rotated phone layouts, results, rematch and leaving. Repeated with WebGL disabled on the phone, exercising the software renderer. Both opening races measured approximately 60 FPS; no page errors.
+- The gallery was checked for all twelve previews, world filtering, previous/next navigation, pause, mobile layout and return to the original pieces. Browser checks also capture WebGL shader errors from the console.
 
-Validation: actual-game simulation through Halloween plus unpowered artwork fixtures for Pumpkin Hops and the tunnel, on desktop and phone. Corrected dark-world powerup tinting to preserve the night palette. All nine final timing-profile rides reached Halloween and travelled 4.4 km without ending; first-loop revisits occur at the next section boundary, which can be later than the nominal 4.2 km. Typical first entry into Halloween was around 62–92 seconds. Without answers, the seed-42 Medium ride stops after 23.4 seconds; with 8-second attempts it stopped at 20.3 seconds. With 4.8-second or 2-second attempts it remained running at the 180-second test limit, reaching 5.27 / 6.70 km. Powerups can make individual seeds more forgiving.
+Reproducible scripts:
 
-## Final integration and performance
+- `npm test`
+- `npx tsx scripts/playtest-worlds.ts` (`--distance=950` etc. for a single world checkpoint)
+- `scripts/check-world-attractions-browser.js` — all twelve desktop/phone visual fixtures
+- `scripts/check-world-gallery-browser.js` — world selector and decorated previews
+- `scripts/check-worlds-browser.js` — six measured seconds per world/layout after warm-up
+- `scripts/check-worlds-multiplayer-browser.js` — two actual connected clients, plus optional software phone
+- `scripts/check-world-transitions-browser.js` — continuous 125-second ride, including streaming and transitions
 
-- World transitions use section starts near 0 / 900 / 1,900 / 3,000 course metres. Beyond 4,200 metres the sequence repeats with different arrangements and extra silhouettes, including nested loops. Generative growth stops increasing after 2×; world height caps are 30 / 38 / 38 / 40 metres, with at most four helix turns. Sky lift still raises track above those base-course limits.
-- The start screen introduces the four destinations. Brief welcomes fade; the compact journey badge remains. An inactive powerup panel with no gate is hidden. Decorative animation respects reduced-motion preferences and the game's paused clock.
-- New scenery is vertex-colour batched, with seven fixed-capacity actor batches. Static backdrops sit behind both race lanes rather than being duplicated over the other track. Track-attached terrain, lantern parades and tunnels are mirrored per lane. Scenery extends over solid ground and cannot affect camera framing.
-- Protocol 6 separates these seeded courses from older protocol-5 builds. No new snapshot fields or per-frame networking were needed. Classic remains available.
-- All 133 automated tests pass, including geometry continuity/energy, guaranteed tunnels, late-course size limits and a 9 km scenery lifecycle check that verifies bounded tiles/actors and exactly one disposal per shared geometry.
-- Browser measurements used Chromium / ANGLE Metal on an Apple M4. Each world was played for six measured seconds after settling, at desktop 1440×900 and phone-emulated 390×844 with DPR 2. Across eight runs, median frame time was 16.7 ms; p95 was 16.7–16.8 ms and p99 16.8 ms. No measured frame exceeded 50 ms. Visible draw counts ranged from 62 to 103. These measurements do not substitute for testing on a physical low-end phone.
-- Two actual PeerJS clients passed normal keyboard/touch play, five world landmarks, matching seeds and role colours, scenery placement, five independent race powers, eight-box/TNT replication, simultaneous splashes, shared pause, rotated/small phone layouts, results agreement, rematch and leaving. Both clients averaged 60 FPS during the natural-play sample. Repeated with WebGL disabled on the phone, using the software world renderer; no page errors.
+Browser scripts run through `playwright-cli run-code` against Vite. Screenshots and measurement JSON are saved locally in `output/playwright/` (ignored by Git). Checkpoint screenshots are distinct from real-time performance tests. Frame measurements use Chromium / ANGLE Metal on an Apple M4; phone emulation does not replace testing on a physical low-end phone.
 
-Reproducible browser scripts: `scripts/check-worlds-browser.js` and `scripts/check-worlds-multiplayer-browser.js`. Playtest profiles: `scripts/playtest-worlds.ts`. Local screenshots and JSON reports live under `output/playwright/` (ignored by Git). Browser checkpoint fixtures are deliberately distinguished from natural-play frame measurements.
+## Final performance results
 
-The final continuous desktop test ran 125 seconds and 5.93 km with 77 answers, covering all four worlds and part of a second adventure. Each world's p99 frame time was 16.8 ms. The only frame above 50 ms was a 100 ms initial construction frame at game time zero; there were none during the ride or world transitions. It ended still running, with eight scenery tiles and 83 renderer geometry buffers. The combined local report is `output/playwright/world-validation.json`.
+All **135 tests** and the production build passed. Eight real-time world/layout measurements recorded a 16.7 ms median and 18.7 ms p99 (approximately 60 FPS), with no frame over 50 ms. Visible draw counts ranged from 73 to 132.
+
+The continuous desktop ride ran 125 seconds, travelled 5.88 km and answered 77 questions. It covered all four worlds and returned to the mountains, ending still in play. Every world's p99 was 18.7 ms. The only frame over 50 ms was 98.1 ms at game time zero, during initial construction; there were none during the ride or world transitions. It finished with five scenery tiles and 85 geometry buffers.
+
+Combined measurements, simulations and visual-check reports are saved in `output/playwright/world-refinement-validation.json`.

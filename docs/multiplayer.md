@@ -4,7 +4,7 @@ The annotated tag `v2.1` preserves the deployed single-player release at source 
 
 ## Connection and round lifecycle
 
-`src/multiplayer/session.ts` follows the PeerJS invite-code approach in `arithmetic_annihilation_mp_branch/src/multiplayer/MultiplayerSession.ts`. It has its own `keep-going-v6-` signalling namespace, so an invite cannot join the other game. PeerJS is loaded only when a player creates or joins a room. It uses the library’s public signalling and default STUN/TURN configuration. No separate application server, camera or microphone is needed. [PeerJS documents this connection flow](https://peerjs.com/client/getting-started).
+`src/multiplayer/session.ts` follows the PeerJS invite-code approach in `arithmetic_annihilation_mp_branch/src/multiplayer/MultiplayerSession.ts`. It has its own `keep-going-v7-` signalling namespace, so an invite cannot join the other game. PeerJS is loaded only when a player creates or joins a room. It uses the library’s public signalling and default STUN/TURN configuration. No separate application server, camera or microphone is needed. [PeerJS documents this connection flow](https://peerjs.com/client/getting-started).
 
 The host chooses the game mode, track seed, question seed and tables. A prepare/ready handshake waits for both games to load before starting the three-second countdown; measured connection round-trip time adjusts the guest’s countdown delay. Both clients use the existing fixed 120 Hz coaster simulation. Each device owns only its own game, so network delays do not delay a correct-answer boost or affect local coach physics. `src/questions.ts` supplies a separate seeded deck covering every selected table against factors 1–12 without repeats within a deck. Question order does not depend on frame rate, scenery or the opponent’s answers.
 
@@ -36,4 +36,4 @@ A production build served under `/keep_it_going/` passed the real-browser workfl
 
 Remix races and their five independent powers are described in [the Remix notes](remix.md#two-player-remix). Classic remains available and uses the same connection lifecycle.
 
-Adventure-world builds use protocol 6 so they cannot accidentally join a protocol 5 course with different generated rails. Worlds themselves require no additional per-frame network payload: both sides derive them from the seeded course.
+Adventure-world builds use protocol 7 so they cannot accidentally join an older protocol 5 or 6 course with different generated rails. Worlds themselves require no additional per-frame network payload: both sides derive them from the seeded course.

@@ -362,7 +362,7 @@ export class MiniView {
     group.add(sleepers);
     const supports: THREE.Vector3[] = [];
     const supportDistances: number[] = [];
-    for (let s = section.start + 0.8; s < section.end; s += 2.4) {
+    for (let s = section.start + 0.8; s < section.end; s += (["carouselhelix", "witchhat"].includes(section.kind) ? 8 : ["pondbridge", "ravinebridge"].includes(section.kind) ? 12 : 2.4)) {
       if (!section.hasRail(s)) continue;
       const f = section.sample(s);
       const local = f.position.clone().sub(section.origin);

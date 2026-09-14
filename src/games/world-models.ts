@@ -8,7 +8,7 @@ export class WorldModel {
   private frontSolid: T.BufferGeometry[] = [];
   private frontGlow: T.BufferGeometry[] = [];
   constructor(private splitLandscape=false) {}
-  add(geometry: T.BufferGeometry, color: string, position: number[], scale = [1, 1, 1], rotation = [0, 0, 0], glow = false) {
+  add(geometry: T.BufferGeometry, color: string, position: number[], scale = [1, 1, 1], rotation = [0, 0, 0], glow = false, phase = -1) {
     const g = geometry.index ? geometry.toNonIndexed() : geometry.clone(); g.deleteAttribute("uv");
     const matrix = new T.Matrix4().compose(new T.Vector3(...position),
       new T.Quaternion().setFromEuler(new T.Euler(...rotation)), new T.Vector3(...scale));
@@ -24,7 +24,14 @@ export class WorldModel {
     const c = new T.Color(color), colors = new Float32Array(g.getAttribute("position").count * 3);
     for (let i = 0; i < colors.length; i += 3) { colors[i] = c.r; colors[i + 1] = c.g; colors[i + 2] = c.b; }
     g.setAttribute("color", new T.BufferAttribute(colors, 3));
+    if (glow) g.setAttribute("lightPhase", new T.BufferAttribute(new Float32Array(colors.length / 3).fill(phase), 1));
     (this.splitLandscape && position[2]>0 ? glow ? this.frontGlow : this.frontSolid : glow ? this.glow : this.solid).push(g);
+  }
+  beam(color: string, from: T.Vector3, to: T.Vector3, radius = .1, glow = false, phase = -1) {
+    const delta = to.clone().sub(from), length = delta.length();
+    if (length < .0001) return;
+    const rotation = new T.Euler().setFromQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), delta.divideScalar(length)));
+    this.add(WORLD_SHAPES.pole, color, from.clone().add(to).multiplyScalar(.5).toArray(), [radius, length, radius], [rotation.x, rotation.y, rotation.z], glow, phase);
   }
   finish(material: T.Material, luminous: T.Material) {
     const group = new T.Group();

@@ -3,7 +3,7 @@ import type { Difficulty } from "../types";
 import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
 
-export const PROTOCOL = 6;
+export const PROTOCOL = 7;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];
