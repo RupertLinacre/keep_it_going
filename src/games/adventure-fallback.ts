@@ -3,13 +3,17 @@ import type { MiniTrack, MiniSection } from './mini-track';
 import { AttractionDrive } from './attraction-drive';
 import { SceneryFlight } from './scenery-flight';
 import { adventureAt } from './adventure-worlds';
-import { carouselCenter } from "./world-night";
+import { carouselCenter, carouselRotation } from "./world-night";
 import { witchHatCenter } from "./world-halloween";
 import { seededRandom } from './mini-rail';
+import {SHEEP_STOPS,trackSheepPose} from './world-meadow';
+import {mountainCablePoint,mountainGondolaPosition,MOUNTAIN_CABLE_LENGTH} from './mountain-gondolas';
+import {PortalImpact,portalHitDistance,portalPumpkin,PORTAL_PUMPKINS} from './pumpkin-portal';
 
 const reducedMotion=typeof matchMedia==="function"?matchMedia("(prefers-reduced-motion: reduce)"):undefined;
 const drives=new WeakMap<MiniSection,[AttractionDrive,AttractionDrive]>();
 const flights=new WeakMap<MiniSection,Map<string,{body:SceneryFlight,time:number}>>();
+const portals=new WeakMap<MiniSection,[PortalImpact,PortalImpact]>();
 
 /** Lightweight world landmarks for devices that cannot create a WebGL context. */
 export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTrack,distance:number,time:number,project:(p:Vector3)=>[number,number],scale:number,rider=0,gravity=9.81) {
@@ -77,6 +81,13 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
         const p=section.frames[Math.round(section.resolution*i/40)].position.clone();p.y-=1.4;ctx.lineTo(...project(p));
       }
       ctx.lineTo(...project(new Vector3(section.origin.x+section.span,0,section.origin.z)));ctx.closePath();ctx.fill();
+      SHEEP_STOPS.forEach((fraction,i)=>{
+        const phase=i*.83+.4,pose=trackSheepPose(section,section.start+section.length*fraction,distance,phase,time,!!reducedMotion?.matches);
+        pose.position.y+=float(`track-sheep:${i}`,phase);
+        const [x,y]=project(pose.position);ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
+        for(const dx of [-.55,.55])rect(dx-.08,0,.16,.6,'#60696a');
+        oval(0,1,1,.6,'#fff4da');oval(.85,1.2,.36,.36,'#58676b');oval(.99,1.33,.08,.1,'#ffffff');ctx.restore();
+      });
     }
     if(section.kind==='mountainpass'){
       const band=(top:(p:Vector3,t:number)=>void,bottom:(p:Vector3,t:number)=>void,color:string)=>{
@@ -114,7 +125,7 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       const hat=section.kind==='witchhat',c=hat?witchHatCenter(section):carouselCenter(section);
       const [px,py]=project(new Vector3(section.origin.x+c.x,0,section.origin.z+c.z));ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
       if(hat){oval(0,1.5,c.radius-.4,.45,'#b099bf');triangle(0,1.5,c.radius-2,section.amplitude,'#aa8cb8');rect(-2.3,3,4.6,.9,'#dcaf66');oval(0,11,.7,.85,'#ffe1a2')}
-      else {rect(-c.radius,1,c.radius*2,1,'#c19bb7');triangle(0,7,c.radius+1,3,'#c896b9');for(let i=0;i<6;i++){const x=Math.sin(drive.angle*.65+i*Math.PI/3)*c.radius*.7;rect(x,2,.08,5,'#dcc493');oval(x,4,.5,.25,'#e9d8c4')}}
+      else {rect(-c.radius,1,c.radius*2,1,'#c19bb7');triangle(0,7,c.radius+1,3,'#c896b9');for(let i=0;i<6;i++){const x=Math.sin((reducedMotion?.matches?0:carouselRotation(section,distance))+i*Math.PI/3)*c.radius*.7;rect(x,2,.08,5,'#dcc493');oval(x,4,.5,.25,'#e9d8c4')}}
       ctx.restore();
     }
     if(world.id==='night'||['witchhat'].includes(section.kind)){
@@ -146,15 +157,38 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       for(const tx of [-14,14]){rect(tx-.3,-.5,.6,4.7,'#d2ceba');rect(tx-1,3.7,2,.6,'#e1d8bd')}
       for(let tx=-12;tx<=12;tx+=3){oval(tx,2.8,.15,.22,'#ffdfa0');if(tx%2===0)triangle(tx,.1,.2,.7,'#8dd5d8')}
       ctx.restore();
+      const f=section.sample(section.start+section.length/2);
+      ctx.strokeStyle='#536b7c';ctx.lineWidth=Math.max(1,scale*.06);ctx.beginPath();
+      for(let i=0;i<=100;i++){
+        const point=mountainCablePoint(i/100*MOUNTAIN_CABLE_LENGTH).applyQuaternion(f.rotation).add(f.position),xy=project(point);
+        if(i===0)ctx.moveTo(...xy);else ctx.lineTo(...xy);
+      }ctx.stroke();
+      for(let i=0;i<6;i++){
+        const p=mountainGondolaPosition(section,reducedMotion?.matches?section.start:distance,i/6),[x,y]=project(p);
+        ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
+        rect(-.07,1,.14,1.2,'#6f8791');rect(-.95,-.7,1.9,1.55,'#e8ac5b');rect(-.9,.15,1.8,.6,'#b5e5e4');rect(-1,.85,2,.16,'#6b7888');ctx.restore();
+      }
     }
     if(section.kind==='pumpkintunnel'){
-      const p=section.sample(section.start+section.length*.5).position,[x,y]=project(p);
-      ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
-      // Side cutaway, matching the readable open wall of the 3D model.
-      rect(-7,0,14,5,world.id==='halloween'?'#b18157':'#849399');
-      rect(-7,4.7,14,.4,world.id==='halloween'?'#efb267':'#d9cbb0');
-      for(const tx of [-7,0,7]){rect(tx,0,.35,5,'#d9cbb0');oval(tx+1,3.8,.18,.3,'#ffe4a0')}
-      ctx.restore();
+      if(!portals.has(section))portals.set(section,[new PortalImpact(),new PortalImpact()]);
+      const portal=portals.get(section)![rider];portal.update(time,distance,portalHitDistance(section),!!reducedMotion?.matches);
+      for(let i=0;i<PORTAL_PUMPKINS&&portal.age<6;i++){
+        const p=portalPumpkin(section,i,portal.age,gravity),[x,y]=project(p.position);
+        // Spread the stack's depth slightly in the side-view fallback.
+        const spread=portal.age<0?Math.sin(i*2.4)*scale*1.8:0;
+        ctx.save();ctx.translate(x+spread,y);ctx.rotate(p.spin*.35);ctx.scale(scale*p.size,-scale*p.size);
+        oval(0,.65,.85,.67,'#ee9a4f');rect(-.08,1.2,.16,.55,'#879b65');
+        for(const side of [-1,1])triangle(side*.28,.7,.16,.25,'#f4ffd1');rect(-.36,.35,.72,.1,'#efffc0');ctx.restore();
+      }
+      if(portal.age>=0&&portal.age<2){
+        const p=section.sample(section.start+section.length/2).position.clone();p.y+=1.5;const [x,y]=project(p),t=portal.age;
+        ctx.save();ctx.globalCompositeOperation='lighter';
+        const r=scale*(1+t*8),g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'#d2ff9577');g.addColorStop(.5,'#4ded7777');g.addColorStop(1,'#45e59e00');
+        ctx.globalAlpha=1-t/2;ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#b4ff73';ctx.lineWidth=scale*.14;ctx.beginPath();ctx.arc(x,y,r*.85,0,Math.PI*2);ctx.stroke();
+        for(let i=0;i<22;i++){const a=i*2.4;oval(x+Math.cos(a)*r,y+Math.sin(a)*r,scale*.18,scale*.18,i%3?'#9dffac':'#ffdc81')}
+        ctx.restore();
+      }
     }
   }
 }

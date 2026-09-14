@@ -580,6 +580,13 @@ export class MiniView {
           clamp((f.position.x + 65 - p.x) / 22, 0, 1);
         skyline = Math.max(skyline, elevation + 4 + (p.y - elevation - 4) * influence);
       }
+    // The cable lift is a fixed landmark above the tunnel, not loose action.
+    // Ease the mountain into the normal framing so its summit fits on phones.
+    if(this.track.options.generative)for(const section of this.track.sections)if(section.kind==='tunnel'){
+      const p=section.sample(section.start+section.length/2).position;
+      const influence=clamp((p.x-f.position.x+45)/20,0,1)*clamp((f.position.x+70-p.x)/25,0,1);
+      skyline=Math.max(skyline,elevation+10+(p.y+29-elevation-10)*influence);
+    }
     const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches, elevation);
     // Follow the head of a long train. New arrivals enter from behind without
     // pulling the camera hundreds of metres back to its ever-growing tail.

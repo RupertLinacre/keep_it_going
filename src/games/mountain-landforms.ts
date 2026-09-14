@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 import type { MiniSection } from './mini-track';
+import { mountainRopeway } from './mountain-gondolas';
 
 type Point = [number, number, number];
 
@@ -152,6 +153,7 @@ export function mountainTunnel(material: T.Material, luminous: T.Material) {
       solid.add(G.cone, '#bab9de', [-2, .1, z + 1.1], [.16, .5, .16], [], true);
     }
   }
+  mountainRopeway(solid);
   const result = solid.finish(material, luminous);
   // Each rock half has its own material, so the camera-facing half can fade
   // independently on each mirrored lane. Portals and interior lamps stay solid.

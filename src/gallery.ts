@@ -19,16 +19,16 @@ import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
-  sheepbank: "Three gentle crests wind through a meadow full of bouncing sheep.",
+  sheepbank: "Sheep graze on three gentle crests, then leap safely onto the banks as your train approaches.",
   pondbridge: "A curving timber bridge climbs gently above a pond of lilies and ducks.",
   windmillloop: "A complete loop curls around the turning sails of a giant meadow windmill.",
   ravinebridge: "An arched railway viaduct crosses a turquoise ravine beside a tumbling waterfall.",
   midwayloop: "A giant vertical loop outlined with chasing fairground bulbs and a star at its crown.",
-  carouselhelix: "Two rising turns wind around a spinning carousel before sweeping down the exit ramp.",
-  pumpkintunnel: "Dive through a giant smiling pumpkin, with a cutaway side to keep the train in view.",
+  carouselhelix: "The carousel matches your train turn for turn as you climb two glowing spirals around it.",
+  pumpkintunnel: "Smash through a tower of smiling pumpkins: they tumble away in a sparkling green burst.",
   witchhat: "Climb to the tip of a giant crooked witch’s hat, then swirl down three turns around its brim.",
   mountainpass: "A narrow railway ledge winds up a steep, snow-dusted gorge above a turquoise river.",
-  tunnel: "An arched tunnel passes through a rocky mountain, with stone portals, lamps and glowstone inside.",
+  tunnel: "Your train pulls the gondolas up a snowy mountain as it passes through the glowing tunnel below.",
   lanternrun: "Rolling hills trace a parade of glowing lanterns.",
   pumpkinhop: "Three playful little hops through the pumpkin patch.",
   noninvertingloop:

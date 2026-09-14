@@ -2,6 +2,21 @@ import * as T from 'three';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 import type { MiniSection } from './mini-track';
 
+export const SHEEP_STOPS=[.16,.19,.32,.45,.48,.61,.74,.77,.86];
+/** Route distance guarantees that even a fast train finds the rails clear.
+ * Sheep keep their place on the bank until the train has completely passed. */
+export function trackSheepPose(section:MiniSection,at:number,distance:number,phase:number,time:number,reduced=false) {
+  const ahead=at-distance,notice=28+Math.sin(phase)*3;
+  const p=T.MathUtils.clamp((notice-ahead)/(notice-8),0,1),escape=p*p*(3-2*p);
+  const f=section.sample(at),side=Math.sin(phase*2.7)>=0?1:-1;
+  const position=f.position.clone().addScaledVector(f.right,side*(.2+escape*5.2));
+  position.y=T.MathUtils.lerp(f.position.y+.12,Math.max(.2,(f.position.y-1.55)*.5),escape);
+  if(!reduced)position.y+=Math.sin(Math.PI*escape)*(1.5+Math.abs(Math.sin(time*18+phase))*.35);
+  const away=Math.atan2(-f.right.z*side,f.right.x*side);
+  const yaw=phase+Math.atan2(Math.sin(away-phase),Math.cos(away-phase))*Math.min(1,escape*3);
+  return {position,yaw,escape};
+}
+
 /** Low banks follow the crests, with room for the coaches above the grass. */
 export function sheepBanks(m: WorldModel, section: MiniSection) {
   const rows: number[][] = [], vertices: number[] = [];

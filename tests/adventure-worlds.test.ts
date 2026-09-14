@@ -87,7 +87,7 @@ test('scenery prunes old tiles, bounds actors and disposes shared race geometry 
  for(let at=0;at<9000;at+=200){
   track.ensure(at);view.render(track,at,Math.floor(track.sample(at).position.x/25)*25,35,at/30);observe();
   assert.ok(view.tiles.size<=track.sections.length&&view.tiles.size<28);
-  assert.ok(view.group.children.length<=view.tiles.size*5+14);
+  assert.ok(view.group.children.length<=view.tiles.size*5+15);
   view.group.traverse(o=>{if(o instanceof InstancedMesh)assert.ok(o.count<=192)});
  }
  assert.ok([...geometries.values()].filter(n=>n===1).length>30,'Previous scenery was retired during the ride');

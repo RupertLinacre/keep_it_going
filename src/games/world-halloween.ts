@@ -63,25 +63,6 @@ export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacem
   }
 }
 
-export function pumpkinTunnel(material:T.Material,luminous:T.Material) {
-  const m=new WorldModel();
-  for(const z of [-4.5,4.5]) for(let i=0;i<=12;i++){
-    const a=i*Math.PI/12;
-    m.add(G.round,i%2?'#d88a49':'#eaa04f',[Math.cos(a)*4.8,Math.sin(a)*4.8+.6,z],[1.1,1.15,1.2]);
-  }
-  // Back roof and vines leave the near wall open, like the mountain cutaway.
-  for(let i=0;i<7;i++) {
-    const z=-4.5+i*1.5;
-    m.add(G.round,'#df984e',[-3.3,4.2,z],[1.8,1.4,1.4]);
-  }
-  m.add(G.pole,'#83a574',[-.6,7.1,0],[.5,3,.5],[0,0,-.2]);
-  m.add(G.round,'#88a874',[1,6.4,0],[1.4,.15,.6],[0,0,.3]);
-  for(const z of [-1.5,1.5]) m.add(G.cone,'#ffe8a1',[3.4,5.1,z],[.1,.8,.6],[0,Math.PI/2,0],true);
-  // A big welcoming grin along the visible rim, with no closed front wall.
-  for(let i=0;i<7;i++)m.add(G.box,'#ffd388',[4.3,1.1+.055*(i-3)**2,(i-3)*.65],[.1,.23,.5],[],true,i*.35);
-  return m.finish(material,luminous);
-}
-
 export function ghostModel() {
   const m=new WorldModel();
   m.add(G.round,'#ebdff5',[0,1.1,0],[.72,.9,.5]);

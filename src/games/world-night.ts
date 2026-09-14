@@ -130,6 +130,15 @@ export function carouselCenter(section: MiniSection) {
   const radius=section.width*.12;
   return {x:section.width*.2+radius*.325,z:section.hand*radius,radius:radius-2.7};
 }
+/** Match the engine's actual angular position about the carousel, including
+ * either handedness and the small lateral drift in the ascending helix. */
+export function carouselRotation(section: MiniSection, distance: number) {
+  const {x,z}=carouselCenter(section);
+  const first=section.start+section.distances[Math.round(section.resolution*.1)];
+  const last=section.start+section.distances[Math.round(section.resolution*.78)];
+  const p=section.sample(T.MathUtils.clamp(distance,first,last)).position;
+  return Math.atan2(p.x-section.origin.x-x,p.z-section.origin.z-z);
+}
 export function carouselClimb(m: WorldModel, section: MiniSection) {
   const {x,z,radius}=carouselCenter(section);
   m.add(G.pole,'#ac88a0',[x,1,z],[radius+1,2,radius+1]);
@@ -154,6 +163,8 @@ export function carouselModel() {
   // Six round little horses on their brass poles, all batched into one moving ride.
   for(let i=0;i<6;i++){
     const a=i*Math.PI/3,x=Math.sin(a)*2.7,z=Math.cos(a)*2.7;
+    // Contrasting spokes make the one-to-one rotation easy to see from above.
+    m.add(G.box,i%2?'#eec27d':'#cf8bb8',[Math.sin(a)*1.7,1.85,Math.cos(a)*1.7],[.22,.12,3.3],[0,a,0]);
     m.add(G.pole,'#efd2a0',[x,3.4,z],[.07,4.8,.07]);
     const color=i%2?'#ecd0c3':'#c5e3db';
     m.add(G.round,color,[x,3,z],[.75,.42,.35],[0,-a,0]);

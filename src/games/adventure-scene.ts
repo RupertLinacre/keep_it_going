@@ -1,10 +1,12 @@
 import { tunnelRevealAt } from "./mountain-landforms";
 import { AttractionDrive } from './attraction-drive';
 import { SceneryFlight } from './scenery-flight';
+import { mountainGondolaPosition } from './mountain-gondolas';
+import { PortalImpact, PortalEffects, PORTAL_PUMPKINS, portalHitDistance, portalPumpkin } from './pumpkin-portal';
 import { FairgroundLights, fairgroundBeamMaterial } from "./world-lighting";
-import { sheepBanks, lilyBridge, meadowWindmill, duckModel } from "./world-meadow";
-import { halloweenScenery, pumpkinHops, pumpkinTunnel, witchHat, witchHatCenter, ghostModel, batModel, pumpkin } from "./world-halloween";
-import { nightScenery, lanternParade, marqueeLoop, carouselClimb, carouselCenter, carouselModel, gondolaModel, tracksideLights } from "./world-night";
+import { sheepBanks, lilyBridge, meadowWindmill, duckModel, SHEEP_STOPS, trackSheepPose } from "./world-meadow";
+import { halloweenScenery, pumpkinHops, witchHat, witchHatCenter, ghostModel, batModel, pumpkin } from "./world-halloween";
+import { nightScenery, lanternParade, marqueeLoop, carouselClimb, carouselCenter, carouselRotation, carouselModel, gondolaModel, tracksideLights } from "./world-night";
 import { mountainScenery, mountainRidge, tunnelModel, ravineBridge } from "./world-mountains";
 import * as T from "three";
 import { adventureAt, type AdventureWorld } from "./adventure-worlds";
@@ -13,8 +15,8 @@ import { sectionBounds } from "./mini-world";
 import { seededRandom } from "./mini-rail";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
-type Actor = { kind: "sheep" | "pumpkin" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "carousel" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number; flights?:[SceneryFlight,SceneryFlight] };
-type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive] };
+type Actor = { kind: "sheep" | "pumpkin" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "carousel" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number; liftCable?:boolean; sheepDistance?:number; portalIndex?:number; flights?:[SceneryFlight,SceneryFlight] };
+type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive]; portals?:[PortalImpact,PortalImpact] };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
  * Static scenery is batched; animated creatures share a small instance buffer. */
@@ -42,9 +44,11 @@ export class AdventureScene {
   private dummy = new T.Object3D();
   private lightTransform = new T.Matrix4();
   private lastFlightTime?: number;
+  private portalEffects:PortalEffects;
   private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
   constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld; tunnelCutaway?: boolean } = {}) {
     scene.add(this.group);
+    this.portalEffects=new PortalEffects(this.group);
     const sheep = new WorldModel();
     sheep.add(G.round, "#fff5de", [0, 1.05, 0], [1, .64, .65]);
     for (const x of [-.6, .6]) for (const z of [-.35, .35]) sheep.add(G.pole, "#5d6265", [x, .35, z], [.1, .65, .1]);
@@ -145,7 +149,14 @@ export class AdventureScene {
     let formation:T.Group|undefined, gorgeWall:T.Group|undefined;
     if (['sheepbank','pondbridge','windmillloop'].includes(section.kind)) {
       const attraction=new WorldModel();
-      if(section.kind==='sheepbank')sheepBanks(attraction,section);
+      if(section.kind==='sheepbank'){
+        sheepBanks(attraction,section);
+        SHEEP_STOPS.forEach((fraction,i)=>{
+          const at=section.start+section.length*fraction,p=section.sample(at).position;
+          actors.unshift({kind:'sheep',x:p.x-section.origin.x,y:p.y+.12,z:p.z-section.origin.z,
+            phase:i*.83+.4,size:.85+(i%3)*.07,onTrack:true,sheepDistance:at});
+        });
+      }
       if(section.kind==='pondbridge') {
         lilyBridge(attraction,section);
         for(let i=0;i<4;i++)actors.push({kind:'duck',x:section.span*.4+i*1.3,y:.32,z:section.hand*4+9+i*.3,phase:i*.7,size:1,onTrack:true});
@@ -189,7 +200,19 @@ export class AdventureScene {
       const base=new WorldModel(),f=section.sample(section.start+section.length*.5).position;
       if(section.kind==='tunnel') {
         base.add(G.rock,'#9caeb0',[f.x-section.origin.x,-.1,f.z-section.origin.z],[21,(f.y+.2)*1.2,12.5]);
-      } else base.add(G.box,'#b69a72',[f.x-section.origin.x,(f.y-.3)/2,f.z-section.origin.z],[16,f.y-.3,8]);
+        for(let i=0;i<6;i++)actors.push({kind:'cable',x:0,y:0,z:0,phase:i/6,size:1,onTrack:true,liftCable:true});
+      } else {
+        base.add(G.box,'#92727d',[f.x-section.origin.x,f.y-.65,f.z-section.origin.z],[4,.8,10]);
+        for(let i=0;i<PORTAL_PUMPKINS;i++){
+          const p=portalPumpkin(section,i,-1);
+          actors.unshift({kind:'pumpkin',x:p.position.x-section.origin.x,y:p.position.y,z:p.position.z-section.origin.z,
+            size:p.size,phase:i*2.4,onTrack:true,portalIndex:i});
+        }
+        for(const side of [-1,1]){
+          base.add(G.pole,'#aa90b5',[f.x-section.origin.x,f.y+1,f.z-section.origin.z+side*5.5],[.12,3.6,.12]);
+          base.add(G.round,'#a6f474',[f.x-section.origin.x,f.y+3,f.z-section.origin.z+side*5.5],[.4,.55,.4],[],true);
+        }
+      }
       formation=base.finish(this.material,this.luminous);this.group.add(formation);
     }
     if(world.id==='night'&&!formation){
@@ -197,9 +220,10 @@ export class AdventureScene {
     }
     const root = model.finish(this.material, this.luminous);
     this.group.add(root);
-    const tunnel=['tunnel','pumpkintunnel'].includes(section.kind)?(section.kind==='pumpkintunnel'||world.id==='halloween'?pumpkinTunnel(this.material,this.luminous):tunnelModel(this.material,this.luminous)):undefined;
+    const tunnel=section.kind==='tunnel'?tunnelModel(this.material,this.luminous):undefined;
     if(tunnel)this.group.add(tunnel);
-    return { root, actors, section, tunnel, formation, gorgeWall, drives:[new AttractionDrive(),new AttractionDrive()] };
+    return { root, actors, section, tunnel, formation, gorgeWall, drives:[new AttractionDrive(),new AttractionDrive()],
+      portals:section.kind==='pumpkintunnel'?[new PortalImpact(),new PortalImpact()]:undefined };
   }
   private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
     // Broad, overlapping hills read as a landscape rather than miniature cones.
@@ -257,16 +281,22 @@ export class AdventureScene {
       // that same transformed space so the glow remains beside the carriages.
       point.applyMatrix4(this.lightTransform);
     }
-    const visible = track.sections.filter(s=>s.start<distance+350);
+    const near=(s:MiniSection)=>Math.max(0,s.start-distance,distance-s.end);
+    const visible = track.sections.filter(s=>s.start<distance+350).sort((a,b)=>near(a)-near(b));
     const ids = new Set(visible.map(s=>s.id));
     for (const [id,tile] of this.tiles) if(!ids.has(id)) { this.release(tile); this.tiles.delete(id); }
     const counts:Record<Actor["kind"],number>={sheep:0,pumpkin:0,mill:0,cable:0,wheel:0,firefly:0,ghost:0,bat:0,duck:0,spray:0,carousel:0,gondola:0,beam:0};
+    this.portalEffects.begin();
     const leadX=track.sample(distance).position.x;
     for (const section of visible) {
       let tile=this.tiles.get(section.id);
       if(!tile) { tile=this.build(section,track);this.tiles.set(section.id,tile); }
       tile.drives[0].update(time,distance,section.start,section.end,!!this.reducedMotion?.matches);
       tile.drives[1].update(time,opponentDistance??distance,section.start,section.end,!!this.reducedMotion?.matches);
+      if(tile.portals)for(const rider of laneOffset?[0,1]:[0]){
+        const portal=tile.portals[rider];portal.update(time,rider?opponentDistance??distance:distance,portalHitDistance(section),!!this.reducedMotion?.matches);
+        this.portalEffects.emit(section,portal.age,anchor,laneOffset,!!rider);
+      }
       tile.root.position.set(section.origin.x-anchor,0,section.origin.z);
       for(const mesh of tile.root.children) mesh.position.z=laneOffset?(mesh.userData.front?laneOffset:-laneOffset-2*section.origin.z):0;
       if(tile.gorgeWall) {
@@ -301,6 +331,8 @@ export class AdventureScene {
         if(tile.mirrorTunnel)this.revealTunnel(tile.mirrorTunnel,tunnelRevealAt(section,opponentDistance??distance),-1);
       }
       for(const actor of tile.actors) for(const mirror of actor.onTrack && laneOffset ? [false,true] : [false]) {
+        const portalAge=tile.portals?.[mirror?1:0].age??-1;
+        if(actor.portalIndex!==undefined&&portalAge>=6)continue;
         const mesh=this.actorMeshes[actor.kind],index=counts[actor.kind]++;
         if(index>=192)continue;
         const phase=time*.9+actor.phase;
@@ -313,8 +345,7 @@ export class AdventureScene {
         if(actor.kind==='bat') {this.dummy.position.x+=Math.sin(phase*.6)*2;this.dummy.position.y+=Math.cos(phase)*.6;this.dummy.rotation.set(0,Math.sin(phase*.5)*.4,0);}
         if(actor.kind==='mill')this.dummy.rotation.set(0,0,actor.phase+drive.angle);
         if(actor.kind==='carousel'){
-          this.dummy.rotation.set(0,drive.angle*.65,0);
-          this.dummy.position.y+=Math.sin(drive.angle*3)*Math.min(.2,drive.speed*.08);
+          this.dummy.rotation.set(0,this.reducedMotion?.matches?0:carouselRotation(section,mirror?opponentDistance??distance:distance),0);
         }
         // The same passing train gives the fairground wheel a gentle push;
         // its cabins use the exact same angle and remain upright.
@@ -337,12 +368,29 @@ export class AdventureScene {
           this.dummy.position.z+=(mirror?-1:1)*Math.min(1.6,drive.speed)*Math.sin(actor.phase+1);
           this.dummy.rotation.y+=Math.sin(drive.angle*2+actor.phase)*Math.min(.3,drive.speed*.15);
         }
-        if(actor.kind==='cable') {this.dummy.position.x+=Math.sin(phase*.24)*9;this.dummy.rotation.set(0,0,Math.sin(phase)*.025);}
-        if(actor.kind==='sheep' && !this.reducedMotion?.matches) {
-          const passing=(leadX-section.origin.x-actor.x+8)/16;
-          this.dummy.position.y+=passing>0&&passing<1?Math.sin(passing*Math.PI)*.7:0;
+        if(actor.kind==='cable') {
+          if(actor.liftCable){
+            const p=mountainGondolaPosition(section,this.reducedMotion?.matches?section.start:mirror?opponentDistance??distance:distance,actor.phase);
+            this.dummy.position.set(p.x-anchor,p.y,(p.z+laneOffset)*(mirror?-1:1));
+            this.dummy.rotation.set(0,0,0);
+          }else{this.dummy.position.x+=Math.sin(phase*.24)*9;this.dummy.rotation.set(0,0,Math.sin(phase)*.025);}
         }
-        if(['sheep','pumpkin','ghost'].includes(actor.kind)){
+        if(actor.kind==='sheep') {
+          if(actor.sheepDistance!==undefined){
+            const pose=trackSheepPose(section,actor.sheepDistance,mirror?opponentDistance??distance:distance,actor.phase,time,!!this.reducedMotion?.matches);
+            this.dummy.position.set(pose.position.x-anchor,pose.position.y,(pose.position.z+laneOffset)*(mirror?-1:1));
+            this.dummy.rotation.set(0,pose.yaw,0);
+          }else if(!this.reducedMotion?.matches){
+            const passing=(leadX-section.origin.x-actor.x+8)/16;
+            this.dummy.position.y+=passing>0&&passing<1?Math.sin(passing*Math.PI)*.7:0;
+          }
+        }
+        let actorSize=actor.size;
+        if(actor.portalIndex!==undefined){
+          const p=portalPumpkin(section,actor.portalIndex,portalAge,mirror?opponentGravity:gravity);
+          this.dummy.position.set(p.position.x-anchor,p.position.y,(p.position.z+laneOffset)*(mirror?-1:1));
+          this.dummy.rotation.set(p.spin*.6,p.spin,p.spin*.35);actorSize=p.size;
+        }else if(['sheep','pumpkin','ghost'].includes(actor.kind)){
           actor.flights??=[new SceneryFlight(actor.phase),new SceneryFlight(actor.phase)];
           const flight=actor.flights[mirror?1:0];flight.update(flightDt,mirror?opponentGravity:gravity);
           this.dummy.position.y+=flight.height;
@@ -350,13 +398,14 @@ export class AdventureScene {
           this.dummy.rotation.z+=Math.sin(flight.angle+actor.phase)*airborne*.45;
           this.dummy.rotation.y+=Math.sin(flight.angle*.6+actor.phase)*airborne*.4;
         }
-        this.dummy.scale.setScalar(actor.size*(actor.kind==='firefly'?.5+.5*Math.sin(phase*.7)**2:1));if(actor.kind==='bat')this.dummy.scale.y*=.35+.65*Math.abs(Math.sin(time*5+actor.phase));
+        this.dummy.scale.setScalar(actorSize*(actor.kind==='firefly'?.5+.5*Math.sin(phase*.7)**2:1));if(actor.kind==='bat')this.dummy.scale.y*=.35+.65*Math.abs(Math.sin(time*5+actor.phase));
         if(mirror){this.dummy.quaternion.x*=-1;this.dummy.quaternion.y*=-1;}
         this.dummy.updateMatrix();mesh.setMatrixAt(index,this.dummy.matrix);
         if(actor.kind==='pumpkin')this.pumpkinFaces.setMatrixAt(index,this.dummy.matrix);
       }
     }
     this.pumpkinFaces.count=Math.min(192,counts.pumpkin);this.pumpkinFaces.instanceMatrix.needsUpdate=true;
+    this.portalEffects.finish();
     for(const kind of Object.keys(this.actorMeshes) as Actor["kind"][]) {
       const mesh=this.actorMeshes[kind];mesh.count=Math.min(192,counts[kind]);mesh.instanceMatrix.needsUpdate=true;
     }
@@ -382,6 +431,7 @@ export class AdventureScene {
     tile.tunnel?.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose()});tile.tunnel?.removeFromParent();tile.mirrorTunnel?.removeFromParent();
   }
   destroy() {
+    this.portalEffects.destroy();
     this.tiles.forEach(tile=>this.release(tile));this.tiles.clear();
     for(const mesh of [this.sheep,this.pumpkins,this.pumpkinFaces,this.mills,this.cables,this.wheels,this.fireflies,this.ghosts,this.bats,this.ducks,this.spray,this.carousels,this.gondolas,this.beams]) {mesh.geometry.dispose();mesh.dispose()}
     this.material.dispose();this.luminous.dispose();this.beamMaterial.dispose();this.group.removeFromParent();
