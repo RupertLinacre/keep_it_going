@@ -4,6 +4,7 @@ import { powerPhysics, type RacePowerState } from "../games/ride-powerups";
 import { railAcceleration } from "../games/mini-physics";
 import type { Difficulty } from "../types";
 import type { MiniTrack } from "../games/mini-track";
+import { HeightTrack } from "../games/height-track";
 import type { Body, Motion, Quat, RideState, Vec } from "./protocol";
 
 const lerpVec = (a: Vec, b: Vec, t: number): Vec => a.map((n, i) => n + (b[i] - n) * t) as Vec;
@@ -56,8 +57,20 @@ export class OpponentGhost {
   private corrections = new Map<string, { distance?: number; lift?: number; position?: Vector3; rotation?: Quaternion }>();
   private displayed?: RideState;
   latest?: RideState;
-  constructor(private track?: MiniTrack, private difficulty: Difficulty = "normal") {}
-  configure(track: MiniTrack, difficulty: Difficulty) { this.track = track; this.difficulty = difficulty; }
+  track?: MiniTrack;
+  private sourceTrack?: MiniTrack;
+  constructor(track?: MiniTrack, private difficulty: Difficulty = "normal") { if(track)this.configure(track,difficulty); }
+  configure(track: MiniTrack, difficulty: Difficulty) {
+    this.sourceTrack = track;
+    this.track = track instanceof HeightTrack ? new HeightTrack(track.seed, track.options) : track;
+    this.difficulty = difficulty;
+  }
+  private heights(state: RideState, ahead = 0) {
+    if (!(this.track instanceof HeightTrack) || !this.sourceTrack) return;
+    const start = this.sourceTrack.sections[0].end;
+    this.track.ensure(start, Math.max(600, this.sourceTrack.end - start));
+    this.track.receive(state.heights ?? { since: 0, advancing: false, lifts: [] }, ahead);
+  }
   setPaused(paused: boolean, now = performance.now()) {
     if (paused === this.paused) return;
     if (paused) this.sample(now);
@@ -97,21 +110,25 @@ export class OpponentGhost {
     frame.position.y += body.rail.lift;
     return { ...body, position: frame.position.toArray(), rotation: frame.rotation.toArray() };
   }
+  private routeSpeed(speed: number, distance: number) {
+    return speed / (this.track?.metric(distance) ?? 1);
+  }
   private blend(a: RideState, b: RideState, t: number): RideState {
     const span = b.time - a.time;
+    this.heights(a, span*t);
     const gravity = powerPhysics(a.power?.active, this.difficulty).gravity;
     const next = new Map(b.bodies.map(body => [body.id, body]));
     const parcels = new Map(b.parcels.filter(p => p.id).map(p => [p.id, p]));
     return {
       ...a, time: lerp(a.time, b.time, t),
       power: powerAt(a.power, span*t),
-      distance: curve(a.distance, b.distance, a.speed, b.speed, span, t), speed: lerp(a.speed, b.speed, t),
+      distance: curve(a.distance, b.distance, this.routeSpeed(a.speed,a.distance), this.routeSpeed(b.speed,b.distance), span, t), speed: lerp(a.speed, b.speed, t),
       bodies: a.bodies.map(body => {
         const end = next.get(body.id);
         if (!end) return drift(body, span*t, gravity);
         let blended = { ...motion(body, end, span, t), cargoAge: lerp(body.cargoAge, end.cargoAge, t) };
         if (body.rail && end.rail) blended = { ...blended, rail: { ...body.rail,
-          distance: curve(body.rail.distance, end.rail.distance, body.rail.speed, end.rail.speed, span, t),
+          distance: curve(body.rail.distance, end.rail.distance, this.routeSpeed(body.rail.speed,body.rail.distance), this.routeSpeed(end.rail.speed,end.rail.distance), span, t),
           speed: lerp(body.rail.speed, end.rail.speed, t),
           lift: Math.max(0, curve(body.rail.lift, end.rail.lift, body.rail.liftSpeed, end.rail.liftSpeed, span, t)),
         } };
@@ -134,8 +151,9 @@ export class OpponentGhost {
     };
   }
   private predict(state: RideState, ahead: number): RideState {
+    const dt = .2 * (1 - Math.exp(-Math.max(0,ahead) / .2));
+    this.heights(state, dt);
     if (state.ended || ahead <= 0) return state;
-    const dt = .2 * (1 - Math.exp(-ahead / .2));
     const resistance = powerPhysics(state.power?.active, this.difficulty);
     const bodies = state.bodies.map(body => {
       if (!body.rail || !this.track) return drift(body, dt, resistance.gravity);
@@ -152,7 +170,7 @@ export class OpponentGhost {
       return this.railBody({ ...body, rail: { ...body.rail, distance, speed,
         lift: Math.max(0, body.rail.lift + body.rail.liftSpeed*dt - 15*dt*dt) } });
     });
-    return { ...state, time: state.time+dt, distance: state.distance + state.speed*dt, bodies, power: powerAt(state.power, dt),
+    return { ...state, time: state.time+dt, distance: bodies[0]?.rail?.distance ?? state.distance + state.speed*dt, bodies, power: powerAt(state.power, dt),
       parcels: state.parcels.map(p => drift(p, dt, resistance.gravity)) };
   }
   private evaluate(): RideState {

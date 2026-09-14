@@ -301,7 +301,7 @@ export class MiniSection implements MiniRail {
 
 /** Shared piece factory for the game and the track gallery. */
 export function createMiniSection(kind: MiniKind, start: number, origin: THREE.Vector3,
-  generated: number, random: () => number, varied = false): MiniSection {
+  generated: number, random: () => number, varied = false, multiplayer = false): MiniSection {
     const r = (min: number, max: number) => min + random() * (max - min);
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
@@ -311,7 +311,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     let width = r(20, 28),
       amplitude = kind === "dip" ? -r(1.7, 2.5) : r(5, 10);
     const hand =
-      origin.z > 1 ? -1 : origin.z < -1 ? 1 : random() > 0.5 ? 1 : -1;
+      multiplayer ? 1 : origin.z > 1 ? -1 : origin.z < -1 ? 1 : random() > 0.5 ? 1 : -1;
     let shift = clamp(origin.z + r(-2.5, 2.5), -3.5, 3.5) - origin.z;
     if (kind === "station") {
       width = 12;
@@ -406,6 +406,15 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
       turns = Math.min(4, turns);
       if (kind === "verticalhill") amplitude = Math.max(amplitude, width * .58);
     }
+    // Race excursions face outwards, then return to the shared centre line.
+    // A loop keeps a small exit offset for rail clearance; the next piece
+    // blends that offset back to zero instead of accumulating lateral drift.
+    if (multiplayer) {
+      shift = (["loop", "windmillloop", "midwayloop"].includes(kind) ? 2.2 : 0) - origin.z;
+      // The cobra's return turn spreads over two radii. Keep that race-only
+      // footprint compact so opponents remain easy to compare.
+      if(kind === "cobraroll" && amplitude > 15){width *= 15/amplitude; amplitude = 15;}
+    }
     return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
 }
 
@@ -419,7 +428,7 @@ export class MiniTrack implements MiniRail {
   private bag: MiniKind[] = [];
   private bags = 0;
   private bagWorld = -1;
-  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean } = {}) {
+  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean } = {}) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
     // Retain real rail behind the six coaches on the opening hill.
@@ -461,11 +470,13 @@ export class MiniTrack implements MiniRail {
   get end() {
     return this.sections.at(-1)!.end;
   }
+  protected endOrigin(section: MiniSection) { return section.frames.at(-1)!.position.clone(); }
   private append(kind: MiniKind) {
+    if (this.options.multiplayer && kind === "pretzelknot") kind = "noninvertingloop";
     const previous = this.sections.at(-1);
     this.sections.push(createMiniSection(kind, previous?.end ?? 0,
-      previous ? previous.frames.at(-1)!.position.clone() : new THREE.Vector3(0, 4, 0),
-      this.generated++, this.random, !!this.options.generative));
+      previous ? this.endOrigin(previous) : new THREE.Vector3(0, 4, 0),
+      this.generated++, this.random, !!this.options.generative, !!this.options.multiplayer));
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {

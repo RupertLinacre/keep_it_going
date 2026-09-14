@@ -1,3 +1,4 @@
+import { iceDeployment, drawIceIcicles } from '../games/ice-icicles';
 import { drawAdventureFallback } from "../games/adventure-fallback";
 import { adventureAt } from "../games/adventure-worlds";
 import { drawTailwindSail, sailDeployment } from "../games/tailwind-sails";
@@ -16,20 +17,28 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
   const world=game.remixMode?adventureAt(game.track.sectionAt(game.physics.distance).start).world:undefined;
   gradient(ctx, world?.sky ?? "#e5eee6", world?.ground ?? "#f3efd9");
   const lead = game.physics.sample(game.physics.distance).position;
+  const local = snapshotRide(game, 0), remote = game.opponent?.sample();
   const offset = game.raceSpacing.updateAt(game.track, game.elapsed);
   const baseScale = game.close ? 28 : 19;
-  const scale = clamp(410 / (30 + Math.abs(lead.z + offset) * .8), baseScale / 3, baseScale);
-  const centerY = lead.y * .55;
+  let scale = clamp(410 / (30 + Math.abs(lead.z + offset) * .8), baseScale / 3, baseScale);
+  const localHeight = lead.y - (lead.z + offset)*.38;
+  let centerY = localHeight;
+  const other = remote?.bodies[0];
+  if(other && Math.abs(other.position[0]-lead.x)<80){
+    const otherHeight=other.position[1]+(other.position[2]+offset)*.38;
+    scale=Math.max(baseScale/3,Math.min(scale,410/(Math.abs(otherHeight-localHeight)+10)));
+    centerY+=clamp((otherHeight-localHeight)/2,-200/scale,200/scale);
+  }
   const project = (point: Vector3, opponent: boolean): [number, number] => {
     const p = lanePosition(point, offset, opponent);
-    return [500 + (p.x - lead.x - p.z * .17) * scale, 320 - (p.y - centerY - p.z * .38) * scale];
+    return [500 + (p.x - lead.x - p.z * .17) * scale, 285 - (p.y - centerY - p.z * .38) * scale];
   };
-  const local = snapshotRide(game, 0), remote = game.opponent?.sample();
   for (const rival of [true, false]) {
     const state = rival ? remote : local;
-    if(game.remixMode)drawAdventureFallback(ctx,game.track,state?.distance??game.physics.distance,state?.time??game.elapsed,p=>project(p,rival),scale,rival?1:0,
+    const track = rival ? game.opponent?.track ?? game.track : game.track;
+    if(game.remixMode)drawAdventureFallback(ctx,track,state?.distance??game.physics.distance,state?.time??game.elapsed,p=>project(p,rival),scale,rival?1:0,
       state?.power?.active==='reverse'?-19.62:state?.power?.active==='heavy'?29.43:9.81);
-    for (const section of game.track.sections) {
+    for (const section of track.sections) {
       if (section.kind === "splash" || section.kind === "jump") {
         const flooded = section.kind === "splash", y = flooded ? section.waterLevel : .4;
         const from = flooded ? .14 : .2, to = flooded ? .86 : .64, width = flooded ? 6.8 : 6;
@@ -64,8 +73,8 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
       ctx.restore();
     }
     const gate=state.power?.gate;
-    if(gate && gate.distance>=game.track.sections[0].start && gate.distance<=game.track.end) {
-      const f=game.track.sample(gate.distance),[x,y]=project(f.position.clone().addScaledVector(f.up,2.4),rival);
+    if(gate && gate.distance>=track.sections[0].start && gate.distance<=track.end) {
+      const f=track.sample(gate.distance),[x,y]=project(f.position.clone().addScaledVector(f.up,2.4),rival);
       ctx.save();ctx.strokeStyle=POWERUPS[gate.kind].color;ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(x,y,scale*1.7,scale*2.5,0,0,Math.PI*2);ctx.stroke();
       ctx.fillStyle=ctx.strokeStyle;ctx.font="bold 22px Arial";ctx.textAlign="center";ctx.fillText(POWERUPS[gate.kind].icon,x,y-scale*2.7);ctx.restore();
     }
@@ -85,6 +94,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
         ctx.save(); ctx.translate(px + 6.5, py + 6.5); ctx.scale(parcel.scale, parcel.scale);
         roundRect(ctx, -6.5, -6.5, 13, 13, 1, (body.bombs??0)&(1<<i) ? "#c94b40" : "#c89560"); roundRect(ctx, -1.5, -6.5, 3, 13, 0, "#f9e8b9"); ctx.restore();
       }
+      if (body.id.startsWith("coach-")) drawIceIcicles(ctx, iceDeployment(state.power), open);
       if (body.id.startsWith("coach-")) drawTailwindSail(ctx, sailDeployment(state.power), state.time, body.color, riderColor(game.riderRole, rival));
       circle(ctx, -10, 0, 4, "#567970"); circle(ctx, 10, 0, 4, "#567970"); ctx.restore();
     }

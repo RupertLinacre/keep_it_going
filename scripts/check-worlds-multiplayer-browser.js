@@ -80,7 +80,7 @@ async page => {
     });
     for(const p of [page,phone])await p.evaluate(async()=>{
       const {MiniTrack}=await import('/src/games/mini-track.ts');
-      const track=new MiniTrack(window.raceGame.track.seed,{generative:true});track.ensure(0,5000);
+      const track=new MiniTrack(window.raceGame.track.seed,{generative:true,multiplayer:true});track.ensure(0,5000);
       window.worldRaceSections=track.sections.slice();
     });
     report.worlds=[];
@@ -111,7 +111,7 @@ async page => {
     }
     for(const p of [page,phone])await p.evaluate(async()=>{
       const {MiniTrack}=await import('/src/games/mini-track.ts'),g=window.raceGame;
-      const track=new MiniTrack(g.track.seed,{generative:true});track.ensure(g.physics.distance,600);
+      const track=new MiniTrack(g.track.seed,{generative:true,multiplayer:true});track.ensure(g.physics.distance,600);
       g.track=track;g.physics.track=track;g.carriages.track=track;g.opponent.track=track;if(g.view)g.view.track=track;
     });
     report.powers=[];
@@ -132,7 +132,7 @@ async page => {
     await page.waitForTimeout(500);const after=await Promise.all([page.evaluate(()=>[window.raceGame.powerups.remaining,window.raceGame.view?.adventureScene.luminous.clock.value]),phone.evaluate(()=>[window.raceGame.powerups.remaining,window.raceGame.view?.adventureScene.luminous.clock.value])]);
     check(JSON.stringify(before)===JSON.stringify(after),'Pause freezes both power clocks');await page.locator('[data-overlay="resume"]').click();
     for(const p of [page,phone])await p.evaluate(()=>{
-      const g=window.raceGame;g.track.ensure(g.physics.distance,2500);const pool=g.track.sections.find(s=>s.kind==='splash');
+      const g=window.raceGame;g.track.ensure(g.physics.distance,12000);const pool=g.track.sections.find(s=>s.kind==='splash');
       if(!pool)throw new Error('No flooded piece');
       window.raceFixture=false;g.powerups.finish(g.physics,g.carriages);g.powerups.gate={kind:'wind',distance:pool.end+1000,id:99};
       g.physics.distance=pool.start-15;g.physics.previousDistance=g.physics.distance;g.physics.velocity=34;g.physics.flight=undefined;g.physics.traces=[];g.carriages.explosions.length=0;

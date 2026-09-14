@@ -3,7 +3,8 @@ import { MiniTrack, type MiniSection } from "./mini-track";
 import type { RailFrame } from "./mini-rail";
 
 export const HEIGHT_PER_ANSWER = 30;
-type Lift = { id: number; start: number; end: number; height: number; target: number; from: number; age: number };
+export type Lift = { id: number; start: number; end: number; height: number; target: number; from: number; age: number };
+export type HeightState = { since: number; advancing: boolean; lifts: Lift[] };
 const smooth = (t: number) => t * t * t * (10 + t * (-15 + t * 6));
 const weight = (s: number, lift: Lift) => s < lift.start
   ? smooth(Math.max(0, 1 - (lift.start - s) / 60))
@@ -17,6 +18,9 @@ export class HeightTrack extends MiniTrack {
   private bases = new WeakMap<MiniSection, RailFrame[]>();
   private matrix = new Matrix4();
   revision = 0;
+  protected override endOrigin(section: MiniSection) {
+    return this.bases?.get(section)?.at(-1)?.position.clone() ?? super.endOrigin(section);
+  }
 
   raise(distance: number) {
     this.ensure(distance);
@@ -38,6 +42,24 @@ export class HeightTrack extends MiniTrack {
   elevation(distance: number) { return this.lifts.reduce((y, lift) => y + weight(distance, lift) * lift.height, 0); }
   get moving() { return this.lifts.some(l => l.target !== l.height); }
 
+  snapshot(advancing = true): HeightState {
+    return { since: this.sections[0].start, advancing, lifts: this.lifts.map(l => ({ ...l })) };
+  }
+
+  /** Apply the other rider's lift animation on their buffered display clock.
+   * Preserve older elevations still in our viewport after that rider prunes them. */
+  receive(state: HeightState, ahead = 0) {
+    const next = state.lifts.map(l => {
+      const age = Math.min(1, l.age + (state.advancing ? Math.max(0, ahead) : 0));
+      return { ...l, age, height: l.from + (l.target - l.from) * smooth(age) };
+    });
+    next.push(...this.lifts.filter(l => l.end + 60 < state.since && !next.some(n => n.id === l.id)));
+    const changed = [...this.lifts.filter(l => !next.some(n => n.id === l.id)),
+      ...next.filter(l => !this.lifts.some(old => old.id === l.id && old.height === l.height))];
+    this.lifts.splice(0, this.lifts.length, ...next);
+    this.refresh(changed);
+  }
+
   override followerDistance(distance: number, offset: number) {
     // Coach offsets are real metres, even where connecting rail has stretched.
     for (let left = offset; left > 0;) {
@@ -56,6 +78,10 @@ export class HeightTrack extends MiniTrack {
       lift.height = lift.from + (lift.target - lift.from) * smooth(lift.age);
       changed.push(lift);
     }
+    this.refresh(changed);
+  }
+
+  private refresh(changed: Lift[]) {
     if (!changed.length) return;
     this.revision++;
     for (const section of this.sections) {
@@ -100,9 +126,11 @@ export class HeightTrack extends MiniTrack {
     // long lifted piece could later seed the next piece from an elevated end,
     // giving that join the same height twice (origin plus displacement field).
     const end = this.sectionAt(distance).end;
+    const generated = this.generated;
     super.ensure(distance, Math.max(lookahead, end - distance + 180));
     // The base constructor calls ensure before our fields are initialised.
     if (!this.lifts) return;
+    if (this.generated !== generated) this.refresh(this.lifts);
     const oldest = this.sections[0].start;
     for (let i = this.lifts.length - 1; i >= 0; i--) if (this.lifts[i].end + 60 < oldest) this.lifts.splice(i, 1);
   }

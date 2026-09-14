@@ -1,3 +1,4 @@
+import { iceDeployment, drawIceIcicles } from './ice-icicles';
 import { drawAdventureFallback } from "./adventure-fallback";
 import { adventureAt } from "./adventure-worlds";
 import { AdventureHud } from "./adventure-hud";
@@ -83,8 +84,9 @@ export class Mini extends BaseGame {
     this.multiplayer = !!options.multiplayer;
     this.personalBest = bestRide(host.difficulty, this.recordId);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
-    this.track = this.heightMode || (this.remixMode && !this.multiplayer)
-      ? new HeightTrack(seed, { generative: this.remixMode }) : new MiniTrack(seed, { generative: this.remixMode });
+    this.track = this.heightMode || this.remixMode
+      ? new HeightTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer })
+      : new MiniTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer });
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => this.physics.sample(distance);
@@ -183,6 +185,7 @@ export class Mini extends BaseGame {
     if (this.answer && (value === "submit" || (edited && Number(this.answer) === this.a * this.b))) {
       this.answerFeedbackUntil = this.elapsed + 0.8;
       if (Number(this.answer) === this.a * this.b) {
+        this.powerups?.answered();
         this.answerFeedback = "correct";
         this.answerWasLift = this.liftingAnswers;
         if (this.track instanceof HeightTrack && this.liftingAnswers) {
@@ -335,6 +338,7 @@ export class Mini extends BaseGame {
         this.physics.renderAlpha,
         this.opponent?.sample(),
         this.powerups,
+        this.opponent?.track,
       );
     } else if (this.opponent) drawRaceFallback(this, ctx);
     else this.fallback(ctx);
@@ -472,6 +476,7 @@ export class Mini extends BaseGame {
         roundRect(ctx, -1.5, -6.5, 3, 13, 0, "#f9e8b9");
         ctx.restore();
       }
+      drawIceIcicles(ctx, iceDeployment(this.powerups), isParcelWagon(index));
       drawTailwindSail(ctx, sailDeployment(this.powerups), this.elapsed, index, palette[index % palette.length]);
       circle(ctx, -10, 0, 4, "#738779");
       circle(ctx, 10, 0, 4, "#738779");

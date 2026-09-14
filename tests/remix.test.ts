@@ -63,6 +63,8 @@ test("power-up bags are seeded, include every effect, and never cut another effe
     const { track, physics, carriages, power } = rig(seed), kinds: string[] = [];
     for (let i = 0; i < POWER_KINDS.length * 2; i++) {
       power.update(3, track, physics, carriages);
+      for(let n=0;n<4;n++)power.answered();
+      power.update(0, track, physics, carriages);
       assert.ok(power.gate);
       const kind = power.gate.kind;
       physics.distance = power.gate.distance;

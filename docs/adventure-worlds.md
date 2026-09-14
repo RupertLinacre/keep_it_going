@@ -23,7 +23,7 @@ Fairground bulbs use one shared shader with a baked phase per bulb. Their bright
 
 Animations use game time, so pausing freezes them. Reduced-motion mode holds both lighting and decorative rides still. The question panel and mobile keypad are unchanged; world welcomes fade to a small journey badge.
 
-Both racers generate the same seeded course, with personal difficulties and consistent identity colours. Shared landscape sits behind both lanes. Track-specific structures and their animated parts appear on each mirrored lane. Protocol **7** separates this course generator from older protocol 5/6 builds; no additional per-frame network payload is needed.
+Both racers generate the same seeded course, with personal difficulties and consistent identity colours. Shared landscape sits behind both lanes. Track-specific structures and their animated parts appear on each mirrored lane. Protocol **8** separates this race generator from older builds. The worlds remain seed-derived; lift snapshots now describe each rider’s independent Sky lift railway.
 
 The Canvas fallback includes recognisable world landmarks and all signature silhouettes. The track gallery filters by world and previews the actual attraction scenery and animation, with all original sections still available.
 

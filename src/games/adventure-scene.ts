@@ -16,7 +16,7 @@ import { seededRandom } from "./mini-rail";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
 type Actor = { kind: "sheep" | "pumpkin" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "carousel" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number; liftCable?:boolean; sheepDistance?:number; portalIndex?:number; flights?:[SceneryFlight,SceneryFlight] };
-type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive]; portals?:[PortalImpact,PortalImpact] };
+type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive]; portals?:[PortalImpact,PortalImpact]; builtHeight:number };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
  * Static scenery is batched; animated creatures share a small instance buffer. */
@@ -222,7 +222,7 @@ export class AdventureScene {
     this.group.add(root);
     const tunnel=section.kind==='tunnel'?tunnelModel(this.material,this.luminous):undefined;
     if(tunnel)this.group.add(tunnel);
-    return { root, actors, section, tunnel, formation, gorgeWall, drives:[new AttractionDrive(),new AttractionDrive()],
+    return { root, actors, section, tunnel, formation, gorgeWall, builtHeight:section.height(section.start+section.length/2), drives:[new AttractionDrive(),new AttractionDrive()],
       portals:section.kind==='pumpkintunnel'?[new PortalImpact(),new PortalImpact()]:undefined };
   }
   private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
@@ -259,7 +259,7 @@ export class AdventureScene {
     }
   }
   setTunnelCutaway(reveal: boolean) { this.options.tunnelCutaway = reveal; }
-  render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number, opponentDistance?: number, gravity=9.81, opponentGravity=9.81) {
+  render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number, opponentDistance?: number, gravity=9.81, opponentGravity=9.81, opponentTrack?:MiniTrack) {
     if(this.reducedMotion?.matches)time=0;
     const flightDt=this.lastFlightTime===undefined?0:Math.max(0,Math.min(.1,time-this.lastFlightTime));this.lastFlightTime=time;
     this.luminous.clock.value=time;
@@ -275,7 +275,7 @@ export class AdventureScene {
     for(let rider=0;rider<2;rider++)for(let tail=0;tail<2;tail++){
       const point=this.luminous.trains.value[rider*2+tail];
       if(rider && !laneOffset){point.set(1e6,1e6,1e6);continue;}
-      point.copy(track.sample((rider?opponentDistance??distance:distance)-tail*15).position);
+      point.copy((rider?opponentTrack??track:track).sample((rider?opponentDistance??distance:distance)-tail*15).position);
       point.x-=anchor;point.z=(point.z+laneOffset)*(rider?-1:1);
       // Downhill drift rotates the whole scene; compare lamps and trains in
       // that same transformed space so the glow remains beside the carriages.
@@ -291,11 +291,14 @@ export class AdventureScene {
     for (const section of visible) {
       let tile=this.tiles.get(section.id);
       if(!tile) { tile=this.build(section,track);this.tiles.set(section.id,tile); }
+      const remoteSection=opponentTrack?.sections.find(s=>s.id===section.id)??section;
+      const centerAt=section.start+section.length/2;
+      const ownLift=section.height(centerAt)-tile.builtHeight,remoteLift=remoteSection.height(centerAt)-tile.builtHeight;
       tile.drives[0].update(time,distance,section.start,section.end,!!this.reducedMotion?.matches);
       tile.drives[1].update(time,opponentDistance??distance,section.start,section.end,!!this.reducedMotion?.matches);
       if(tile.portals)for(const rider of laneOffset?[0,1]:[0]){
         const portal=tile.portals[rider];portal.update(time,rider?opponentDistance??distance:distance,portalHitDistance(section),!!this.reducedMotion?.matches);
-        this.portalEffects.emit(section,portal.age,anchor,laneOffset,!!rider);
+        this.portalEffects.emit(rider?remoteSection:section,portal.age,anchor,laneOffset,!!rider);
       }
       tile.root.position.set(section.origin.x-anchor,0,section.origin.z);
       for(const mesh of tile.root.children) mesh.position.z=laneOffset?(mesh.userData.front?laneOffset:-laneOffset-2*section.origin.z):0;
@@ -307,10 +310,10 @@ export class AdventureScene {
         tile.gorgeWall.position.set(section.origin.x-anchor,0,laneOffset?-section.origin.z-laneOffset-2*bend:section.origin.z);
       }
       if(tile.formation) {
-        tile.formation.position.set(section.origin.x-anchor,0,section.origin.z+laneOffset);
+        tile.formation.position.set(section.origin.x-anchor,ownLift,section.origin.z+laneOffset);
         if(laneOffset) {
           if(!tile.mirrorFormation){tile.mirrorFormation=tile.formation.clone();tile.mirrorFormation.scale.z=-1;this.group.add(tile.mirrorFormation)}
-          tile.mirrorFormation.position.set(section.origin.x-anchor,0,-section.origin.z-laneOffset);
+          tile.mirrorFormation.position.set(section.origin.x-anchor,remoteLift,-section.origin.z-laneOffset);
         }
       }
       if(tile.tunnel) {
@@ -323,14 +326,16 @@ export class AdventureScene {
             tile.mirrorTunnel.traverse(o=>{if(o instanceof T.Mesh && o.userData.mountainCover)o.material=(o.material as T.Material).clone()});
             this.group.add(tile.mirrorTunnel);
           }
-          tile.mirrorTunnel.position.copy(tile.tunnel.position);tile.mirrorTunnel.position.z*=-1;
-          tile.mirrorTunnel.quaternion.set(-f.rotation.x,-f.rotation.y,f.rotation.z,f.rotation.w);tile.mirrorTunnel.scale.z=-1;
+          const r=remoteSection.sample(centerAt);
+          tile.mirrorTunnel.position.set(r.position.x-anchor,r.position.y,-r.position.z-laneOffset);
+          tile.mirrorTunnel.quaternion.set(-r.rotation.x,-r.rotation.y,r.rotation.z,r.rotation.w);tile.mirrorTunnel.scale.z=-1;
         }
         const ownReveal=this.options.attractionsOnly?(this.options.tunnelCutaway?1:0):tunnelRevealAt(section,distance);
         this.revealTunnel(tile.tunnel,ownReveal,1);
-        if(tile.mirrorTunnel)this.revealTunnel(tile.mirrorTunnel,tunnelRevealAt(section,opponentDistance??distance),-1);
+        if(tile.mirrorTunnel)this.revealTunnel(tile.mirrorTunnel,tunnelRevealAt(remoteSection,opponentDistance??distance),-1);
       }
       for(const actor of tile.actors) for(const mirror of actor.onTrack && laneOffset ? [false,true] : [false]) {
+        const actorSection=mirror?remoteSection:section;
         const portalAge=tile.portals?.[mirror?1:0].age??-1;
         if(actor.portalIndex!==undefined&&portalAge>=6)continue;
         const mesh=this.actorMeshes[actor.kind],index=counts[actor.kind]++;
@@ -339,13 +344,13 @@ export class AdventureScene {
         const drive=tile.drives[mirror?1:0];
         const worldZ = actor.onTrack ? (section.origin.z+actor.z+laneOffset)*(mirror?-1:1)
           : actor.z+(laneOffset&&actor.z<0?-section.origin.z-laneOffset:section.origin.z+laneOffset);
-        this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y,worldZ);
+        this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y+(actor.onTrack?(mirror?remoteLift:ownLift):0),worldZ);
         this.dummy.rotation.set(0,actor.kind==="sheep"?Math.sin(phase*.3)*.16+actor.phase:0,Math.sin(phase)*.035);
         if(actor.kind==='ghost') {this.dummy.position.y+=Math.sin(phase)*.55;this.dummy.rotation.set(0,Math.sin(phase*.8)*.25,Math.sin(phase)*.08);}
         if(actor.kind==='bat') {this.dummy.position.x+=Math.sin(phase*.6)*2;this.dummy.position.y+=Math.cos(phase)*.6;this.dummy.rotation.set(0,Math.sin(phase*.5)*.4,0);}
         if(actor.kind==='mill')this.dummy.rotation.set(0,0,actor.phase+drive.angle);
         if(actor.kind==='carousel'){
-          this.dummy.rotation.set(0,this.reducedMotion?.matches?0:carouselRotation(section,mirror?opponentDistance??distance:distance),0);
+          this.dummy.rotation.set(0,this.reducedMotion?.matches?0:carouselRotation(actorSection,mirror?opponentDistance??distance:distance),0);
         }
         // The same passing train gives the fairground wheel a gentle push;
         // its cabins use the exact same angle and remain upright.
@@ -370,14 +375,14 @@ export class AdventureScene {
         }
         if(actor.kind==='cable') {
           if(actor.liftCable){
-            const p=mountainGondolaPosition(section,this.reducedMotion?.matches?section.start:mirror?opponentDistance??distance:distance,actor.phase);
+            const p=mountainGondolaPosition(actorSection,this.reducedMotion?.matches?section.start:mirror?opponentDistance??distance:distance,actor.phase);
             this.dummy.position.set(p.x-anchor,p.y,(p.z+laneOffset)*(mirror?-1:1));
             this.dummy.rotation.set(0,0,0);
           }else{this.dummy.position.x+=Math.sin(phase*.24)*9;this.dummy.rotation.set(0,0,Math.sin(phase)*.025);}
         }
         if(actor.kind==='sheep') {
           if(actor.sheepDistance!==undefined){
-            const pose=trackSheepPose(section,actor.sheepDistance,mirror?opponentDistance??distance:distance,actor.phase,time,!!this.reducedMotion?.matches);
+            const pose=trackSheepPose(actorSection,actor.sheepDistance,mirror?opponentDistance??distance:distance,actor.phase,time,!!this.reducedMotion?.matches);
             this.dummy.position.set(pose.position.x-anchor,pose.position.y,(pose.position.z+laneOffset)*(mirror?-1:1));
             this.dummy.rotation.set(0,pose.yaw,0);
           }else if(!this.reducedMotion?.matches){
@@ -387,7 +392,7 @@ export class AdventureScene {
         }
         let actorSize=actor.size;
         if(actor.portalIndex!==undefined){
-          const p=portalPumpkin(section,actor.portalIndex,portalAge,mirror?opponentGravity:gravity);
+          const p=portalPumpkin(actorSection,actor.portalIndex,portalAge,mirror?opponentGravity:gravity);
           this.dummy.position.set(p.position.x-anchor,p.position.y,(p.position.z+laneOffset)*(mirror?-1:1));
           this.dummy.rotation.set(p.spin*.6,p.spin,p.spin*.35);actorSize=p.size;
         }else if(['sheep','pumpkin','ghost'].includes(actor.kind)){

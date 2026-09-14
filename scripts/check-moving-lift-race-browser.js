@@ -1,5 +1,5 @@
 // Vite + playwright-cli run-code: a real WebRTC desktop/phone race, followed by
-// all four interactive attractions at different speeds on the two clients.
+// answer-earned gates, icicles and independent Sky lift animations.
 // Set window.checkSoftwareRenderer=true first to use Canvas on the phone.
 async page => {
   const base=await page.evaluate(()=>new URL('/',location.href).href),errors=[],report={};
@@ -7,13 +7,13 @@ async page => {
   const suffix=softwareRenderer?'-software':'';report.softwareRenderer=softwareRenderer;
   const check=(ok,message)=>{if(!ok)throw new Error(message)};
   const bind=async(p,url)=>{
-    p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
+    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!m.text().includes('Error creating WebGL context'))errors.push(m.text())});await p.goto(url);
     await p.evaluate(async()=>{
       const url=performance.getEntriesByType('resource').find(e=>e.name.includes('/src/games/mini.ts')).name;
       const {Mini}=await import(url),update=Mini.prototype.update;
       Mini.prototype.update=function(dt){
         window.raceGame=this;
-        if(window.raceFixture){this.step(dt);this.physics.previousDistance=this.physics.distance;this.physics.distance+=(window.raceVelocity||0)*dt;this.physics.velocity=window.raceVelocity||0;this.powerups.update(dt,this.track,this.physics,this.carriages);this.carriages.update(dt,this.physics.distance,window.raceVelocity||0,false);return;}
+        if(window.raceFixture){this.step(dt);this.physics.previousDistance=this.physics.distance;this.physics.distance+=(window.raceVelocity||0)*dt;this.physics.velocity=window.raceVelocity||0;this.powerups.update(dt,this.track,this.physics,this.carriages);this.track.advance?.(dt);this.carriages.update(dt,this.physics.distance,window.raceVelocity||0,false);return;}
         return update.call(this,dt);
       };
       window.raceFrames=[];let last;
@@ -71,50 +71,26 @@ async page => {
     })));
     report.natural=await Promise.all([inspect(page),inspect(phone)]);
     check(report.natural.every(g=>g.answers===3&&!g.ended&&g.received>20&&!g.overflow),'Natural race remains connected and playable: '+JSON.stringify(report.natural));
-    // Place controlled checkpoints while retaining game time, effects and real
-    // network transmission. These fixtures are separate from the FPS sample.
-    for(const p of [page,phone])await p.evaluate(()=>{
-      const g=window.raceGame;window.raceFixture=true;g.powerups.finish(g.physics,g.carriages);
-      const section=g.track.sections.find(s=>s.kind==='station')??g.track.sections[0];
-      g.physics.distance=section.start+section.length*.5;g.physics.previousDistance=g.physics.distance;g.physics.velocity=0;g.physics.flight=undefined;g.physics.traces=[];
-      g.carriages.parcels.length=0;g.carriages.flights.length=0;g.carriages.explosions.length=0;
-    });
-    for(const p of [page,phone])await p.evaluate(async()=>{
-      const {MiniTrack}=await import('/src/games/mini-track.ts');
-      const track=new MiniTrack(window.raceGame.track.seed,{generative:true,multiplayer:true});track.ensure(0,5000);
-      window.worldRaceSections=track.sections.slice();
-    });
-    report.worlds=[];
-    for(const [kind,min,max]of [['carouselhelix',1900,3000],['tunnel',900,1900],['sheepbank',0,900],['pumpkintunnel',3000,4200]]){      for(const p of [page,phone])await p.evaluate(({kind,min,max})=>{
-        const g=window.raceGame;
-        const route=window.worldRaceSections;
-        g.track.sections.splice(0,g.track.sections.length,...route.filter(s=>s.end>=min-180));
-        const s=g.track.sections.find(s=>s.kind===kind&&s.start>=min&&s.start<max);
-        if(!s)throw Error('Missing world section '+kind+' at '+min);window.interactionS=s;
-        g.physics.distance=kind==='carouselhelix'?s.start+s.distances[Math.round(s.resolution*.15)]:kind==='sheepbank'?s.start+s.length*.16-28:s.start+s.length/2-22;g.physics.previousDistance=g.physics.distance;g.physics.velocity=0;g.physics.flight=undefined;g.physics.traces=[];
-        g.powerups.finish(g.physics,g.carriages);g.powerups.gate={kind:'wind',distance:s.end+1000,id:99};window.raceVelocity=0;if(g.view){g.view.adventureScene?.destroy();g.view.adventureScene=undefined}
-        g.carriages.coaches.forEach(c=>{c.lift=0;c.liftSpeed=0});if(g.view)g.view.cameraRig.height=0;
-      },{kind,min,max});
-      await page.waitForTimeout(1000);
-      await page.evaluate(()=>{window.raceVelocity=12});await phone.evaluate(()=>{window.raceVelocity=5});
-      await page.waitForTimeout(2800);
-      const views=await Promise.all([page,phone].map(p=>p.evaluate(()=>{
-        const g=window.raceGame,v=g.view,s=window.interactionS,tile=v?.adventureScene.tiles.get(s.id);
-        return{world:document.querySelector('.world-hud').dataset.world,kind:s.kind,position:g.physics.distance,remote:g.opponent.latest?.distance,
-          portal:tile?.portals?.map(p=>({age:p.age,hits:p.hits})),mirror:!v||!!tile.mirrorFormation,colors:v?[v.railMaterial(0).color.getHexString(),v.railMaterial(0,true).color.getHexString()]:[],
-          backdrop:!v||tile.root.children.filter(m=>!m.userData.front).every(m=>Math.abs(m.position.z+v.laneOffset+2*s.origin.z)<.001),
-          overflow:document.documentElement.scrollWidth>innerWidth||document.documentElement.scrollHeight>innerHeight+1};
-      })));
-      check(views[0].world===views[1].world&&views.every(v=>v.mirror&&v.backdrop&&!v.overflow),'World race sync/layout: '+JSON.stringify(views));
-      check(softwareRenderer||views[0].colors[0]===views[1].colors[1]&&views[0].colors[1]===views[1].colors[0],'World keeps player colours');
-      if(kind==='pumpkintunnel'){
-        check(views[0].portal?.[0].hits===1&&views[0].portal?.[1].hits===0,'Host hits its own stack first: '+JSON.stringify(views));
-        if(!softwareRenderer)check(views[1].portal?.[0].hits===0&&views[1].portal?.[1].hits===1,'Guest sees only the rival stack burst');
-      }
-      report.worlds.push(views);
-      await page.screenshot({path:`output/playwright/interactive-race-${views[0].world}-${kind}-desktop${suffix}.png`});
-      await phone.screenshot({path:`output/playwright/interactive-race-${views[0].world}-${kind}-mobile${suffix}.png`});
+
+
+    await page.evaluate(()=>{const g=window.raceGame;g.powerups.activate('lift',g.physics,g.carriages);window.raceFrames=[]});
+    await phone.evaluate(()=>{const g=window.raceGame;g.powerups.activate('lift',g.physics,g.carriages);window.raceFrames=[]});
+    for(let i=0;i<12;i++){
+      await answer(page);if(i%3!==2)await answer(phone,true);
+      await page.waitForTimeout(1750);
     }
+    report.moving=await Promise.all([page,phone].map(p=>p.evaluate(()=>{
+      const g=window.raceGame,v=g.view,a=[...window.raceFrames].sort((a,b)=>a-b),r=g.opponent.sample(),t=g.opponent.track;
+      return {distance:g.travelled,answers:g.correct,ended:g.ended,active:g.powerups.active,
+        lifts:g.track.lifts.length,otherLifts:t.lifts.length,seq:g.opponent.latest.seq,
+        fps:1000/(a.reduce((a,b)=>a+b,0)/a.length),p99:a[Math.floor(a.length*.99)],over50:a.filter(x=>x>50).length,
+        finite:r.bodies.every(b=>b.position.every(Number.isFinite)),
+        localVisible:!v||v.renderedCartCount>0,
+        overflow:document.documentElement.scrollWidth>innerWidth||document.documentElement.scrollHeight>innerHeight+1};
+    })));
+    check(report.moving.every(g=>!g.ended&&g.lifts>0&&g.otherLifts>0&&g.seq>200&&g.finite&&g.localVisible&&!g.overflow),'Continuous lift race remains playable: '+JSON.stringify(report.moving));
+    await page.screenshot({path:'output/playwright/race-upgrades-moving-desktop.png'});
+    await phone.screenshot({path:'output/playwright/race-upgrades-moving-mobile.png'});
     report.errors=errors;check(!errors.length,errors.join('\n'));
   }finally{await context.close();await page.evaluate(()=>{window.raceDone=true})}
   return report;

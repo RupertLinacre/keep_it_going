@@ -34,6 +34,6 @@ The initial real two-client playtest completed a roughly 1.25 km race with 16 an
 
 A production build served under `/keep_it_going/` passed the real-browser workflow with no page errors. During the moving portion of that test, both the 1920×1080 desktop and 390×844 touch context delivered 1,763 frames in approximately 29.4 seconds (60.0 fps; 95th-percentile interval 16.7 ms). The workflow also passed with WebGL disabled in the mobile context, using the two-track software renderer, including 844×390 landscape and 320×568 portrait keypad checks. To repeat that variant, set `window.checkSoftwareRenderer = true` using the CLI’s `eval` command before running the browser-check script.
 
-Remix races and their five independent powers are described in [the Remix notes](remix.md#two-player-remix). Classic remains available and uses the same connection lifecycle.
+Remix races and their six independent powers are described in [the Remix notes](remix.md#two-player-remix). Classic remains available and uses the same connection lifecycle.
 
-Adventure-world builds use protocol 7 so they cannot accidentally join an older protocol 5 or 6 course with different generated rails. Worlds themselves require no additional per-frame network payload: both sides derive them from the seeded course.
+Adventure-world builds use protocol 8 so they cannot accidentally join an older protocol 5, 6 or 7 course with different generated rails. Both sides derive the worlds from the seeded course; separate lift snapshots describe each rider’s raised rail.

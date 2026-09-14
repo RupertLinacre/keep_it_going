@@ -232,9 +232,9 @@ export function mountGame(
         const gap = Math.round(local - remote);
         root.querySelector("[data-race-gap]")!.textContent = network.remoteResult ? "Your friend has finished" : finished ? "Your ride is complete" : Math.abs(gap) < 2 ? "Neck and neck" : `${Math.abs(gap)} m ${gap > 0 ? "ahead" : "behind"}`;
         if (settings.remixMode) {
-          const label = (power: { active?: PowerKind; remaining: number; gate?: PowerGate } | undefined, distance: number) => {
+          const label = (power: { active?: PowerKind; remaining: number; gate?: PowerGate; answers?: number } | undefined, distance: number) => {
             const kind = power?.active ?? power?.gate?.kind;
-            return !kind ? "Keep rolling" : power?.active ? `${POWERUPS[kind].icon} ${POWERUPS[kind].name} · ${Math.ceil(power.remaining)}s`
+            return !kind ? `✦ ${power?.answers ?? 0}/4 answers` : power?.active ? `${POWERUPS[kind].icon} ${POWERUPS[kind].name} · ${Math.ceil(power.remaining)}s`
               : `${POWERUPS[kind].icon} Next · ${Math.max(0, Math.ceil(power!.gate!.distance-distance))} m`;
           };
           root.querySelector("[data-your-power]")!.textContent = finished ? "Finished" : label(game!.powerups, game!.physics.distance);

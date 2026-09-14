@@ -23,7 +23,7 @@ export function trackBounds(track: MiniTrack) {
   return box;
 }
 
-/** Widen ahead of approaching elements, never snap inward as old rail is pruned.
+/** Widen ahead of approaching elements, then gently return as they recede.
  * Both tracks share this single offset, including trains, effects and scenery. */
 export class RaceSpacing {
   offset = 0;
@@ -36,9 +36,12 @@ export class RaceSpacing {
   }
   update(track: MiniTrack, dt: number) {
     const required = Math.max(14, 9 - Math.min(...track.sections.map(s => sectionBounds(s).min.z)));
-    this.target = Math.max(this.target, required);
+    this.target = required;
     if (!this.offset) this.offset = this.target;
-    else this.offset += Math.min(6 * Math.max(0, dt), (this.target - this.offset) * (1 - Math.exp(-Math.max(0, dt) * 0.7)));
+    else {
+      const change = (this.target - this.offset) * (1 - Math.exp(-Math.max(0, dt) * 0.7));
+      this.offset += Math.sign(change) * Math.min((change > 0 ? 6 : 2) * Math.max(0, dt), Math.abs(change));
+    }
     return this.offset;
   }
 }

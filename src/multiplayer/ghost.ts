@@ -4,6 +4,7 @@ import type { Mini } from "../games/mini";
 import { sectionBounds } from "../games/mini-world";
 import type { MiniTrack } from "../games/mini-track";
 import type { Body, RideState } from "./protocol";
+import { HeightTrack } from "../games/height-track";
 
 const entityIds = new WeakMap<object, string>();
 let nextEntity = 0;
@@ -27,14 +28,15 @@ export function snapshotRide(game: Mini, seq: number): RideState {
     seq, time: game.elapsed, distance: game.physics.distance, speed: game.ended ? 0 : game.physics.velocity,
     correct: game.correct, ended: game.ended,
     ...(game.powerups ? { power: game.powerups.snapshot() } : {}),
+    ...(game.track instanceof HeightTrack ? { heights: game.track.snapshot(!game.physics.flight && !game.ended) } : {}),
     bodies: [
       ...game.carriages.poses(distance, game.physics.renderAlpha).map(({ coach, frame }): Body => ({
         id: `coach-${coach.id}`, color: coach.id, cargo: coach.cargo, cargoAge: coach.cargoAge,
         bombs: (coach.dynamite ?? 0) & ((1 << coach.cargo)-1),
         position: frame.position.toArray(), rotation: frame.rotation.toArray(),
         velocity: frame.tangent.clone().multiplyScalar(game.physics.velocity + (coach === incoming ? closing : 0)).add(new Vector3(0, coach.liftVelocity, 0)).toArray(),
-        ...(!game.physics.sample(distance - coach.offset).airborne ? { rail: {
-          distance: distance - coach.offset, speed: game.physics.velocity + (coach === incoming ? closing : 0),
+        ...(!game.physics.sample(game.track.followerDistance(distance, coach.offset)).airborne ? { rail: {
+          distance: game.track.followerDistance(distance, coach.offset), speed: game.physics.velocity + (coach === incoming ? closing : 0),
           lift: coach.previousLift + (coach.lift - coach.previousLift) * game.physics.renderAlpha,
           liftSpeed: coach.liftVelocity, coupled: coach !== game.carriages.incoming,
         } } : {}),
