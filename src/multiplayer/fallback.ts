@@ -27,7 +27,7 @@ export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
   const local = snapshotRide(game, 0), remote = game.opponent?.sample();
   for (const rival of [true, false]) {
     const state = rival ? remote : local;
-    if(game.remixMode)drawAdventureFallback(ctx,game.track,game.physics.distance,state?.time??game.elapsed,p=>project(p,rival),scale);
+    if(game.remixMode)drawAdventureFallback(ctx,game.track,state?.distance??game.physics.distance,state?.time??game.elapsed,p=>project(p,rival),scale,rival?1:0);
     for (const section of game.track.sections) {
       if (section.kind === "splash" || section.kind === "jump") {
         const flooded = section.kind === "splash", y = flooded ? section.waterLevel : .4;

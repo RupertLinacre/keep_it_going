@@ -1,8 +1,9 @@
 import { tunnelRevealAt } from "./mountain-landforms";
+import { AttractionDrive } from './attraction-drive';
 import { FairgroundLights, fairgroundBeamMaterial } from "./world-lighting";
 import { sheepBanks, lilyBridge, meadowWindmill, duckModel } from "./world-meadow";
 import { halloweenScenery, pumpkinHops, pumpkinTunnel, witchHat, witchHatCenter, ghostModel, batModel } from "./world-halloween";
-import { nightScenery, lanternParade, marqueeLoop, carouselClimb, carouselCenter, carouselModel, gondolaModel } from "./world-night";
+import { nightScenery, lanternParade, marqueeLoop, carouselClimb, carouselCenter, carouselModel, gondolaModel, tracksideLights } from "./world-night";
 import { mountainScenery, mountainRidge, tunnelModel, ravineBridge } from "./world-mountains";
 import * as T from "three";
 import { adventureAt, type AdventureWorld } from "./adventure-worlds";
@@ -12,7 +13,7 @@ import { seededRandom } from "./mini-rail";
 import type { MiniSection, MiniTrack } from "./mini-track";
 
 type Actor = { kind: "sheep" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "carousel" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number };
-type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group };
+type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive] };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
  * Static scenery is batched; animated creatures share a small instance buffer. */
@@ -82,7 +83,7 @@ export class AdventureScene {
     this.actorMeshes={sheep:this.sheep,mill:this.mills,cable:this.cables,wheel:this.wheels,firefly:this.fireflies,ghost:this.ghosts,bat:this.bats,duck:this.ducks,spray:this.spray,carousel:this.carousels,gondola:this.gondolas,beam:this.beams};
   }
   private instances(model: WorldModel, glow=false) {
-    const source = model.finish(this.material, this.luminous).children[0] as T.Mesh;
+    const source = model.finish(this.material, this.luminous,false).children[0] as T.Mesh;
     const mesh = new T.InstancedMesh(source.geometry, glow?this.luminous:this.material, 192);
     mesh.castShadow = !glow; mesh.frustumCulled = false; mesh.count = 0;
     mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); this.group.add(mesh); return mesh;
@@ -177,11 +178,14 @@ export class AdventureScene {
       } else base.add(G.box,'#b69a72',[f.x-section.origin.x,(f.y-.3)/2,f.z-section.origin.z],[16,f.y-.3,8]);
       formation=base.finish(this.material,this.luminous);this.group.add(formation);
     }
+    if(world.id==='night'&&!formation){
+      const lights=new WorldModel();tracksideLights(lights,section);formation=lights.finish(this.material,this.luminous);this.group.add(formation);
+    }
     const root = model.finish(this.material, this.luminous);
     this.group.add(root);
     const tunnel=['tunnel','pumpkintunnel'].includes(section.kind)?(section.kind==='pumpkintunnel'||world.id==='halloween'?pumpkinTunnel(this.material,this.luminous):tunnelModel(this.material,this.luminous)):undefined;
     if(tunnel)this.group.add(tunnel);
-    return { root, actors, section, tunnel, formation, gorgeWall };
+    return { root, actors, section, tunnel, formation, gorgeWall, drives:[new AttractionDrive(),new AttractionDrive()] };
   }
   private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
     // Broad, overlapping hills read as a landscape rather than miniature cones.
@@ -220,6 +224,16 @@ export class AdventureScene {
   render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number, opponentDistance?: number) {
     if(this.reducedMotion?.matches)time=0;
     this.luminous.clock.value=time;
+    this.group.updateWorldMatrix(true,false);
+    for(let rider=0;rider<2;rider++)for(let tail=0;tail<2;tail++){
+      const point=this.luminous.trains.value[rider*2+tail];
+      if(rider && !laneOffset){point.set(1e6,1e6,1e6);continue;}
+      point.copy(track.sample((rider?opponentDistance??distance:distance)-tail*15).position);
+      point.x-=anchor;point.z=(point.z+laneOffset)*(rider?-1:1);
+      // Downhill drift rotates the whole scene; compare lamps and trains in
+      // that same transformed space so the glow remains beside the carriages.
+      point.applyMatrix4(this.group.matrixWorld);
+    }
     const visible = track.sections.filter(s=>s.start<distance+350);
     const ids = new Set(visible.map(s=>s.id));
     for (const [id,tile] of this.tiles) if(!ids.has(id)) { this.release(tile); this.tiles.delete(id); }
@@ -228,6 +242,8 @@ export class AdventureScene {
     for (const section of visible) {
       let tile=this.tiles.get(section.id);
       if(!tile) { tile=this.build(section,track);this.tiles.set(section.id,tile); }
+      tile.drives[0].update(time,distance,section.start,section.end,!!this.reducedMotion?.matches);
+      tile.drives[1].update(time,opponentDistance??distance,section.start,section.end,!!this.reducedMotion?.matches);
       tile.root.position.set(section.origin.x-anchor,0,section.origin.z);
       for(const mesh of tile.root.children) mesh.position.z=laneOffset?(mesh.userData.front?laneOffset:-laneOffset-2*section.origin.z):0;
       if(tile.gorgeWall) {
@@ -265,22 +281,39 @@ export class AdventureScene {
         const mesh=this.actorMeshes[actor.kind],index=counts[actor.kind]++;
         if(index>=192)continue;
         const phase=time*.9+actor.phase;
+        const drive=tile.drives[mirror?1:0];
         const worldZ = actor.onTrack ? (section.origin.z+actor.z+laneOffset)*(mirror?-1:1)
           : actor.z+(laneOffset&&actor.z<0?-section.origin.z-laneOffset:section.origin.z+laneOffset);
         this.dummy.position.set(section.origin.x+actor.x-anchor,actor.y,worldZ);
-        this.dummy.rotation.set(0,actor.kind==="sheep"?Math.sin(phase*.3)*.16+actor.phase:0,actor.kind==="mill"?phase*.35:Math.sin(phase)*.035);
+        this.dummy.rotation.set(0,actor.kind==="sheep"?Math.sin(phase*.3)*.16+actor.phase:0,Math.sin(phase)*.035);
         if(actor.kind==='ghost') {this.dummy.position.y+=Math.sin(phase)*.55;this.dummy.rotation.set(0,Math.sin(phase*.8)*.25,Math.sin(phase)*.08);}
         if(actor.kind==='bat') {this.dummy.position.x+=Math.sin(phase*.6)*2;this.dummy.position.y+=Math.cos(phase)*.6;this.dummy.rotation.set(0,Math.sin(phase*.5)*.4,0);}
-        if(actor.kind==='wheel')this.dummy.rotation.set(0,0,phase*.19);
-        if(actor.kind==='gondola'){this.dummy.position.x-=Math.sin(phase*.19)*7;this.dummy.position.y+=Math.cos(phase*.19)*7;this.dummy.rotation.set(0,0,0);}
-        if(actor.kind==='carousel')this.dummy.rotation.set(0,time*.3,0);
+        if(actor.kind==='mill')this.dummy.rotation.set(0,0,actor.phase+drive.angle);
+        if(actor.kind==='carousel'){
+          this.dummy.rotation.set(0,drive.angle*.65,0);
+          this.dummy.position.y+=Math.sin(drive.angle*3)*Math.min(.2,drive.speed*.08);
+        }
+        // The same passing train gives the fairground wheel a gentle push;
+        // its cabins use the exact same angle and remain upright.
+        if(actor.kind==='wheel')this.dummy.rotation.set(0,0,phase*.19+drive.angle*.18);
+        if(actor.kind==='gondola'){
+          const a=phase*.19+drive.angle*.18;
+          this.dummy.position.x=section.origin.x+actor.x-anchor-Math.sin(a)*7;
+          this.dummy.position.y=actor.y+Math.cos(a)*7;
+          this.dummy.rotation.set(0,0,0);
+        }
         if(actor.kind==='beam')this.dummy.rotation.set(Math.sin(phase*.25)*.22,0,Math.sin(phase*.4)*.42);
         if(actor.kind==='firefly') {
           this.dummy.position.x+=Math.sin(phase*.9)*.8;this.dummy.position.y+=Math.sin(phase)*.6;
           this.dummy.position.z+=Math.cos(phase*.7)*.6;
         }
         if(actor.kind==='spray') {const fall=(time*.7+actor.phase)%1;this.dummy.position.y=.25+(actor.drop??12)*(1-fall*fall);this.dummy.rotation.set(0,0,0);}
-        if(actor.kind==='duck') {this.dummy.position.x+=Math.sin(phase*.25)*2;this.dummy.position.y+=Math.sin(phase)*.07;this.dummy.rotation.set(0,Math.sin(phase*.25)*.3,0);}
+        if(actor.kind==='duck'){
+          this.dummy.position.x+=Math.sin(phase*.25)*2;this.dummy.position.y+=Math.sin(phase)*.07;
+          this.dummy.rotation.set(0,Math.sin(phase*.25)*.3,0);
+          this.dummy.position.z+=(mirror?-1:1)*Math.min(1.6,drive.speed)*Math.sin(actor.phase+1);
+          this.dummy.rotation.y+=Math.sin(drive.angle*2+actor.phase)*Math.min(.3,drive.speed*.15);
+        }
         if(actor.kind==='cable') {this.dummy.position.x+=Math.sin(phase*.24)*9;this.dummy.rotation.set(0,0,Math.sin(phase)*.025);}
         if(actor.kind==='sheep' && !this.reducedMotion?.matches) {
           const passing=(leadX-section.origin.x-actor.x+8)/16;

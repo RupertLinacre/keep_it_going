@@ -1,5 +1,6 @@
 import * as T from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { FairgroundLights } from './world-lighting';
 
 /** One vertex-coloured batch per scenery tile. No texture downloads or per-flower draw calls. */
 export class WorldModel {
@@ -7,6 +8,8 @@ export class WorldModel {
   private glow: T.BufferGeometry[] = [];
   private frontSolid: T.BufferGeometry[] = [];
   private frontGlow: T.BufferGeometry[] = [];
+  private halos: T.BufferGeometry[] = [];
+  private frontHalos: T.BufferGeometry[] = [];
   constructor(private splitLandscape=false) {}
   add(geometry: T.BufferGeometry, color: string, position: number[], scale = [1, 1, 1], rotation = [0, 0, 0], glow = false, phase = -1) {
     const g = geometry.index ? geometry.toNonIndexed() : geometry.clone(); g.deleteAttribute("uv");
@@ -25,6 +28,12 @@ export class WorldModel {
     for (let i = 0; i < colors.length; i += 3) { colors[i] = c.r; colors[i + 1] = c.g; colors[i + 2] = c.b; }
     g.setAttribute("color", new T.BufferAttribute(colors, 3));
     if (glow) g.setAttribute("lightPhase", new T.BufferAttribute(new Float32Array(colors.length / 3).fill(phase), 1));
+    if(glow && phase>=0 && geometry===WORLD_SHAPES.round){
+      const halo=g.clone(),centers=new Float32Array(colors.length);
+      for(let i=0;i<centers.length;i+=3)centers.set(position,i);
+      halo.setAttribute('lightCenter',new T.BufferAttribute(centers,3));
+      (this.splitLandscape&&position[2]>0?this.frontHalos:this.halos).push(halo);
+    }
     (this.splitLandscape && position[2]>0 ? glow ? this.frontGlow : this.frontSolid : glow ? this.glow : this.solid).push(g);
   }
   beam(color: string, from: T.Vector3, to: T.Vector3, radius = .1, glow = false, phase = -1) {
@@ -33,7 +42,7 @@ export class WorldModel {
     const rotation = new T.Euler().setFromQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), delta.divideScalar(length)));
     this.add(WORLD_SHAPES.pole, color, from.clone().add(to).multiplyScalar(.5).toArray(), [radius, length, radius], [rotation.x, rotation.y, rotation.z], glow, phase);
   }
-  finish(material: T.Material, luminous: T.Material) {
+  finish(material: T.Material, luminous: T.Material, halos=true) {
     const group = new T.Group();
     for (const [geometries, mat, front] of [[this.solid, material, false], [this.glow, luminous, false], [this.frontSolid, material, true], [this.frontGlow, luminous, true]] as const) {
       if (!geometries.length) continue;
@@ -42,6 +51,13 @@ export class WorldModel {
       mesh.userData.front=front;
       group.add(mesh); geometries.forEach(g => g.dispose());
     }
+    for(const [geometries,front]of [[this.halos,false],[this.frontHalos,true]] as const){
+      if(geometries.length && halos && luminous instanceof FairgroundLights){
+        const mesh=new T.Mesh(mergeGeometries([...geometries])!,luminous.halos);mesh.userData.front=front;group.add(mesh);
+      }
+      geometries.forEach(g=>g.dispose());
+    }
+    this.halos=[];this.frontHalos=[];
     this.solid = []; this.glow = [];this.frontSolid=[];this.frontGlow=[];
     return group;
   }

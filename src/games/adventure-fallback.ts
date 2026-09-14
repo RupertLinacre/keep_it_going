@@ -1,21 +1,26 @@
 import { Vector3 } from 'three';
-import type { MiniTrack } from './mini-track';
+import type { MiniTrack, MiniSection } from './mini-track';
+import { AttractionDrive } from './attraction-drive';
 import { adventureAt } from './adventure-worlds';
 import { carouselCenter } from "./world-night";
 import { witchHatCenter } from "./world-halloween";
 import { seededRandom } from './mini-rail';
 
 const reducedMotion=typeof matchMedia==="function"?matchMedia("(prefers-reduced-motion: reduce)"):undefined;
+const drives=new WeakMap<MiniSection,[AttractionDrive,AttractionDrive]>();
 
 /** Lightweight world landmarks for devices that cannot create a WebGL context. */
-export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTrack,distance:number,time:number,project:(p:Vector3)=>[number,number],scale:number) {
+export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTrack,distance:number,time:number,project:(p:Vector3)=>[number,number],scale:number,rider=0) {
   if(reducedMotion?.matches)time=0;
+  const lead=track.sample(distance).position.clone(),tail=track.sample(distance-15).position.clone();
   const oval=(x:number,y:number,rx:number,ry:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill()};
   const rect=(x:number,y:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h)};
   const triangle=(x:number,y:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x-w,y);ctx.lineTo(x,y+h);ctx.lineTo(x+w,y);ctx.closePath();ctx.fill()};
   for(const section of track.sections){
     if(section.start>distance+180)continue;
     const world=adventureAt(section.start).world;
+    if(!drives.has(section))drives.set(section,[new AttractionDrive(),new AttractionDrive()]);
+    const drive=drives.get(section)![rider];drive.update(time,distance,section.start,section.end,!!reducedMotion?.matches);
     const n=Math.min(10,Math.ceil(section.span/28)),r=seededRandom(track.seed^Math.imul(section.id+17,17041));
     for(let i=0;i<n;i++){
       const x=section.origin.x+section.span*(i+.5)/n,[px,py]=project(new Vector3(x,0,section.origin.z));
@@ -38,7 +43,7 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
         for(let j=0;j<9;j++){const sx=-14+r()*28,sy=8+r()*15;oval(sx,sy,.06,.06,'#c9e2ed')}
         if(section.id%4===0&&i===0){
           rect(-.15,0,.3,7,'#8690b0');ctx.strokeStyle='#95e9d8';ctx.lineWidth=.15;ctx.beginPath();ctx.arc(0,7,5.6,0,Math.PI*2);ctx.stroke();
-          for(let j=0;j<8;j++){const a=j*Math.PI/4+time*.17;oval(Math.sin(a)*5.6,7+Math.cos(a)*5.6,.35,.4,'#efc5d7')}
+          for(let j=0;j<8;j++){const a=j*Math.PI/4+time*.17+drive.angle*.18;oval(Math.sin(a)*5.6,7+Math.cos(a)*5.6,.35,.4,'#efc5d7')}
         }
         for(const tx of [-7,6]){rect(tx,0,.12,3,'#708c9f');oval(tx,3.2,.35,.55,'#ffd794')}
       }else{
@@ -93,21 +98,28 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       const y=section.origin.y+section.amplitude,[px,py]=project(new Vector3(section.origin.x+section.width*.5,y,section.origin.z));
       ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
       triangle(0,-y,2.7,y,'#e9d3a4');triangle(0,-1.5,3,3,'#d98d72');
-      ctx.rotate(time*.31);for(let i=0;i<4;i++){rect(-.5,0,1,section.amplitude*.57,'#fff0cc');ctx.rotate(Math.PI/2)}ctx.restore();
+      ctx.rotate(drive.angle);for(let i=0;i<4;i++){rect(-.5,0,1,section.amplitude*.57,'#fff0cc');ctx.rotate(Math.PI/2)}ctx.restore();
     }
     if(section.kind==='witchhat'||section.kind==='carouselhelix'){
       const hat=section.kind==='witchhat',c=hat?witchHatCenter(section):carouselCenter(section);
       const [px,py]=project(new Vector3(section.origin.x+c.x,0,section.origin.z+c.z));ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
       if(hat){oval(0,1.5,c.radius-.4,.45,'#b099bf');triangle(0,1.5,c.radius-2,section.amplitude,'#aa8cb8');rect(-2.3,3,4.6,.9,'#dcaf66');oval(0,11,.7,.85,'#ffe1a2')}
-      else {rect(-c.radius,1,c.radius*2,1,'#c19bb7');triangle(0,7,c.radius+1,3,'#c896b9');for(let i=0;i<6;i++){const x=Math.sin(time*.3+i*Math.PI/3)*c.radius*.7;rect(x,2,.08,5,'#dcc493');oval(x,4,.5,.25,'#e9d8c4')}}
+      else {rect(-c.radius,1,c.radius*2,1,'#c19bb7');triangle(0,7,c.radius+1,3,'#c896b9');for(let i=0;i<6;i++){const x=Math.sin(drive.angle*.65+i*Math.PI/3)*c.radius*.7;rect(x,2,.08,5,'#dcc493');oval(x,4,.5,.25,'#e9d8c4')}}
       ctx.restore();
     }
-    if(['midwayloop','carouselhelix','witchhat','lanternrun'].includes(section.kind)){
+    if(world.id==='night'||['witchhat'].includes(section.kind)){
       const colors=['#ffd298','#efa4ca','#b2e9d7','#c1aff0'];
       for(let i=0;i<65;i++){
         const f=section.sample(section.start+section.length*i/64),p=f.position.clone().addScaledVector(f.up,section.kind==='lanternrun'?4:-1);
         const [x,y]=project(p);ctx.globalAlpha=.35+.65*(.5+.5*Math.sin(time*1.4-i*.28))**2;
-        oval(x,y,scale*.2,scale*.2,colors[Math.floor(i/5)%4]);
+        const near=Math.min(p.distanceToSquared(lead),p.distanceToSquared(tail));
+        const arrival=Math.exp(-near/190);
+        if(arrival>.05){
+          ctx.globalAlpha=arrival*.65;
+          const r=scale*.9,g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,colors[Math.floor(i/5)%4]);g.addColorStop(1,'transparent');
+          ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+        }
+        ctx.globalAlpha=.5+arrival*.5;oval(x,y,scale*.2,scale*.2,arrival>.4?'#fff7db':colors[Math.floor(i/5)%4]);
       }
       ctx.globalAlpha=1;
     }

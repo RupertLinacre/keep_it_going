@@ -20,7 +20,7 @@ export function nightScenery(m:WorldModel,x:number,back:number,front:number,r:()
   for(let i=0;i<6;i++){
     const lx=x-12+r()*24,lz=front+r()*6,h=.8+r();
     m.add(G.pole,'#82aaad',[lx,h*.5,lz],[.12,h,.12]);
-    m.add(G.round,i%2?'#f5b98e':'#ab9ee4',[lx,h,lz],[.7,.35,.7],[],true);
+    m.add(G.round,i%2?'#f5b98e':'#ab9ee4',[lx,h,lz],[.7,.35,.7],[],true,i*.5);
     m.add(G.round,'#547275',[lx,.05,lz],[1.7,.055,1.4]);
   }
   if(r()<.3){
@@ -87,6 +87,19 @@ export function lanternParade(m:WorldModel,section:MiniSection) {
 }
 
 const BULBS = ['#ffc876', '#ed97c6', '#9cdfd4', '#b8a3f5'];
+
+/** Keep a ribbon of reactive lamps beside the rails between signature rides. */
+export function tracksideLights(m:WorldModel,section:MiniSection) {
+  const steps=Math.min(120,Math.ceil(section.length/4));
+  for(let i=0;i<=steps;i++){
+    const f=section.sample(section.start+section.length*i/steps);
+    for(const side of [-1,1]){
+      const p=f.position.clone().addScaledVector(f.right,side*1.65).addScaledVector(f.up,-.3);
+      p.x-=section.origin.x;p.z-=section.origin.z;
+      m.add(G.round,BULBS[Math.floor(i/4)%4],p.toArray(),[.18,.18,.18],[],true,i*.3);
+    }
+  }
+}
 
 export function marqueeLoop(m: WorldModel, section: MiniSection) {
   let previous: number[] | undefined;
