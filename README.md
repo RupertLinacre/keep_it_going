@@ -33,6 +33,8 @@ Your train runs in the foreground. The host stays teal and the guest stays coral
 
 The pre-multiplayer release is preserved in the annotated Git tag **v2.1** (`10570a1`). See [the multiplayer notes](docs/multiplayer.md) for connection behaviour, rendering and verification.
 
+Multiplayer supports automatic managed TURN fallback for players on different networks, including TLS on port 443. The credential broker is a separate Cloudflare Worker; the game stays on GitHub Pages. See [relay setup, deployment and connection diagnostics](docs/relay.md).
+
 The ride grows with the distance you travel. After the opening drop, discover heartline rolls, wave turns, double dips, sustained upside-down stalls, top hats, Immelmann turns, dive loops, interlocking loops, and a fantasy loop within a loop. Rising sky spirals grow from two to eight turns; hills become taller and steeper, and loops become enormous. Familiar corkscrews, vertical climbs, protected inverted crests and occasional three-turn helter-skelter descents remain part of the ride.
 
 The track director alternates demanding elements with lower recovery sections. Each complete element returns to a forward heading, a narrow route corridor and the same base elevation, so the railway keeps travelling broadly in a straight line. Crossings in compound loops have separate lanes. Correct answers always give the same energy boost: the track itself makes later runs harder. See [the element and balance notes](docs/ride-design.md) for the reference, progression and reproducible playtests.

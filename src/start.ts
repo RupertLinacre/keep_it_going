@@ -109,7 +109,8 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
       <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : "Joining your friend"}</h2>
       ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>2 players</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
       <p class="lobby-status ${error ? "is-error" : ""}" role="status">${escape(session.status)}</p>
-      ${!error ? `<p class="lobby-mode">${session.remixMode ? "Remix race · five powers · shared course" : "Classic race"}</p>` : ""}
+      ${!error ? `<p class="lobby-mode">${session.remixMode ? "Remix race · six powers · shared course" : "Classic race"}</p>` : ""}
+      ${error || new URL(location.href).searchParams.has("network") ? `<p class="difficulty-help">Connection: ${escape(session.network.stage)} · ${escape(session.network.route)} · relay ${escape(session.network.relay)}</p><button class="text-button" data-copy-diagnostics>Copy connection details</button>` : ""}
       ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you) · ${DIFFICULTY_LABELS[session.difficulty]}</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)} <small>${DIFFICULTY_LABELS[session.opponentDifficulty]}</small></span></div><p class="lobby-tables">Shared times tables · ${session.tables.join(", ")}</p>` : ""}
       ${host && !error ? `<button class="primary-button full-button" data-start-race ${ready ? "" : "disabled"}>${ready ? "Start the race →" : "Waiting for your friend…"}</button>` : ""}
       <p class="copy-status" data-copy-status role="status"></p>`;
@@ -156,9 +157,14 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     }
     if (button.hasAttribute("data-create")) open("host");
     if (button.hasAttribute("data-start-race")) session?.start();
+    if (button.hasAttribute("data-copy-diagnostics") && session) {
+      try { await navigator.clipboard.writeText(JSON.stringify(session.diagnostics(), null, 2)); q("[data-copy-status]").textContent = "Connection details copied."; }
+      catch { q("[data-copy-status]").textContent = JSON.stringify(session.diagnostics()); }
+    }
     if (button.dataset.copy && session) {
       const url = new URL(location.href); url.search = ""; url.hash = ""; url.searchParams.set("join", session.code);
       url.searchParams.set("mode", session.remixMode ? "remix" : "classic");
+      if (session.network.mode !== "auto") url.searchParams.set("network", session.network.mode);
       try {
         await navigator.clipboard.writeText(button.dataset.copy === "link" ? url.href : session.code);
         if (!disposed) q("[data-copy-status]").textContent = "Copied! Send it to your friend.";

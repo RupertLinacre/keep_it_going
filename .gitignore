@@ -3,3 +3,9 @@ dist/
 .DS_Store
 .playwright-cli/
 output/
+.env.local
+.env.*.local
+.dev.vars
+.dev.vars.*
+.wrangler/
+__pycache__/

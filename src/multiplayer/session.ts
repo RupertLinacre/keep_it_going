@@ -3,15 +3,36 @@ import type { Difficulty } from "../types";
 import type Peer from "peerjs";
 import type { DataConnection } from "peerjs";
 import { normalizeTables } from "../questions";
+import { loadRelay, networkMode, selectedRoute, TURN_ENDPOINT, type NetworkMode, type RelayStatus, type RouteInfo } from "./relay";
 import { cleanCode, cleanName, inviteCode, parseWire, PROTOCOL, validCode,
   type RaceResult, type RideState, type Round, type Wire } from "./protocol";
 
 type Phase = "idle" | "opening" | "waiting" | "ready" | "preparing" | "countdown" | "racing" | "complete" | "error" | "closed";
 type Events = { change: undefined; prepare: Round; go: number; state: RideState };
-export type PeerFactory = (id?: string) => Promise<Peer>;
-const createPeer: PeerFactory = async id => {
-  const { default: Peer } = await import("peerjs");
-  return id ? new Peer(id, { debug: 1 }) : new Peer({ debug: 1 });
+type PeerSetup = { signal: AbortSignal; mode: NetworkMode; relay(status: RelayStatus): void };
+export type PeerFactory = (id?: string, setup?: PeerSetup) => Promise<Peer>;
+const createPeer: PeerFactory = async (id, setup) => {
+  const endpoint = import.meta.env?.VITE_TURN_ENDPOINT || TURN_ENDPOINT;
+  const [{ default: Peer }, relay] = await Promise.all([import("peerjs"), loadRelay(endpoint, setup?.mode, setup?.signal)]);
+  if (setup?.signal.aborted) throw new Error("Connection cancelled");
+  setup?.relay(relay.status);
+  const options = { debug: 1, ...(relay.config ? { config: relay.config } : {}) };
+  const peer = id ? new Peer(id, options) : new Peer(options);
+  // Refresh credentials for long waiting rooms/rematches without interrupting
+  // the existing data channel. Future connections use the refreshed config too.
+  const refresh = relay.config ? setInterval(async () => {
+    const fresh = await loadRelay(endpoint, setup?.mode, setup?.signal).catch(() => undefined);
+    if (!fresh?.config || peer.destroyed || setup?.signal.aborted) return;
+    peer.options.config = fresh.config;
+    for (const connections of Object.values(peer.connections)) for (const connection of connections) {
+      try { connection.peerConnection?.setConfiguration(fresh.config); } catch { /* A closed connection needs no refresh. */ }
+    }
+    setup?.relay(fresh.status);
+  }, 30 * 60 * 1000) : undefined;
+  const cleanup = () => clearInterval(refresh);
+  peer.on("close", cleanup);
+  setup?.signal.addEventListener("abort", cleanup, { once: true });
+  return peer;
 };
 
 /** Each rider owns their coaster. Only presentation snapshots cross the connection;
@@ -48,6 +69,29 @@ export class RaceSession {
   private remoteReady = false;
   private roundTrip = 0;
   private lastSeq = -1;
+  private abort?: AbortController;
+  private routeTimer?: ReturnType<typeof setInterval>;
+  network: RouteInfo & { mode: NetworkMode; relay: RelayStatus; stage: string; error?: string } = {
+    mode: "auto", relay: "unconfigured", stage: "idle", route: "unknown",
+  };
+
+  /** Safe to copy into a bug report: no addresses, invite codes or credentials. */
+  diagnostics() {
+    const pc = this.connection?.peerConnection;
+    return { version: PROTOCOL, phase: this.phase, ...this.network,
+      iceState: pc?.iceConnectionState, gatheringState: pc?.iceGatheringState };
+  }
+
+  private async inspectRoute() {
+    const connection = this.connection;
+    if (!connection?.peerConnection?.getStats) return;
+    try {
+      const report = await connection.peerConnection.getStats();
+      if (this.connection !== connection || this.phase === "closed") return;
+      this.network = { ...this.network, ...selectedRoute(report) };
+      this.change();
+    } catch { /* Diagnostics must never interrupt a race. */ }
+  }
 
   constructor(private factory: PeerFactory = createPeer) {}
   on<K extends keyof Events>(event: K, fn: (value: Events[K]) => void) {
@@ -61,12 +105,15 @@ export class RaceSession {
     if (this.phase === "closed" || this.phase === "error") return;
     if (this.phase !== "complete") this.phase = "error";
     this.status = message; this.connected = false;
-    clearTimeout(this.timeout); clearInterval(this.heartbeat);
+    this.abort?.abort();
+    clearTimeout(this.timeout); clearInterval(this.heartbeat); clearInterval(this.routeTimer);
     this.change();
   }
   async open(role: "host" | "guest", name: string, tables: number[], code = "", difficulty: Difficulty = "normal", options: { remixMode?: boolean; seed?: number } = {}) {
     this.close();
     const attempt = ++this.attempt;
+    this.abort = new AbortController();
+    this.network = { mode: networkMode(typeof location === "undefined" ? "" : location.search), relay: "loading", stage: "credentials", route: "unknown" };
     this.difficulty = normalizeDifficulty(difficulty);
     this.remixMode = !!options.remixMode;
     this.courseSeed = options.seed;
@@ -76,15 +123,20 @@ export class RaceSession {
     this.status = role === "host" ? "Creating your invite…" : "Finding your friend…";
     this.change();
     if (!validCode(this.code)) { this.fail("Enter the four-character invite code from your friend."); return; }
-    this.deadline("Couldn’t connect. Check your internet connection and try again.", 20000);
+    this.deadline("Couldn’t reach the invite service. Check your internet connection and try again.", 30000);
     try {
-      const peer = await this.factory(role === "host" ? `keep-going-v${PROTOCOL}-${this.code.toLowerCase()}` : undefined);
-      if (attempt !== this.attempt) { peer.destroy(); return; }
+      const peer = await this.factory(role === "host" ? `keep-going-v${PROTOCOL}-${this.code.toLowerCase()}` : undefined, {
+        signal: this.abort.signal, mode: this.network.mode,
+        relay: status => { if (attempt === this.attempt) { this.network.relay = status; this.change(); } },
+      });
+      if (attempt !== this.attempt || (this.phase as Phase) === "error") { peer.destroy(); return; }
       this.peer = peer;
+      this.network.stage = "signalling";
       peer.on("open", () => {
         if (attempt !== this.attempt || this.phase === "error") return;
         if (role === "host") {
           clearTimeout(this.timeout);
+          this.network.stage = "waiting";
           this.phase = "waiting"; this.status = "Invite ready. Waiting for your friend…"; this.change();
         } else this.attach(peer.connect(`keep-going-v${PROTOCOL}-${this.code.toLowerCase()}`, { reliable: true, serialization: "binary" }), attempt);
       });
@@ -102,13 +154,15 @@ export class RaceSession {
         if (attempt !== this.attempt) return;
         const type = (error as { type?: string }).type;
         if (this.connection?.open && (type === "network" || type === "server-error")) return;
+        this.network.error = type || "peer-error";
         this.fail(type === "unavailable-id" ? "That invite code is busy. Create a new invite."
-          : type === "peer-unavailable" ? "That invite wasn’t found. Check the code and that your friend is still on the invite screen."
+          : type === "peer-unavailable" ? "That invite wasn’t found. Open the same game link on both devices, refresh, and create a new invite."
+          : ["network", "server-error", "socket-error"].includes(type || "") ? "Couldn’t reach the invite service. Check your internet connection and try again."
           : "Couldn’t connect to your friend. Try again, or try another network.");
       });
       // Signalling can reconnect without interrupting an established data channel.
       peer.on("disconnected", () => { if (attempt === this.attempt && !peer.destroyed) peer.reconnect(); });
-    } catch { if (attempt === this.attempt) this.fail("Couldn’t start multiplayer. Check your connection and try again."); }
+    } catch { if (attempt === this.attempt) { this.network.relay = "unavailable"; this.network.error = "setup-failed"; this.fail(this.network.mode !== "auto" ? "Relay testing could not start. The relay service needs to be available." : "Couldn’t start multiplayer. Check your connection and try again."); } }
   }
   private deadline(message: string, ms = 15000) {
     clearTimeout(this.timeout);
@@ -116,9 +170,15 @@ export class RaceSession {
   }
   private attach(connection: DataConnection, attempt: number) {
     this.connection = connection;
-    this.deadline("Your friend couldn’t finish connecting. Try a new invite or another network.");
+    this.network.stage = "connecting";
+    this.change();
+    this.deadline("Your friend couldn’t finish connecting. Try a new invite or another network.", 30000);
     connection.on("open", () => {
-      if (attempt !== this.attempt) return;
+      if (attempt !== this.attempt || this.phase === "error") return;
+      this.network.stage = "connected";
+      void this.inspectRoute();
+      clearInterval(this.routeTimer);
+      this.routeTimer = setInterval(() => { void this.inspectRoute(); }, 5000);
       this.lastActivity = performance.now();
       if (this.role === "guest") this.send({ kind: "hello", version: PROTOCOL, name: this.name, difficulty: this.difficulty });
       clearInterval(this.heartbeat);
@@ -239,9 +299,11 @@ export class RaceSession {
   close() {
     if (this.connection?.open) this.send({ kind: "leave" });
     ++this.attempt;
-    clearTimeout(this.timeout); clearInterval(this.heartbeat);
+    this.abort?.abort();
+    clearTimeout(this.timeout); clearInterval(this.heartbeat); clearInterval(this.routeTimer);
     this.connection?.close(); this.peer?.destroy(); this.connection = undefined; this.peer = undefined;
     this.connected = false; this.phase = "closed"; this.round = undefined;
+    this.network.stage = "closed";
     this.localResult = this.remoteResult = undefined;
   }
 }
