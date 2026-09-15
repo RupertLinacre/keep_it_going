@@ -2,12 +2,12 @@
 
 Branch: `codex/friction-experiments`. Production is unchanged.
 
-Medium uses drag 0.002 and a rolling-resistance ceiling of 0.86 m/s².
+Medium uses drag 0.0016 and a rolling-resistance ceiling of 1.02 m/s².
 `rollingResistance()` in `src/games/ride-resistance.ts` preserves the previous
 combined resistance exactly from rest through 8 m/s. From 8 to 20 m/s a smoothstep
 blend transitions the replacement drag into constant resistance. At 20 m/s total
 resistance is again identical to the previous model. Above 20 m/s the rolling term
-stays constant and air resistance is half its previous strength.
+stays constant and air resistance is 40% of its previous strength.
 
 The transition is continuous and monotonic. Between 8 and 20 m/s total resistance
 is somewhat greater than before; this is the balancing cost of faster descents.
@@ -18,6 +18,10 @@ now evaluate rolling resistance at their predicted speed rather than assuming th
 high-speed ceiling applies throughout a slow climb.
 
 ## Verification
+
+The matched-run results below describe the initial 0.002 / 0.86 tuning. The
+subsequent checkpoint uses 0.0016 / 1.02; the low-speed and 20 m/s equivalence
+are unchanged, with a higher vertical terminal speed.
 
 172 tests pass, including low-speed equivalence at all five difficulties,
 transition continuity/monotonicity, vertical terminal speed, and Ice glide scaling.
@@ -41,5 +45,5 @@ Higher speeds alter obstacle arrival times and power pickup timing, so these run
 support broadly comparable challenge, not identical survival rates. Real-player
 feedback and longer runs are still useful before release.
 
-An unpowered, dry, vertical Medium descent has net acceleration 5.75 m/s² at
-40 m/s (previously 3.35). Its theoretical terminal speed rises from 178 to 241 km/h.
+An unpowered, dry, vertical Medium descent has net acceleration 6.23 m/s² at
+40 m/s (previously 3.35). Its theoretical terminal speed rises from 178 to 267 km/h (about 50% higher).

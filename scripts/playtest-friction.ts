@@ -3,7 +3,7 @@
 import { Mini } from '../src/games/mini';
 import { seededRandom } from '../src/games/mini-rail';
 import { railAcceleration } from '../src/games/mini-physics';
-import { rollingResistance } from '../src/games/ride-resistance';
+import { BASE_DRAG, BASE_ROLLING, rollingResistance } from '../src/games/ride-resistance';
 import type { Host, Difficulty } from '../src/types';
 class Headless extends Mini { setup() {} }
 const profiles: {name:string;interval:number;difficulty:Difficulty}[] = [
@@ -24,7 +24,7 @@ for (const profile of profiles) for (const seed of [1,42,73]) {
       Object.assign(game.physics,{force:(s:number,v:number)=>{
         const o=game.physics.options;
         return railAcceleration(game.track,s,v,o)+rollingResistance(v,o.rolling)
-          - o.drag*v*v - o.rolling*(.06/.86)*Math.tanh(v*5);
+          - o.drag*(.004/BASE_DRAG-1)*v*v - o.rolling*(.06/BASE_ROLLING)*Math.tanh(v*5);
       }});
     }
     const r=seededRandom(seed^1787);

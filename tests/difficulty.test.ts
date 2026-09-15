@@ -14,7 +14,7 @@ test("five levels retain successively less momentum with identical launch and bo
     return physics.velocity;
   });
   for (let i = 1; i < speeds.length; i++) assert.ok(speeds[i-1] > speeds[i]);
-  assert.deepEqual(rideResistance("normal"), { drag: .002, rolling: .86 });
+  assert.deepEqual(rideResistance("normal"), { drag: .0016, rolling: 1.02 });
   assert.equal(normalizeDifficulty("invalid"), "normal");
 });
 

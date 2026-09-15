@@ -9,7 +9,7 @@ const options = (level: typeof DIFFICULTIES[number]) => ({...rideResistance(leve
 
 test('slow trains retain old resistance at every difficulty, with the same 20 m/s balance point', () => {
   for (const level of DIFFICULTIES) {
-    const o = options(level), multiplier = o.drag/.002;
+    const o = options(level), multiplier = o.drag/.0016;
     for (const v of [0,.01,.1,1,2,4,8,20]) {
       const old = multiplier*(.004*v*v+.06*Math.tanh(v*5));
       assert.ok(Math.abs(railAcceleration(rail(0),0,v,o)+old)<1e-10);
@@ -27,10 +27,10 @@ test('resistance stays continuous, positive and increasing through the transitio
 });
 test('fast verticals accelerate more and converge to the higher terminal speed', () => {
   const o=options('normal');
-  assert.ok(Math.abs(railAcceleration(rail(-1),0,40,o)-5.75)<1e-9);
+  assert.ok(Math.abs(railAcceleration(rail(-1),0,40,o)-6.23)<1e-9);
   const p=new MiniPhysics(rail(-1),{...o,initialSpeed:20,initialDistance:0});
   for(let i=0;i<1200;i++)p.update(.1);
-  assert.ok(Math.abs(p.velocity-Math.sqrt((9.81-.86)/.002))<.01);
+  assert.ok(Math.abs(p.velocity-Math.sqrt((9.81-1.02)/.0016))<.01);
 });
 test('Ice glide reduces all resistance by 75%, including the low-speed protection', () => {
   for(const level of DIFFICULTIES) for(const v of [2,8,14,20,40]) {
