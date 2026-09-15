@@ -1,3 +1,4 @@
+import { gravityRoll, rollFrame } from "../games/ride-roll";
 import { Quaternion, Vector3 } from "three";
 import { clamp } from "../math";
 import { powerPhysics, type RacePowerState } from "../games/ride-powerups";
@@ -104,9 +105,9 @@ export class OpponentGhost {
       this.arrivals = this.arrivals.filter(a => now - a.now < 6000).slice(-64);
     }
   }
-  private railBody(body: Body): Body {
+  private railBody(body: Body, power?: RacePowerState): Body {
     if (!body.rail || !this.track || body.rail.distance < this.track.sections[0].start || body.rail.distance > this.track.end) return body;
-    const frame = this.track.sample(body.rail.distance);
+    const frame = rollFrame(this.track.sample(body.rail.distance),gravityRoll(power?.active,power?.age??0,power?.remaining??0));
     frame.position.y += body.rail.lift;
     return { ...body, position: frame.position.toArray(), rotation: frame.rotation.toArray() };
   }
@@ -134,7 +135,7 @@ export class OpponentGhost {
         } };
         // Crossing a jump lip uses the authoritative airborne arc, not virtual rail.
         if (!!body.rail !== !!end.rail) blended = { ...blended, rail: undefined };
-        return this.railBody(blended);
+        return this.railBody(blended,powerAt(a.power,span*t));
       }),
       impacts: a.impacts.map(impact => {
         const end = b.impacts.find(e => e.id === impact.id);
@@ -168,7 +169,7 @@ export class OpponentGhost {
         distance = nextDistance; speed = nextSpeed; elapsed += h;
       }
       return this.railBody({ ...body, rail: { ...body.rail, distance, speed,
-        lift: Math.max(0, body.rail.lift + body.rail.liftSpeed*dt - 15*dt*dt) } });
+        lift: Math.max(0, body.rail.lift + body.rail.liftSpeed*dt - 15*dt*dt) } },powerAt(state.power,dt));
     });
     return { ...state, time: state.time+dt, distance: bodies[0]?.rail?.distance ?? state.distance + state.speed*dt, bodies, power: powerAt(state.power, dt),
       parcels: state.parcels.map(p => drift(p, dt, resistance.gravity)) };
@@ -189,7 +190,7 @@ export class OpponentGhost {
       if (body.rail && error.distance !== undefined) {
         error.distance *= decay; error.lift! *= decay;
         return this.railBody({ ...body, rail: { ...body.rail,
-          distance: body.rail.distance + error.distance, lift: Math.max(0, body.rail.lift + error.lift!) } });
+          distance: body.rail.distance + error.distance, lift: Math.max(0, body.rail.lift + error.lift!) } },state.power);
       }
       if (!error.position || !error.rotation) return body;
       error.position.multiplyScalar(decay); error.rotation.slerp(new Quaternion(), 1 - decay);

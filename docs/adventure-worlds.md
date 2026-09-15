@@ -104,3 +104,34 @@ Sheep Shuffle puts nine sheep in small flocks on the rails. Their escape depends
 `pumpkin-portal.ts` replaces the old giant cutaway pumpkin with a pyramid of fifteen smiling pumpkins. The engine’s nose triggers it once: pumpkins scatter in different directions with drag, spin, fall and bounce, then fade. Green smoke, sparks and two expanding rings mark the impact. Each rider has an independent impact state; gallery wraparound rearms the pile, while loading an already-passed section does not trigger a late explosion. Reduced motion clears the pile without a flash. The Canvas renderer includes all four interactions.
 
 Validation: all **154 tests** and the production build pass. New tests cover carousel direction and bearing, cable speed/continuity, sheep clearance for the complete train, impact replay and rider separation, and pumpkin trajectories. The existing 9 km lifecycle check covers the two additional bounded effect buffers and disposal. `scripts/check-interactive-pieces-browser.js` checks desktop/phone fixtures plus real-time rides through the pumpkin burst. Both measured 16.7 ms median and at most 17.7 ms p99 frame intervals, with no interval over 50 ms in the final run. `scripts/check-interactive-race-browser.js` verifies the four attractions in a real connected race at different rider speeds, including independent pumpkin impacts; it also passes with WebGL disabled on the phone. Opening race measurements were approximately 60 FPS on both layouts. The gallery passes all twelve previews, navigation and responsive layout checks. These are Chromium measurements on Apple M4 with phone emulation, not physical phone benchmarks. Reports and screenshots: `output/playwright/interactive-pieces-validation.json`.
+
+
+## Ride spectacle experiment
+
+On `codex/friction-experiments`, the friction-only checkpoint is `2227fe4`.
+It targets about 50% higher unpowered vertical terminal speed than the original
+release, while retaining the old combined resistance below 8 m/s and at 20 m/s.
+
+Gravity flip now rolls the rails and attached coaches around each section's own
+centreline by 180 degrees. It eases in and out over 1.2 seconds; the landscape and
+course heights do not rotate. Tube meshes carry centreline/axis attributes and
+rotate in the vertex shader, including shadow depth rendering. Sleepers rotate
+in their local frame. Each multiplayer rider has an independent roll uniform;
+local coach poses and remote rail prediction use the same angle function.
+
+Water jumps perform one barrel roll by the far lip, returning upright before
+landing. Their original ballistic motion and landing criteria remain unchanged.
+Each following coach traverses the recorded rotating flight frames, preserving
+spacing and the coupler endpoints. Loose cargo is still independently simulated.
+
+Crossing a loop crest in Starlight Carnival launches two staggered multicolour
+fireworks. Multi-loop pieces can celebrate each crest. Bursts are world anchored,
+last 2.4 seconds and never enter camera framing. Six bursts / 1,296 spark points
+are the maximum, rendered in one additive draw call. Both race lanes can trigger
+bursts. Fireworks are suppressed for reduced-motion preferences.
+
+Validation: `npm test` (178 tests), `npm run build`, desktop/mobile visual fixtures
+for the flip, fireworks and jump spin, and a real two-browser WebRTC race using
+`scripts/check-ride-effects-browser.js` through playwright-cli. The race check
+verifies independent rolls, remote orientation, restoration, and unchanged static
+rail position buffers during the power. No shader or browser errors were seen.

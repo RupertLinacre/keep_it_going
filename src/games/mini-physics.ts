@@ -1,3 +1,4 @@
+import { jumpRoll, rollFrame } from "./ride-roll";
 import { BASE_DRAG, BASE_ROLLING, rollingResistance } from "./ride-resistance";
 import * as THREE from "three";
 import type { RailFrame } from "./mini-rail";
@@ -63,11 +64,11 @@ export class MiniPhysics {
     const tangent = flight.velocity.clone().normalize();
     const right = new THREE.Vector3(0, 0, 1);
     const up = right.clone().cross(tangent).normalize();
-    return {
+    return rollFrame({
       position: flight.position.clone(), tangent, right, up,
       rotation: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, tangent.clone().negate())),
       curvature: new THREE.Vector3(), airborne: true,
-    };
+    }, jumpRoll(flight.position.x, flight.startX, flight.section.landingX));
   }
   /** Followers traverse the same ballistic arc with their normal spacing. */
   sample(distance: number): RailFrame {

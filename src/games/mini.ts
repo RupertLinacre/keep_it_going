@@ -1,3 +1,4 @@
+import { rollFrame } from "./ride-roll";
 import { iceDeployment, drawIceIcicles } from './ice-icicles';
 import { drawAdventureFallback } from "./adventure-fallback";
 import { adventureAt } from "./adventure-worlds";
@@ -89,7 +90,7 @@ export class Mini extends BaseGame {
       : new MiniTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer });
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
-    this.carriages.sample = distance => this.physics.sample(distance);
+    this.carriages.sample = distance => rollFrame(this.physics.sample(distance), this.powerups?.roll ?? 0);
     if (this.remixMode) this.powerups = new RidePowerups(this.track.seed, host.difficulty, this.multiplayer);
     this.next();
     this.hud();

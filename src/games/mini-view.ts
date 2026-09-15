@@ -1,3 +1,5 @@
+import { LoopFireworks } from "./loop-fireworks";
+import { gravityRoll, rollFrame, rollShader } from "./ride-roll";
 import { iceDeployment, ICICLES } from './ice-icicles';
 import { AdventureScene } from "./adventure-scene";
 import { adventureAt } from "./adventure-worlds";
@@ -50,6 +52,8 @@ export class MiniView {
   private icicleParts?: ModelPart[];
   private dynamiteParts?: ModelPart[];
   private adventureScene?: AdventureScene;
+  private fireworks?: LoopFireworks;
+  private readonly reducedMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
   private sunlight?: THREE.DirectionalLight;
   private skylight?: THREE.HemisphereLight;
   private powerScene?: PowerupScene;
@@ -62,6 +66,8 @@ export class MiniView {
   readonly impactRings: THREE.InstancedMesh;
   readonly cameraRig = new MiniCameraRig();
   private lastTime = 0;
+  private rollUniforms = [{value:0},{value:0}];
+  private rollDepth = new Map<string, THREE.MeshDepthMaterial>();
   readonly pieces = new Map<number, THREE.Group>();
   readonly resize: ResizeObserver;
   private board = new THREE.Group();
@@ -201,8 +207,31 @@ export class MiniView {
     }
     return parts;
   }
+  private configureRoll(material: THREE.Material, sleepers:boolean, rival:boolean) {
+    if(material.userData.rideRoll)return;
+    material.userData.rideRoll=true;
+    const source=rollShader(sleepers), uniform=this.rollUniforms[rival?1:0];
+    material.onBeforeCompile=shader=>{
+      shader.uniforms.rideRoll=uniform;
+      shader.vertexShader=source.header+'\n'+shader.vertexShader
+        .replace('#include <begin_vertex>','#include <begin_vertex>\n'+source.position)
+        .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nobjectNormal=rideRotate(objectNormal);');
+    };
+    material.customProgramCacheKey=()=>`ride-roll:${sleepers}`;
+  }
+  private railDepth(sleepers:boolean,rival:boolean) {
+    const key=`${sleepers}:${rival}`;
+    if(!this.rollDepth.has(key)) {
+      const m=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
+      this.configureRoll(m,sleepers,rival);this.rollDepth.set(key,m);
+    }
+    return this.rollDepth.get(key)!;
+  }
   private railMaterial(part: number, rival = false) {
-    if (!this.multiplayer) return this.material(["#e89983", "#f5d16f", "#64988e"][part]);
+    if (!this.multiplayer) {
+      const material=this.material(["#e89983", "#f5d16f", "#64988e"][part]);
+      this.configureRoll(material,part===2,false);return material;
+    }
     const key = `rail:${part}:${rival}`;
     if (!this.materials.has(key)) {
       const color = new THREE.Color(riderColor(this.riderRole, rival));
@@ -210,7 +239,8 @@ export class MiniView {
       if (part === 2) color.multiplyScalar(.68);
       this.materials.set(key, new THREE.MeshStandardMaterial({ color, roughness: .85 }));
     }
-    return this.materials.get(key)!;
+    const material=this.materials.get(key)!;
+    this.configureRoll(material,part===2,rival);return material;
   }
   private material(color: string) {
     if (!this.materials.has(color))
@@ -349,15 +379,17 @@ export class MiniView {
       rails.forEach((geometry, i) => {
         const rail = new THREE.Mesh(geometry, this.railMaterial(i, rival));
         rail.castShadow = rail.receiveShadow = true;
+        rail.customDepthMaterial=this.railDepth(false,rival);
         group.add(rail);
       });
     }
     const count = Math.ceil(section.length / 0.65);
     const sleepers = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.55, 0.13, 0.18),
+      new THREE.BoxGeometry(1.55, 0.13, 0.18).translate(0,-.14,0),
       this.railMaterial(2, rival),
       count,
     );
+    sleepers.customDepthMaterial=this.railDepth(true,rival);
     sleepers.castShadow = true;
     sleepers.receiveShadow = true;
     const dummy = new THREE.Object3D();
@@ -368,8 +400,7 @@ export class MiniView {
       const f = section.sample(at);
       dummy.position
         .copy(f.position)
-        .sub(section.origin)
-        .addScaledVector(f.up, -0.14);
+        .sub(section.origin);
       dummy.quaternion.copy(f.rotation);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
@@ -497,7 +528,7 @@ export class MiniView {
           const s = section.start + i / count * section.length;
           if (!section.hasRail(s)) continue;
           const f = section.sample(s);
-          dummy.position.copy(f.position).sub(section.origin).addScaledVector(f.up, -.14);
+          dummy.position.copy(f.position).sub(section.origin);
           dummy.quaternion.copy(f.rotation); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
           sleepers.setMatrixAt(at++, dummy.matrix);
         }
@@ -512,7 +543,12 @@ export class MiniView {
         posts.instanceMatrix.needsUpdate = true;
         sleepers.computeBoundingSphere(); posts.computeBoundingSphere();
       };
-    } else mergeStaticMeshes(group);
+    }
+    if(!dynamic) {
+      // Keep the GPU-deformed tubes separate, but still batch static scenery.
+      const tubes=group.children.filter(o=>o instanceof THREE.Mesh&&o.geometry.hasAttribute('railCenter'));
+      group.remove(...tubes);mergeStaticMeshes(group);group.add(...tubes);
+    }
     group.traverse(object => { object.updateMatrix(); object.matrixAutoUpdate = false; });
     (rival ? this.opponentPieces : this.pieces).set(section.id, group);
     this.scene.add(group);
@@ -556,6 +592,8 @@ export class MiniView {
       }
     if (this.multiplayer) this.laneOffset = this.spacing.update(this.track, dt);
     const lane = (position: THREE.Vector3, rival = false) => lanePosition(position, this.multiplayer ? this.laneOffset : 0, rival);
+    this.rollUniforms[0].value=powerups?.roll??0;
+    this.rollUniforms[1].value=gravityRoll(opponent?.power?.active,opponent?.power?.age??0,opponent?.power?.remaining??0);
     const poses = effects?.poses(distance, alpha);
     const f = poses?.[0]?.frame ?? this.track.sample(distance),
       anchor = Math.floor(f.position.x / 25) * 25;
@@ -690,7 +728,7 @@ export class MiniView {
       } else { closed.push(matrix); closedColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index); }
     };
     const attached = poses ?? Array.from({ length: count }, (_, index) => ({
-      frame: this.track.sample(distance - index * MINI_CART_SPACING), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0, cargoAge: 1 },
+      frame: rollFrame(this.track.sample(distance - index * MINI_CART_SPACING),powerups?.roll??0), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0, cargoAge: 1 },
     }));
     for (const { frame, coach } of attached) {
       const position = lane(frame.position);
@@ -845,6 +883,8 @@ export class MiniView {
     }
     if (this.track.options.generative) {
       const world = adventureAt(Math.max(0,this.track.sectionAt(distance).start)).world;
+      this.fireworks ??= new LoopFireworks(this.scene);
+      this.fireworks.update(this.track,distance,time,anchor,this.laneOffset,opponent?.distance,opponentTrack,this.reducedMotion.matches,this.renderer.getPixelRatio());
       this.adventureScene ??= new AdventureScene(this.scene);
       this.adventureScene.render(this.track,distance,anchor,this.laneOffset,time,opponent?.distance,
         effects?.gravity??9.81,opponent?.power?.active==='reverse'?-19.62:opponent?.power?.active==='heavy'?29.43:9.81,opponentTrack);
@@ -912,11 +952,13 @@ export class MiniView {
   destroy() {
     this.resize.disconnect();
     this.adventureScene?.destroy();
+    this.fireworks?.destroy();
     this.powerScene?.destroy();
     this.opponentPowerScene?.destroy();
     // All geometries are owned by this view; shared materials are released once.
     this.release(this.scene);
     this.materials.forEach((material) => material.dispose());
+    this.rollDepth.forEach(material=>material.dispose());
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();

@@ -1,3 +1,4 @@
+import { gravityRoll } from "./ride-roll";
 import { rideResistance } from "../difficulty";
 import type { Difficulty } from "../types";
 import { seededRandom } from "./mini-rail";
@@ -59,6 +60,7 @@ export class RidePowerups {
     return { ...(isRacePower(this.active) ? { active: this.active } : {}), remaining: this.remaining, age: this.age, collected: this.collected, answers: this.answers,
       ...(this.gate && isRacePower(this.gate.kind) ? { gate: { ...this.gate, kind: this.gate.kind } } : {}) };
   }
+  get roll() { return gravityRoll(this.active, this.age, this.remaining); }
   get tilt() { return this.active === "tilt" ? downhillTilt(this.age, this.remaining) : 0; }
   constructor(readonly seed: number, readonly difficulty: Difficulty, readonly multiplayer = false) {
     this.random = seededRandom(seed ^ 0x70a3e12b);

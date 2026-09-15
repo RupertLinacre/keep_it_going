@@ -41,6 +41,7 @@ export function railGeometries(section: MiniSection, from: number, to: number) {
   const sides = 6, stride = sides + 1, vertices = (segments + 1) * stride;
   const positions = [new Float32Array(vertices * 3), new Float32Array(vertices * 3)];
   const normals = new Float32Array(vertices * 3);
+  const centers = new Float32Array(vertices * 3), axes = new Float32Array(vertices * 3);
   const indices = new (vertices < 65536 ? Uint16Array : Uint32Array)(segments * sides * 6);
   const offsets = [-0.57, 0.57];
   for (let i = 0; i <= segments; i++) {
@@ -51,6 +52,8 @@ export function railGeometries(section: MiniSection, from: number, to: number) {
       const ny = frame.right.y * c + frame.up.y * s;
       const nz = frame.right.z * c + frame.up.z * s;
       const at = (i * stride + j) * 3;
+      centers[at]=frame.position.x-section.origin.x; centers[at+1]=frame.position.y-section.origin.y; centers[at+2]=frame.position.z-section.origin.z;
+      axes[at]=frame.tangent.x;axes[at+1]=frame.tangent.y;axes[at+2]=frame.tangent.z;
       normals[at] = nx; normals[at + 1] = ny; normals[at + 2] = nz;
       for (let rail = 0; rail < 2; rail++) {
         const p = positions[rail], offset = offsets[rail];
@@ -68,6 +71,8 @@ export function railGeometries(section: MiniSection, from: number, to: number) {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(p, 3));
     geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+    geometry.setAttribute("railCenter", new THREE.BufferAttribute(centers,3));
+    geometry.setAttribute("railAxis", new THREE.BufferAttribute(axes,3));
     geometry.setIndex(new THREE.BufferAttribute(indices, 1));
     geometry.computeBoundingSphere();
     return geometry;
@@ -88,12 +93,15 @@ export function refreshRails(section: MiniSection, from: number, to: number, rai
           f.position.y - section.origin.y + f.right.y*offset + ny*.095,
           f.position.z - section.origin.z + f.right.z*offset + nz*.095);
         geometry.getAttribute("normal").setXYZ(at, nx, ny, nz);
+        geometry.getAttribute("railCenter").setXYZ(at,f.position.x-section.origin.x,f.position.y-section.origin.y,f.position.z-section.origin.z);
+        geometry.getAttribute("railAxis").setXYZ(at,f.tangent.x,f.tangent.y,f.tangent.z);
       }
     }
   }
   for (const geometry of rails) {
     geometry.getAttribute("position").needsUpdate = true;
     geometry.getAttribute("normal").needsUpdate = true;
+    geometry.getAttribute("railCenter").needsUpdate = geometry.getAttribute("railAxis").needsUpdate = true;
     geometry.computeBoundingSphere();
   }
 }
