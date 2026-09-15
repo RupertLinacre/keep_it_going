@@ -2,8 +2,9 @@ import { isDifficulty } from "../difficulty";
 import type { Difficulty } from "../types";
 import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
+import type { HeightState } from "../games/height-track";
 
-export const PROTOCOL = 5;
+export const PROTOCOL = 8;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];
@@ -17,6 +18,7 @@ export type RideState = {
   seq: number; time: number; distance: number; speed: number; correct: number;
   ended: boolean; impacts: Impact[]; bodies: Body[]; parcels: Motion[]; links: Link[];
   power?: RacePowerState;
+  heights?: HeightState;
 };
 export type RaceResult = { distance: number; correct: number; score: number; water: boolean };
 export type RaceMode = "classic" | "remix";
@@ -51,6 +53,7 @@ const tables = (v: unknown) => Array.isArray(v) && v.length > 0 && v.length <= 1
 const mode = (v: unknown) => v === undefined || v === "classic" || v === "remix";
 const optionalBoolean = (v: unknown) => v === undefined || typeof v === "boolean";
 const power = (v: unknown) => object(v) && (v.active === undefined || isRacePower(v.active))
+  && (v.answers === undefined || Number.isInteger(v.answers) && number(v.answers, 0, 4))
   && number(v.remaining, 0, 20) && number(v.age, 0, 21) && Number.isSafeInteger(v.collected) && number(v.collected)
   && (v.gate === undefined || (object(v.gate) && isRacePower(v.gate.kind) && number(v.gate.distance) && Number.isSafeInteger(v.gate.id) && number(v.gate.id)))
   && (!v.active || v.gate === undefined);
@@ -58,6 +61,13 @@ export function validRideState(v: unknown): v is RideState {
   if (!object(v) || !Number.isSafeInteger(v.seq) || !number(v.seq) || !number(v.time) || !number(v.distance) || !number(v.speed, 0, 2000)
     || !Number.isSafeInteger(v.correct) || !number(v.correct) || typeof v.ended !== "boolean") return false;
   if (v.power !== undefined && !power(v.power)) return false;
+  if (v.heights !== undefined && (!object(v.heights) || !number(v.heights.since, -1e8) || typeof v.heights.advancing !== "boolean"
+    || !Array.isArray(v.heights.lifts) || v.heights.lifts.length > 128
+    || !v.heights.lifts.every(l => object(l) && Number.isSafeInteger(l.id) && number(l.id, -2)
+      && number(l.start, -1e8) && number(l.end, -1e8) && l.end > l.start
+      && number(l.height, 0, 3e6) && number(l.target, 0, 3e6) && number(l.from, 0, 3e6)
+      && l.from <= l.height && l.height <= l.target && number(l.age, 0, 1))
+    || new Set(v.heights.lifts.map(l => l.id)).size !== v.heights.lifts.length)) return false;
   if (!Array.isArray(v.bodies) || !v.bodies.length || v.bodies.length > 25 || !v.bodies.every(b => object(b) && text(b.id, 32)
     && Number.isInteger(b.color) && number(b.color) && Number.isInteger(b.cargo) && number(b.cargo, 0, v.power ? 8 : 4) && number(b.cargoAge)
     && (b.bombs === undefined || (Number.isInteger(b.bombs) && number(b.bombs, 0, 2**Number(b.cargo)-1)))

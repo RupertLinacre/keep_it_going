@@ -7,8 +7,9 @@ import type { MiniCarriages } from "./mini-carriages";
 import { downhillTilt, tiltedGravity } from "./mini-tilt";
 
 export const POWER_DURATION = 20;
+export const POWER_ANSWERS = 4;
 export const POWERUPS = {
-  ice: { name: "Ice glide", icon: "❄", color: "#367fab", sky: "#e0f0f6", description: "Less friction. More glide.", instruction: "Snowy rails · resistance reduced by 75%" },
+  ice: { name: "Ice glide", icon: "❄", color: "#367fab", sky: "#e0f0f6", description: "Less friction. More glide.", instruction: "Icicles on board · resistance reduced by 75%" },
   reverse: { name: "Gravity flip", icon: "↑", color: "#8962c1", sky: "#e9e1f3", description: "Up is the new down.", instruction: "2g up on climbs · 1g down on descents" },
   cargo: { name: "Cargo carnival", icon: "▣", color: "#bb7133", sky: "#f6edda", description: "Double cargo. A few surprises.", instruction: "8 boxes per wagon · red TNT bursts when spilled" },
   lift: { name: "Sky lift", icon: "↟", color: "#418b69", sky: "#e4f1d9", description: "Your answers raise the railway.", instruction: "Lift the track · struggling climbs also get a boost" },
@@ -18,12 +19,12 @@ export const POWERUPS = {
 } as const;
 export type PowerKind = keyof typeof POWERUPS;
 export const POWER_KINDS = Object.keys(POWERUPS) as PowerKind[];
-export const RACE_POWER_KINDS = ["ice", "reverse", "cargo", "heavy", "wind"] as const;
+export const RACE_POWER_KINDS = ["ice", "reverse", "cargo", "heavy", "wind", "lift"] as const;
 export type RacePowerKind = typeof RACE_POWER_KINDS[number];
 export const isRacePower = (kind: unknown): kind is RacePowerKind => RACE_POWER_KINDS.includes(kind as RacePowerKind);
 export type PowerGate = { kind: PowerKind; distance: number; id: number };
 export type PowerVisualState = { seed: number; active?: PowerKind; remaining: number; age: number; gate?: PowerGate };
-export type RacePowerState = { active?: RacePowerKind; remaining: number; age: number; collected: number; gate?: { kind: RacePowerKind; distance: number; id: number } };
+export type RacePowerState = { active?: RacePowerKind; remaining: number; age: number; collected: number; answers?: number; gate?: { kind: RacePowerKind; distance: number; id: number } };
 
 /** Shared by the local simulation and short opponent prediction. */
 export function powerPhysics(kind: PowerKind | undefined, difficulty: Difficulty) {
@@ -46,6 +47,8 @@ export class RidePowerups {
   age = 0;
   gate?: PowerGate;
   collected = 0;
+  answers = 0;
+  answered() { this.answers = Math.min(POWER_ANSWERS, this.answers + 1); }
   private cooldown = 0;
   private bag: PowerKind[] = [];
   private random: () => number;
@@ -53,7 +56,7 @@ export class RidePowerups {
   snapshot(): RacePowerState {
     // BinaryPack encodes explicit undefined properties as null. Omit absent
     // fields so strict wire validation sees the same state on the other peer.
-    return { ...(isRacePower(this.active) ? { active: this.active } : {}), remaining: this.remaining, age: this.age, collected: this.collected,
+    return { ...(isRacePower(this.active) ? { active: this.active } : {}), remaining: this.remaining, age: this.age, collected: this.collected, answers: this.answers,
       ...(this.gate && isRacePower(this.gate.kind) ? { gate: { ...this.gate, kind: this.gate.kind } } : {}) };
   }
   get tilt() { return this.active === "tilt" ? downhillTilt(this.age, this.remaining) : 0; }
@@ -82,7 +85,7 @@ export class RidePowerups {
   activate(kind: PowerKind, physics: MiniPhysics, carriages: MiniCarriages) {
     if (this.multiplayer && !isRacePower(kind)) return;
     this.active = kind; this.last = kind; this.remaining = POWER_DURATION; this.age = 0;
-    this.gate = undefined; this.collected++;
+    this.gate = undefined; this.collected++; this.answers = 0;
     this.apply(physics, carriages);
   }
   apply(physics: MiniPhysics, carriages: MiniCarriages) {
@@ -103,7 +106,7 @@ export class RidePowerups {
       if (!this.remaining) { this.active = undefined; this.cooldown = 3; }
     } else this.cooldown = Math.max(0, this.cooldown - dt);
     this.apply(physics, carriages);
-    if (!this.active && !this.gate && !this.cooldown) this.placeGate(track, physics.distance);
+    if (!this.active && !this.gate && !this.cooldown && this.answers >= POWER_ANSWERS) this.placeGate(track, physics.distance);
     if (this.gate && !physics.flight && physics.distance >= this.gate.distance) this.activate(this.gate.kind, physics, carriages);
     return before !== this.active;
   }

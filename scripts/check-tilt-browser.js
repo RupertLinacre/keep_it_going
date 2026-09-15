@@ -27,8 +27,13 @@ async (page) => {
     const angle=v?.scene.rotation.z;
     const boardForward=v && lead.clone().set(1,0,0).transformDirection(v.board.matrixWorld);
     const boardPitch=boardForward ? Math.atan2(-boardForward.y,boardForward.x) : 0;
+    const railError=v?Math.max(0,...[...v.pieces.values()].flatMap(piece=>{
+      const expected=v.scene.matrix.clone().multiply(piece.matrix);
+      return piece.matrixWorld.elements.map((n,i)=>Math.abs(n-expected.elements[i]));
+    })):0;
+    if(railError>1e-7)throw Error('Static rails lost the board transform: '+railError);
     if(v) { lead.x-=Math.floor(lead.x/25)*25; lead.applyMatrix4(v.scene.matrixWorld).project(v.camera); }
-    return { height:v?.cameraRig.height, angle, tilt:g.physics.options.worldTilt, boardPitch, inlay:v?.boardInlay.visible,
+    return { railError,height:v?.cameraRig.height, angle, tilt:g.physics.options.worldTilt, boardPitch, inlay:v?.boardInlay.visible,
       screen:lead.toArray(), objects:g.carriages.cameraSubjects(g.physics.sample(g.physics.distance).position).length,
       overflow:document.documentElement.scrollWidth>innerWidth || document.documentElement.scrollHeight>innerHeight+1 };
   });
@@ -90,7 +95,7 @@ async (page) => {
   } finally { await context.close(); }
   await bind(page);
   await page.evaluate(()=>{const g=window.tiltGame;g.powerups.gate={kind:'tilt',distance:g.physics.distance+2,id:0};});
-  for(let i=0;i<10;i++) {
+  for(let i=0;i<14;i++) {
     const value=await page.evaluate(()=>String(window.tiltGame.a*window.tiltGame.b));
     await page.keyboard.type(value);await page.waitForTimeout(1800);
   }
@@ -101,6 +106,6 @@ async (page) => {
   });
   await page.screenshot({path:'output/playwright/tilt-playing.png',scale:'css'});
   await page.keyboard.press('p');
-  if(ride.answers!==10 || ride.ended || errors.length)throw new Error(JSON.stringify({ride,errors}));
+  if(ride.answers!==14 || ride.ended || errors.length)throw new Error(JSON.stringify({ride,errors}));
   return {desktop,mobile,fallback,ride,results,errors};
 }

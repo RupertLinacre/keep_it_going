@@ -23,7 +23,6 @@ async (page) => {
     await page.goto(base+"?mode=classic");
     assert(await page.locator("#ride-difficulty option").count() === 5, "Five difficulty levels are available");
     await page.locator("#ride-difficulty").selectOption("very-easy");
-    await page.locator('.table-settings summary').click();
     await page.getByRole('button', { name: 'Clear', exact: true }).click();
     assert(await page.locator('[data-single]').isDisabled(), 'An empty table selection cannot start a solo ride');
     await page.getByRole('checkbox', { name: '7×', exact: true }).check();

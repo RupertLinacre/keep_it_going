@@ -4,7 +4,7 @@ The annotated tag `v2.1` preserves the deployed single-player release at source 
 
 ## Connection and round lifecycle
 
-`src/multiplayer/session.ts` follows the PeerJS invite-code approach in `arithmetic_annihilation_mp_branch/src/multiplayer/MultiplayerSession.ts`. It has its own `keep-going-v5-` signalling namespace, so an invite cannot join the other game. PeerJS is loaded only when a player creates or joins a room. It uses the library’s public signalling and default STUN/TURN configuration. No separate application server, camera or microphone is needed. [PeerJS documents this connection flow](https://peerjs.com/client/getting-started).
+`src/multiplayer/session.ts` follows the PeerJS invite-code approach in `arithmetic_annihilation_mp_branch/src/multiplayer/MultiplayerSession.ts`. It has its own versioned `keep-going-v8-` signalling namespace, so an invite cannot join the other game. PeerJS is loaded only when a player creates or joins a room. Public PeerJS signalling introduces the browsers; a small Cloudflare Worker supplies temporary managed TURN credentials, including TLS on port 443, for automatic relay fallback. The game remains hosted on GitHub Pages and needs no camera or microphone. See [relay setup and testing](relay.md). [PeerJS documents this connection flow](https://peerjs.com/client/getting-started).
 
 The host chooses the game mode, track seed, question seed and tables. A prepare/ready handshake waits for both games to load before starting the three-second countdown; measured connection round-trip time adjusts the guest’s countdown delay. Both clients use the existing fixed 120 Hz coaster simulation. Each device owns only its own game, so network delays do not delay a correct-answer boost or affect local coach physics. `src/questions.ts` supplies a separate seeded deck covering every selected table against factors 1–12 without repeats within a deck. Question order does not depend on frame rate, scenery or the opponent’s answers.
 
@@ -34,4 +34,6 @@ The initial real two-client playtest completed a roughly 1.25 km race with 16 an
 
 A production build served under `/keep_it_going/` passed the real-browser workflow with no page errors. During the moving portion of that test, both the 1920×1080 desktop and 390×844 touch context delivered 1,763 frames in approximately 29.4 seconds (60.0 fps; 95th-percentile interval 16.7 ms). The workflow also passed with WebGL disabled in the mobile context, using the two-track software renderer, including 844×390 landscape and 320×568 portrait keypad checks. To repeat that variant, set `window.checkSoftwareRenderer = true` using the CLI’s `eval` command before running the browser-check script.
 
-Remix races and their five independent powers are described in [the Remix notes](remix.md#two-player-remix). Classic remains available and uses the same connection lifecycle.
+Remix races and their six independent powers are described in [the Remix notes](remix.md#two-player-remix). Classic remains available and uses the same connection lifecycle.
+
+Adventure-world builds use protocol 8 so they cannot accidentally join an older protocol 5, 6 or 7 course with different generated rails. Both sides derive the worlds from the seeded course; separate lift snapshots describe each rider’s raised rail.

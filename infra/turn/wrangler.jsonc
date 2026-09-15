@@ -1,0 +1,15 @@
+{
+  "name": "keep-it-going-relay",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-15",
+  "workers_dev": true,
+  "vars": {
+    "TURN_KEY_ID": "a8ffda59a0bbc8302c857c4020f02c30",
+    "ALLOWED_ORIGINS": "https://rupertlinacre.com,https://rupertlinacre.github.io,http://127.0.0.1:5198,http://localhost:5198"
+  },
+  "ratelimits": [{
+    "name": "CREDENTIAL_LIMIT",
+    "namespace_id": "71915001",
+    "simple": { "limit": 120, "period": 60 }
+  }]
+}

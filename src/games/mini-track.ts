@@ -1,3 +1,4 @@
+import { adventureAt, WORLD_ENCORES } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import { clamp } from "../math";
@@ -7,9 +8,11 @@ import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
   "station" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
+  | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
   | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
 export const isHump = (kind: MiniKind) =>
-  ["firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
+  ["sheepbank", "pondbridge", "ravinebridge", "witchhat", "mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
 export interface MiniRail {
   metric?(distance: number): number;
   readonly startDistance?: number;
@@ -69,18 +72,43 @@ export class MiniSection implements MiniRail {
     readonly turns = kind === "triplehelix" ? 3 : 1,
   ) {
     this.runout = 0;
-    const special = specialElement(kind, width, amplitude, hand, turns);
-    this.resolution = Math.min(16384, Math.max(kind === "triplehelix" ? 1260 : kind === "verticalhill" ? 600 : special ? 840 : 420,
-      kind === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
+    const shape = kind === "windmillloop" || kind === "midwayloop" ? "loop"
+      : kind === "carouselhelix" ? "ascendinghelix" : kind === "witchhat" ? "triplehelix"
+      : kind === "pumpkintunnel" ? "tunnel" : kind;
+    const special = specialElement(shape, width, amplitude, hand, turns);
+    this.resolution = Math.min(16384, Math.max(shape === "triplehelix" ? 1260 : kind === "verticalhill" ? 600 : special ? 840 : 420,
+      shape === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
     const point = (t: number) => {
       if (special) return special.point(t).add(new THREE.Vector3(0, 0, shift * smooth(t))).add(origin);
       const ease = smooth(t),
-        theta = Math.PI * 2 * (kind === "loop" ? t : ease);
+        theta = Math.PI * 2 * (shape === "loop" ? t : ease);
       let x = this.span * t,
         y = 0,
         z = shift * ease;
       if (kind === "firsthill" || kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "mountainpass") {
+        y = amplitude * Math.sin(Math.PI * t) ** 2;
+        z += hand * width * .1 * Math.sin(Math.PI * t) ** 2 * Math.sin(2 * Math.PI * t);
+      }
+      if (kind === "sheepbank") {
+        y = amplitude * Math.sin(Math.PI * t) ** 2 * (.65 + .35 * Math.cos(4 * Math.PI * t));
+        z += hand * 4 * Math.sin(Math.PI * t) ** 2;
+      }
+      if (kind === "pondbridge" || kind === "ravinebridge") {
+        y = amplitude * Math.sin(Math.PI * t) ** 2;
+        z += hand * 7 * Math.sin(Math.PI * t) ** 2;
+      }
+      if (shape === "tunnel") y = -amplitude * Math.sin(Math.PI * t) ** 4;
+      if (kind === "lanternrun") {
+        y = amplitude * Math.sin(Math.PI * t) ** 2 * (.62 + .38 * Math.cos(4 * Math.PI * t));
+        z += hand * 3 * Math.sin(Math.PI * t) ** 2 * Math.sin(2 * Math.PI * t);
+      }
+      if (kind === "pumpkinhop") {
+        const hop = Math.min(2, Math.floor(t * 3)), u = t * 3 - hop;
+        y = amplitude * [.65, 1, .8][hop] * Math.sin(Math.PI * u) ** 4;
+        z += hand * 3 * Math.sin(Math.PI * t) ** 2;
+      }
       if (kind === "splash")
         y = -amplitude * smooth(Math.min(1, t / .24)) * smooth(Math.min(1, (1 - t) / .24));
       if (kind === "jump") {
@@ -90,7 +118,7 @@ export class MiniSection implements MiniRail {
         else if (x < landing) y = amplitude * (1 - smooth((x - takeoff) / (landing - takeoff)));
       }
       if (kind === "verticalhill") [x, y] = verticalHill(t, width, amplitude);
-      if (kind === "loop") {
+      if (shape === "loop") {
         x = amplitude * Math.sin(theta) + width * ease;
         y = amplitude * (1 - Math.cos(theta));
       }
@@ -113,7 +141,7 @@ export class MiniSection implements MiniRail {
           y = amplitude * 1.4 * (1 - smooth(exit));
         }
       }
-      if (kind === "triplehelix") {
+      if (shape === "triplehelix") {
         const radius = width * 0.095;
         const lead = width * 0.68;
         const drift = radius * 0.4;
@@ -140,9 +168,9 @@ export class MiniSection implements MiniRail {
       const tangent = point(Math.min(1, t + 0.00001))
         .sub(point(Math.max(0, t - 0.00001)))
         .normalize();
-      const theta = Math.PI * 2 * (kind === "loop" ? t : smooth(t));
+      const theta = Math.PI * 2 * (shape === "loop" ? t : smooth(t));
       const up =
-        kind === "loop"
+        shape === "loop"
           ? new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0)
           : kind === "corkscrew"
             ? new THREE.Vector3(0, Math.cos(theta), hand * Math.sin(theta))
@@ -156,7 +184,7 @@ export class MiniSection implements MiniRail {
           hand * Math.cos(turn) * Math.sin(bank),
         );
       }
-      if (kind === "triplehelix" && t >= 0.3 && t <= 0.9) {
+      if (shape === "triplehelix" && t >= 0.3 && t <= 0.9) {
         const u = (t - 0.3) / 0.6;
         const turn = 6 * Math.PI * u;
         const bank = 0.95 * smooth(clamp(Math.min(u, 1 - u) / 0.08, 0, 1));
@@ -273,17 +301,17 @@ export class MiniSection implements MiniRail {
 
 /** Shared piece factory for the game and the track gallery. */
 export function createMiniSection(kind: MiniKind, start: number, origin: THREE.Vector3,
-  generated: number, random: () => number, varied = false): MiniSection {
+  generated: number, random: () => number, varied = false, multiplayer = false): MiniSection {
     const r = (min: number, max: number) => min + random() * (max - min);
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
     // taller faster than they grow wider, demanding sustained, timely answers.
-    const scale = generated < 11 ? 1 : progress.scale;
+    const scale = generated < 11 ? 1 : varied ? Math.min(2, progress.scale) : progress.scale;
     let turns = kind === "triplehelix" ? 3 : 1;
     let width = r(20, 28),
       amplitude = kind === "dip" ? -r(1.7, 2.5) : r(5, 10);
     const hand =
-      origin.z > 1 ? -1 : origin.z < -1 ? 1 : random() > 0.5 ? 1 : -1;
+      multiplayer ? 1 : origin.z > 1 ? -1 : origin.z < -1 ? 1 : random() > 0.5 ? 1 : -1;
     let shift = clamp(origin.z + r(-2.5, 2.5), -3.5, 3.5) - origin.z;
     if (kind === "station") {
       width = 12;
@@ -332,7 +360,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
     if (kind === "doubledip") { width = r(70, 85); amplitude = r(8, 12); shift = 0; }
     if (kind === "tophat") { width = r(30, 36); amplitude = r(26, 30); shift = 0; }
     if (kind === "immelmann" || kind === "diveloop") { width = r(68, 80); amplitude = r(18, 22); shift = 0; }
-    if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = progress.turns; shift = 0; }
+    if (kind === "ascendinghelix") { width = r(62, 70); amplitude = r(24, 28); turns = varied ? Math.min(4, progress.turns) : progress.turns; shift = 0; }
     if (kind === "interlockingloops") { amplitude = r(21, 25); width = amplitude * 1.3; shift = 0; }
     if (kind === "noninvertingloop") { amplitude = r(20, 24); width = amplitude * 0.9; shift = 0; }
     if (kind === "cobraroll" || kind === "pretzelknot") { amplitude = r(22, 26); width = amplitude * (kind === "pretzelknot" ? 4.5 : 3.8); shift = 0; }
@@ -356,8 +384,36 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
         width *= round ? size : Math.sqrt(size) * r(.95, 1.15);
         if (kind === "verticalhill") amplitude = Math.max(amplitude, width * .58);
       }
-      if (kind === "ascendinghelix") turns = Math.min(8, Math.max(2, turns + Math.floor(r(-1, 2))));
+      if (kind === "ascendinghelix") turns = Math.min(4, Math.max(2, turns + Math.floor(r(-1, 2))));
       if (kind === "station") width = r(10, 20);
+    }
+    if (kind === "sheepbank") { width = r(65, 78); amplitude = r(6, 9); shift = 0; }
+    if (kind === "pondbridge") { width = r(58, 72); amplitude = r(3, 5); shift = 0; }
+    if (kind === "windmillloop") { amplitude = r(8.5, 11); width = amplitude * .8; shift = hand * 2.2; }
+    if (kind === "ravinebridge") { width = r(78, 90); amplitude = r(14, 19); shift = 0; }
+    if (kind === "midwayloop") { amplitude = r(12, 16); width = amplitude * .85; shift = hand * 2.2; }
+    if (kind === "carouselhelix") { width = r(57, 65); amplitude = r(20, 25); turns = 2; shift = 0; }
+    if (kind === "mountainpass") { width = r(85, 110); amplitude = r(19, 27); shift = 0; }
+    if (kind === "tunnel" || kind === "pumpkintunnel") { width = r(45, 58); amplitude = 1.1; shift = 0; }
+    if (kind === "lanternrun") { width = r(62, 78); amplitude = r(5, 8); shift = 0; }
+    if (kind === "witchhat") { width = r(64, 74); amplitude = r(22, 27); turns = 3; shift = 0; }
+    if (kind === "pumpkinhop") { width = r(70, 90); amplitude = r(7, 10); shift = 0; }
+    if (varied) {
+      const world = adventureAt(start).world;
+      const doubleHeight = ["loop", "windmillloop", "midwayloop", "nestedloop", "interlockingloops", "noninvertingloop"].includes(kind) ? 2 : 1;
+      const shrink = Math.min(1, world.maxHeight / Math.max(1, Math.abs(amplitude) * doubleHeight));
+      amplitude *= shrink; width *= shrink;
+      turns = Math.min(4, turns);
+      if (kind === "verticalhill") amplitude = Math.max(amplitude, width * .58);
+    }
+    // Race excursions face outwards, then return to the shared centre line.
+    // A loop keeps a small exit offset for rail clearance; the next piece
+    // blends that offset back to zero instead of accumulating lateral drift.
+    if (multiplayer) {
+      shift = (["loop", "windmillloop", "midwayloop"].includes(kind) ? 2.2 : 0) - origin.z;
+      // The cobra's return turn spreads over two radii. Keep that race-only
+      // footprint compact so opponents remain easy to compare.
+      if(kind === "cobraroll" && amplitude > 15){width *= 15/amplitude; amplitude = 15;}
     }
     return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
 }
@@ -371,7 +427,8 @@ export class MiniTrack implements MiniRail {
   private random: () => number;
   private bag: MiniKind[] = [];
   private bags = 0;
-  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean } = {}) {
+  private bagWorld = -1;
+  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean } = {}) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
     // Retain real rail behind the six coaches on the opening hill.
@@ -413,14 +470,21 @@ export class MiniTrack implements MiniRail {
   get end() {
     return this.sections.at(-1)!.end;
   }
+  protected endOrigin(section: MiniSection) { return section.frames.at(-1)!.position.clone(); }
   private append(kind: MiniKind) {
+    if (this.options.multiplayer && kind === "pretzelknot") kind = "noninvertingloop";
     const previous = this.sections.at(-1);
     this.sections.push(createMiniSection(kind, previous?.end ?? 0,
-      previous ? previous.frames.at(-1)!.position.clone() : new THREE.Vector3(0, 4, 0),
-      this.generated++, this.random, !!this.options.generative));
+      previous ? this.endOrigin(previous) : new THREE.Vector3(0, 4, 0),
+      this.generated++, this.random, !!this.options.generative, !!this.options.multiplayer));
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
+      const adventure = adventureAt(this.end);
+      const newWorld = this.options.generative && this.bagWorld !== adventure.stage;
+      if (newWorld) {
+        this.bag = []; this.bagWorld = adventure.stage;
+      }
       if (!this.bag.length) {
         const shuffle = (items: readonly MiniKind[]) => {
           const result = [...items];
@@ -431,19 +495,21 @@ export class MiniTrack implements MiniRail {
           return result;
         };
         const { chapter } = rideProgress(this.end);
-        const challenges = shuffle(this.options.generative
-          ? ["loop", "helix", "skyhill", "invertedhill", "verticalhill", "triplehelix", "jump",
-            "ascendinghelix", "zerogstall", "immelmann", "noninvertingloop", "interlockingloops", "diveloop",
-            "tophat", "cobraroll", "pretzelknot", ...(chapter > 0 ? ["nestedloop" as const] : [])] as MiniKind[]
-          : CHALLENGES[chapter]).filter(kind => !this.options.generative || this.end >= 350 || kind !== "jump").slice(0, 6);
-        if (this.options.generative) challenges[1 + Math.floor(this.random() * 5)] = "splash";
+        const challenges = shuffle(this.options.generative ? [...adventure.world.challenges, ...(adventure.lap ? WORLD_ENCORES[adventure.world.id] : [])] : CHALLENGES[chapter]).slice(0, 6);
         const recovery = shuffle(RECOVERY);
         // A tower or water jump is an occasional event, followed by a breather.
         if (!this.options.generative) {
           if (++this.bags % 2 === 0) challenges[4] = "jump";
           if (this.bags % 2 === 1) challenges[5] = "triplehelix";
         }
-        const sequence = challenges.flatMap((kind, i) => [recovery[i], kind]);
+        const sequence = challenges.flatMap((kind, i) => [recovery[i % recovery.length], kind]);
+        if (newWorld) {
+          // A short tour guarantees the three signature attractions. Shuffle
+          // the remaining bag afterwards, so they cannot be crowded out by a
+          // long randomly chosen inversion just before the world boundary.
+          sequence.unshift(...adventure.world.pieces.flatMap((kind, i) =>
+            i ? ["station", kind] as MiniKind[] : [kind]));
+        }
         this.bag = sequence.reverse();
       }
       this.append(this.bag.pop()!);

@@ -23,38 +23,27 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   let disposed = false;
   root.innerHTML = `
     <section class="start-screen container">
-      <div class="start-intro">
-        <span class="start-kicker">${remixMode ? "THE REMIX · A NEW RIDE EVERY TIME" : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
-        <h1>${remixMode ? "A new ride.<br>Every time<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
-        <p>${remixMode ? "Answer to boost. Ride through surprises.<br>No two adventures are quite the same." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
-        <svg class="start-rails" viewBox="0 0 640 250" aria-hidden="true">
-          <path d="M-20 208 C85 208 70 100 155 100 S230 223 308 213 C417 198 441 22 355 22 C255 22 251 211 430 211 S555 110 670 134" fill="none" stroke="#a2c7bc" stroke-width="12"/>
-          <path d="M-20 198 C85 198 70 90 155 90 S230 213 308 203 C417 188 441 12 355 12 C255 12 251 201 430 201 S555 100 670 124" fill="none" stroke="#edb079" stroke-width="5"/>
-          <g transform="translate(114 59) rotate(-12)"><rect width="35" height="24" rx="5" fill="#6eb7aa"/><rect x="42" y="3" width="35" height="24" rx="5" fill="#e99f8c"/><path d="M35 19h7" stroke="#4c756b" stroke-width="3"/><g fill="#496b68"><circle cx="8" cy="26" r="4"/><circle cx="27" cy="26" r="4"/><circle cx="50" cy="29" r="4"/><circle cx="69" cy="29" r="4"/></g></g>
-        </svg>
-      </div>
       <div class="start-card">
         <div data-choose>
-          <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Roll into the unexpected." : "Choose your ride"}</h2>
+          <h1>Your adventure starts here.</h1>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
-          <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Fresh tracks, seven surprise power-ups, and flooded splash zones. Easier rides keep momentum longer, giving you more time between answers." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
+          <select class="setup-input difficulty-select" id="ride-difficulty">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
+          <section class="table-settings" aria-labelledby="tables-heading"><h2 id="tables-heading">Choose your times tables</h2><span class="table-selection" data-table-summary></span>
+            <p>Tap to choose. In a race, the host picks for both players.</p>
+            <div class="table-chips" role="group" aria-label="Times tables">${ALL_TABLES.map(n => `<label><input type="checkbox" name="table" value="${n}" ${selected.has(n) ? "checked" : ""}><span>${n}×</span></label>`).join("")}</div>
+            <div class="table-shortcuts"><button class="text-button" data-tables="default">Default · 2–12</button><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
+            <p class="setup-error" data-table-error role="status"></p>
+          </section>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
             <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
           </div>
-          <details class="table-settings"><summary>Times tables <span data-table-summary></span></summary>
-            <p>Choose the tables you’d like to practise. In a race, the host chooses for both players.</p>
-            <div class="table-chips" role="group" aria-label="Times tables">${ALL_TABLES.map(n => `<label><input type="checkbox" name="table" value="${n}" ${selected.has(n) ? "checked" : ""}><span>${n}×</span></label>`).join("")}</div>
-            <div class="table-shortcuts"><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
-            <p class="setup-error" data-table-error role="status"></p>
-          </details>
           ${remixMode ? `<details class="remix-settings"><summary>Course seed & ride surprises</summary>
             <label class="setup-label" for="course-seed">Course seed <span>(optional)</span></label>
             <input class="setup-input" id="course-seed" maxlength="40" placeholder="Leave blank for a fresh ride" value="${escape(new URL(location.href).searchParams.get("seed") || "")}">
             <p class="difficulty-help">Use the same seed to replay a course and its power-up order. Words work too.</p>
             <ul class="power-menu">${POWER_KINDS.map(kind => `<li><i style="--power-color:${POWERUPS[kind].color}">${POWERUPS[kind].icon}</i><span><strong>${POWERUPS[kind].name}</strong><small>${POWERUPS[kind].description}</small></span></li>`).join("")}</ul>
-            <p class="difficulty-help">One power-up at a time, for 20 seconds. Sky lift and Downhill drift are solo only. Races share the other five powers, collected independently. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
+            <p class="difficulty-help">Earn power-ups with four correct answers between pickups. Each lasts 20 seconds. Races include six powers, including Sky lift, collected independently. Downhill drift is solo only. Cargo carnival allows eight boxes per wagon; red dynamite bursts after spilling.</p>
           </details>` : ""}
           <p class="start-footnote">${remixMode ? 'Correct answers boost automatically. <a href="?mode=classic">Play the original solo / two-player game →</a>' : 'A correct answer gives you a boost automatically. <a href="?mode=remix">Try the remix →</a>'}</p>
         </div>
@@ -62,7 +51,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <button class="text-button back-button" data-back>← Back</button>
           <span class="start-kicker">BETTER TOGETHER</span><h2>Bring a friend</h2>
           <p class="setup-copy">Two tracks. The same questions.<br>Whoever travels furthest wins.</p>
-          ${remixMode ? '<p class="difficulty-help">Race on the same fresh course with five surprise powers. Sky lift and Downhill drift stay in solo play.</p>' : ''}
+          ${remixMode ? '<p class="difficulty-help">Race on the same fresh course with six surprise powers. Sky lift raises your own track; Downhill drift stays in solo play.</p>' : ''}
           <label class="setup-label" for="multiplayer-difficulty">Your difficulty</label>
           <select class="setup-input difficulty-select" id="multiplayer-difficulty">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
           <p class="difficulty-help">Choose a challenge that suits you. Your friend can choose a different level.</p>
@@ -108,7 +97,8 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
       <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : "Joining your friend"}</h2>
       ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>2 players</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
       <p class="lobby-status ${error ? "is-error" : ""}" role="status">${escape(session.status)}</p>
-      ${!error ? `<p class="lobby-mode">${session.remixMode ? "Remix race · five powers · shared course" : "Classic race"}</p>` : ""}
+      ${!error ? `<p class="lobby-mode">${session.remixMode ? "Remix race · six powers · shared course" : "Classic race"}</p>` : ""}
+      ${error || new URL(location.href).searchParams.has("network") ? `<p class="difficulty-help">Connection: ${escape(session.network.stage)} · ${escape(session.network.route)} · relay ${escape(session.network.relay)}</p><button class="text-button" data-copy-diagnostics>Copy connection details</button>` : ""}
       ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you) · ${DIFFICULTY_LABELS[session.difficulty]}</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)} <small>${DIFFICULTY_LABELS[session.opponentDifficulty]}</small></span></div><p class="lobby-tables">Shared times tables · ${session.tables.join(", ")}</p>` : ""}
       ${host && !error ? `<button class="primary-button full-button" data-start-race ${ready ? "" : "disabled"}>${ready ? "Start the race →" : "Waiting for your friend…"}</button>` : ""}
       <p class="copy-status" data-copy-status role="status"></p>`;
@@ -148,16 +138,21 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     if (button.hasAttribute("data-lobby-back")) { off?.(); session?.close(); show("join-setup"); }
     if (button.dataset.tables) {
       selected.clear();
-      const values = button.dataset.tables === "all" ? ALL_TABLES : button.dataset.tables === "easy" ? [2, 5, 10] : [];
+      const values = button.dataset.tables === "default" ? DEFAULT_TABLES : button.dataset.tables === "all" ? ALL_TABLES : button.dataset.tables === "easy" ? [2, 5, 10] : [];
       values.forEach(n => selected.add(n));
       root.querySelectorAll<HTMLInputElement>('[name="table"]').forEach(input => { input.checked = selected.has(Number(input.value)); });
       updateTables();
     }
     if (button.hasAttribute("data-create")) open("host");
     if (button.hasAttribute("data-start-race")) session?.start();
+    if (button.hasAttribute("data-copy-diagnostics") && session) {
+      try { await navigator.clipboard.writeText(JSON.stringify(session.diagnostics(), null, 2)); q("[data-copy-status]").textContent = "Connection details copied."; }
+      catch { q("[data-copy-status]").textContent = JSON.stringify(session.diagnostics()); }
+    }
     if (button.dataset.copy && session) {
       const url = new URL(location.href); url.search = ""; url.hash = ""; url.searchParams.set("join", session.code);
       url.searchParams.set("mode", session.remixMode ? "remix" : "classic");
+      if (session.network.mode !== "auto") url.searchParams.set("network", session.network.mode);
       try {
         await navigator.clipboard.writeText(button.dataset.copy === "link" ? url.href : session.code);
         if (!disposed) q("[data-copy-status]").textContent = "Copied! Send it to your friend.";

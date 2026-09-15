@@ -7,15 +7,30 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   createMiniSection,
   MiniSection,
+  MiniTrack,
   MiniRailCurve,
   type MiniKind,
 } from "./games/mini-track";
+import { WORLDS } from "./games/adventure-worlds";
+import { AdventureScene } from "./games/adventure-scene";
 import { ELEMENT_NAMES } from "./games/mini-progression";
 import { seededRandom } from "./games/mini-rail";
 import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  sheepbank: "Sheep graze on three gentle crests, then leap safely onto the banks as your train approaches.",
+  pondbridge: "A curving timber bridge climbs gently above a pond of lilies and ducks.",
+  windmillloop: "A complete loop curls around the turning sails of a giant meadow windmill.",
+  ravinebridge: "An arched railway viaduct crosses a turquoise ravine beside a tumbling waterfall.",
+  midwayloop: "A giant vertical loop outlined with chasing fairground bulbs and a star at its crown.",
+  carouselhelix: "The carousel matches your train turn for turn as you climb two glowing spirals around it.",
+  pumpkintunnel: "Smash through a tower of smiling pumpkins: they tumble away in a sparkling green burst.",
+  witchhat: "Climb to the tip of a giant crooked witch’s hat, then swirl down three turns around its brim.",
+  mountainpass: "A narrow railway ledge winds up a steep, snow-dusted gorge above a turquoise river.",
+  tunnel: "Your train pulls the gondolas up a snowy mountain as it passes through the glowing tunnel below.",
+  lanternrun: "Rolling hills trace a parade of glowing lanterns.",
+  pumpkinhop: "Three playful little hops through the pumpkin patch.",
   noninvertingloop:
     "A regular loop with a roll on the climb, putting the coach upright at the crown before it unwinds on the descent.",
   pretzelknot:
@@ -58,11 +73,16 @@ const descriptions: Record<MiniKind, string> = {
   nestedloop:
     "A fantasy element: a smaller complete inversion tucked into the crown of a giant loop.",
 };
-const kinds = Object.keys(ELEMENT_NAMES) as MiniKind[];
+const signatures = WORLDS.flatMap(w=>w.pieces);
+const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>!signatures.includes(k))];
+let collection = new URLSearchParams(location.search).get("world") ?? "all";
+if (!WORLDS.some(w=>w.id===collection)) collection="all";
+const shownKinds = () => collection === "all" ? kinds : [...WORLDS.find(w=>w.id===collection)!.pieces];
 const title = (kind: MiniKind) =>
   ELEMENT_NAMES[kind].toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const initial = new URLSearchParams(location.search).get("element") as MiniKind;
 let kind: MiniKind = kinds.includes(initial) ? initial : "nestedloop";
+if (!shownKinds().includes(kind)) kind=shownKinds()[0];
 let distance = Math.max(
   0,
   Math.min(20, Number(new URLSearchParams(location.search).get("km")) || 0),
@@ -71,17 +91,20 @@ let section: MiniSection;
 let elapsed = 0;
 let playing = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 let group = new THREE.Group();
+let attraction: AdventureScene | undefined;
+const galleryTrack = new MiniTrack(71, {generative:true});
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <header class="gallery-header"><a href="./index.html" class="brand"><img src="./images/keep-it-going-logo.png" alt="Keep it going" /></a><a class="back" href="./index.html">← Play the game</a></header>
 <main class="gallery-layout">
 <aside class="catalogue"><p class="eyebrow">THE TRACK COLLECTION</p><h1>Made to make<br>your stomach drop.</h1><p class="intro">Explore all ${kinds.length} pieces, from the first hill to the impossible inversions.</p>
+<label class="collection-label" for="collection">Explore a world</label><select id="collection"><option value="all">All track sections</option>${WORLDS.map(w=>`<option value="${w.id}">${w.icon} ${w.name}</option>`).join("")}</select>
 <label class="mobile-picker" for="element">Track section</label><select id="element">${kinds.map((k) => `<option value="${k}">${title(k)}</option>`).join("")}</select>
 <nav class="piece-list" aria-label="Track sections">${kinds.map((k, i) => `<button data-kind="${k}" aria-pressed="false"><span>${String(i + 1).padStart(2, "0")}</span>${title(k)}</button>`).join("")}</nav></aside>
 <section class="explorer" aria-label="Interactive track viewer">
 <div class="piece-heading"><div><p class="eyebrow" id="piece-number"></p><h2 id="piece-title"></h2></div><div class="step-buttons"><button id="previous" aria-label="Previous section">←</button><button id="next" aria-label="Next section">→</button></div></div>
 <p id="description"></p>
-<div class="viewport"><div class="camera-tools" role="group" aria-label="Camera views"><button data-view="perspective" aria-pressed="true">3D</button><button data-view="side" aria-pressed="false">Side</button><button data-view="top" aria-pressed="false">Top</button><button id="reset">Reset view</button></div><div class="stage" aria-label="3D track. Drag to orbit, scroll or pinch to zoom."></div><div class="viewer-footer"><span>Drag to orbit · scroll or pinch to zoom</span><button id="play"></button></div></div>
+<div class="viewport"><div class="camera-tools" role="group" aria-label="Camera views"><button data-view="perspective" aria-pressed="true">3D</button><button data-view="side" aria-pressed="false">Side</button><button data-view="top" aria-pressed="false">Top</button><button id="reset">Reset view</button><button id="tunnel-cutaway" aria-pressed="false" hidden>Inside tunnel</button></div><div class="stage" aria-label="3D track. Drag to orbit, scroll or pinch to zoom."></div><div class="viewer-footer"><span>Drag to orbit · scroll or pinch to zoom</span><button id="play"></button></div></div>
 <div class="details"><div class="progression"><label for="distance">Later in the ride <output id="distance-value"></output></label><input id="distance" type="range" min="0" max="20" step="1" value="${distance}" /><div class="range-ends"><span>Opening scale</span><span>20 km</span></div></div><dl class="metrics"><div><dt>Height above entry</dt><dd id="height"></dd></div><div><dt>Rail length</dt><dd id="length"></dd></div><div><dt>Turns</dt><dd id="turns"></dd></div></dl></div>
 <p class="footnote">The same track geometry and growth rules as the game. The little coach is a direction marker, moving at a constant preview speed—not a physics simulation. The opening hill and recovery pieces grow little or not at all.</p>
 </section></main>`;
@@ -90,7 +113,8 @@ const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
 const stage = $(".stage");
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#e6eee8");
-scene.add(new THREE.HemisphereLight("#fffbea", "#8bafa6", 2.4));
+const ambient = new THREE.HemisphereLight("#fffbea", "#8bafa6", 2.4);
+scene.add(ambient);
 const sun = new THREE.DirectionalLight("#fff2d5", 3);
 sun.position.set(-30, 80, 60);
 scene.add(sun);
@@ -177,6 +201,14 @@ function fit() {
     );
 }
 function rebuild() {
+  attraction?.destroy(); attraction=undefined;
+  $("#tunnel-cutaway").hidden=kind!=="tunnel";$("#tunnel-cutaway").setAttribute("aria-pressed","false");
+  const world = WORLDS.find(w=>w.pieces.includes(kind));
+  scene.background = new THREE.Color(world?.sky ?? '#e6eee8');
+  materials.ground.color.set(world?.ground ?? '#d5e3c3');
+  materials.rail.color.set(world?.rail ?? '#b87545');
+  materials.rail.emissive.set(world?.rail ?? '#000000');materials.rail.emissiveIntensity=(world?.darkness??0)*.35;
+  ambient.color.set(world?.ambient??'#fffbea');sun.color.set(world?.light??'#fff2d5');sun.intensity=3-(world?.darkness??0)*1.6;
   scene.remove(group);
   group.traverse((object) => {
     if (object instanceof THREE.Mesh) object.geometry.dispose();
@@ -190,7 +222,7 @@ function rebuild() {
       : createMiniSection(
           kind,
           distance * 1000,
-          new THREE.Vector3(),
+          new THREE.Vector3(0,world?4:0,0),
           distance === 0 ? 0 : 20,
           seededRandom(71),
         );
@@ -217,7 +249,7 @@ function rebuild() {
             0.12,
             6,
             false,
-          ),
+          ).translate(section.origin.x,section.origin.y,section.origin.z),
           materials.rail,
         ),
       );
@@ -236,7 +268,7 @@ function rebuild() {
     group.add(ties);
     for (let d = from; d < to; d += 9) {
       const p = section.sample(d).position;
-      const bottom = Math.min(-3, bounds.min.y - 2);
+      const bottom = world ? 0 : Math.min(-3, bounds.min.y - 2);
       const post = new THREE.Mesh(
         new THREE.CylinderGeometry(0.13, 0.22, p.y - bottom, 5),
         materials.support,
@@ -245,13 +277,20 @@ function rebuild() {
       group.add(post);
     }
   }
+  const railHeight = Math.max(0,bounds.max.y-section.origin.y);
+  if(world){
+    galleryTrack.sections.splice(0,galleryTrack.sections.length,section);
+    attraction=new AdventureScene(scene,{attractionsOnly:true,world});
+    attraction.render(galleryTrack,section.start,0,0,0);
+    bounds.expandByObject(attraction.group);
+  }
   const center = bounds.getCenter(new THREE.Vector3()),
     size = bounds.getSize(new THREE.Vector3());
   const ground = new THREE.Mesh(
     new THREE.BoxGeometry(size.x + 12, 0.7, size.z + 14),
     materials.ground,
   );
-  ground.position.set(center.x, Math.min(-3, bounds.min.y - 2) - 0.4, center.z);
+  ground.position.set(center.x, (world ? 0 : Math.min(-3, bounds.min.y - 2)) - 0.4, center.z);
   group.add(ground);
   if (kind === "jump") {
     const water = new THREE.Mesh(
@@ -272,24 +311,27 @@ function rebuild() {
   $("#piece-title").textContent = title(kind);
   $("#description").textContent = descriptions[kind];
   $("#piece-number").textContent =
-    `SECTION ${String(kinds.indexOf(kind) + 1).padStart(2, "0")} / ${kinds.length}`;
-  $("#height").textContent = `${Math.max(0, bounds.max.y).toFixed(1)} m`;
+    `${world ? world.icon+" "+world.name+" · " : ""}SECTION ${String(kinds.indexOf(kind) + 1).padStart(2, "0")} / ${kinds.length}`;
+  $("#height").textContent = `${railHeight.toFixed(1)} m`;
   $("#length").textContent =
     `${(section.kind === "jump" ? section.length - (section.distanceAtX(section.landingX) - section.takeoff) : section.length).toFixed(0)} m`;
-  $("#turns").textContent = ["ascendinghelix", "triplehelix", "helix"].includes(
+  $("#turns").textContent = ["ascendinghelix", "triplehelix", "helix", "carouselhelix", "witchhat"].includes(
     kind,
   )
     ? String(section.turns)
     : "—";
   $("#distance-value").textContent =
     distance === 0 ? "Opening" : `${distance} km`;
+  $<HTMLSelectElement>("#collection").value=collection;
+  $<HTMLSelectElement>("#element").innerHTML=shownKinds().map(k=>`<option value="${k}">${title(k)}</option>`).join('');
   $<HTMLSelectElement>("#element").value = kind;
+  app.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach(b=>b.hidden=!shownKinds().includes(b.dataset.kind as MiniKind));
   app
     .querySelectorAll<HTMLButtonElement>("[data-kind]")
     .forEach((b) =>
       b.setAttribute("aria-pressed", String(b.dataset.kind === kind)),
     );
-  history.replaceState(null, "", `?element=${kind}&km=${distance}`);
+  history.replaceState(null, "", `?element=${kind}&km=${distance}${collection==="all"?"":"&world="+collection}`);
   fit();
 }
 app.querySelectorAll<HTMLButtonElement>("[data-kind]").forEach(
@@ -303,12 +345,17 @@ $<HTMLSelectElement>("#element").onchange = (e) => {
   kind = (e.target as HTMLSelectElement).value as MiniKind;
   rebuild();
 };
+$<HTMLSelectElement>("#collection").onchange = event => {
+  collection=(event.target as HTMLSelectElement).value;
+  if(!shownKinds().includes(kind))kind=shownKinds()[0];
+  rebuild();
+};
 $("#previous").onclick = () => {
-  kind = kinds[(kinds.indexOf(kind) + kinds.length - 1) % kinds.length];
+  const list=shownKinds();kind = list[(list.indexOf(kind) + list.length - 1) % list.length];
   rebuild();
 };
 $("#next").onclick = () => {
-  kind = kinds[(kinds.indexOf(kind) + 1) % kinds.length];
+  const list=shownKinds();kind = list[(list.indexOf(kind) + 1) % list.length];
   rebuild();
 };
 $<HTMLInputElement>("#distance").oninput = (e) => {
@@ -322,6 +369,11 @@ app.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(
       fit();
     }),
 );
+$("#tunnel-cutaway").onclick = () => {
+  const reveal=$("#tunnel-cutaway").getAttribute("aria-pressed")!=="true";
+  $("#tunnel-cutaway").setAttribute("aria-pressed",String(reveal));
+  attraction?.setTunnelCutaway(reveal);
+};
 $("#reset").onclick = () => {
   view = "perspective";
   fit();
@@ -351,6 +403,7 @@ renderer.setAnimationLoop((time) => {
   coach.position.copy(frame.position);
   coach.quaternion.copy(frame.rotation);
   coach.visible = section.hasRail(d);
+  attraction?.render(galleryTrack,d,0,0,elapsed);
   controls.update();
   renderer.render(scene, camera);
 });

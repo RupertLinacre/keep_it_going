@@ -77,14 +77,14 @@ test("parcel identities survive removal of another flying object", () => {
   assert.equal(after[0].id,before[1].id);
 });
 
-test("ground covers large elements and both lanes, while spacing never snaps inward", () => {
+test("ground covers large elements and both lanes, while spacing eases in both directions", () => {
   for(const seed of [1,18,42]) {
-    const track=new MiniTrack(seed),spacing=new RaceSpacing();
+    const track=new MiniTrack(seed,{multiplayer:true}),spacing=new RaceSpacing();
     let previous=spacing.update(track,1/60);
     for(let distance=track.startDistance;distance<16000;distance+=100) {
       track.ensure(distance);
       const offset=spacing.update(track,1/60);
-      assert.ok(offset>=previous);
+      assert.ok(offset-previous>=-2/60-1e-8, "Returning lanes move at most 3.4 cm per frame");
       // Every expansion is eased rather than applied as a layout jump.
       assert.ok(offset-previous<=6/60+1e-8, "Spacing moves by at most 10 cm per display frame");
       previous=offset;
@@ -110,7 +110,7 @@ test("multiple render consumers cannot wind the opponent clock backwards", () =>
 
 test("race lookahead opens a clear aisle before fast riders reach giant elements", () => {
   for(const seed of [1,18,42]) {
-    const track=new MiniTrack(seed),spacing=new RaceSpacing();
+    const track=new MiniTrack(seed,{multiplayer:true}),spacing=new RaceSpacing();
     for(let distance=track.startDistance;distance<20000;distance+=3) {
       // 100 m/s with the same fourteen-second planning horizon as the game.
       track.ensure(distance,1400);

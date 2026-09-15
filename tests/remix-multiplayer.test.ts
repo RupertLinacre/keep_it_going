@@ -14,7 +14,7 @@ const host:Host={difficulty:'normal',stage:{} as HTMLElement,panel(){},stats(){}
 const race=(seed=42)=>new Headless(host,seed,{remixMode:true,multiplayer:true});
 
 test('Remix races share generated geometry despite different simulation pace and lookahead',()=>{
-  const a=race(),b=race();assert.ok(!(a.track instanceof HeightTrack));
+  const a=race(),b=race();assert.ok(a.track instanceof HeightTrack);
   assert.ok(a.track.options.generative);assert.equal(a.track.startDistance,b.track.startDistance);
   for(let at=a.track.startDistance;at<5000;at+=83){
     a.track.ensure(at,1400);b.track.ensure(at,300);
@@ -22,16 +22,17 @@ test('Remix races share generated geometry despite different simulation pace and
   }
 });
 
-test('race power bags contain only the five permitted effects, reproducibly, and cannot activate track mutations',()=>{
+test('race power bags contain all six permitted effects reproducibly, including Sky lift but excluding board tilt',()=>{
   const sequence=(seed:number)=>{
     const g=race(seed),p=g.powerups!,out:string[]=[];
-    for(const forbidden of ['lift','tilt'] as const){p.activate(forbidden,g.physics,g.carriages);assert.equal(p.active,undefined);assert.equal(g.liftingAnswers,false);assert.equal(g.physics.options.worldTilt,0);}
+    for(const forbidden of ['tilt'] as const){p.activate(forbidden,g.physics,g.carriages);assert.equal(p.active,undefined);assert.equal(g.liftingAnswers,false);assert.equal(g.physics.options.worldTilt,0);}
     for(let i=0;i<15;i++){
+      for(let n=0;n<4;n++)p.answered();
       p.update(3,g.track,g.physics,g.carriages);assert.ok(p.gate);out.push(p.gate.kind);
       g.physics.distance=p.gate.distance;p.update(0,g.track,g.physics,g.carriages);
       assert.ok(RACE_POWER_KINDS.includes(p.active as typeof RACE_POWER_KINDS[number]));p.update(20,g.track,g.physics,g.carriages);
     }
-    assert.deepEqual([...new Set(out.slice(0,5))].sort(),[...RACE_POWER_KINDS].sort());return out;
+    assert.deepEqual([...new Set(out.slice(0,6))].sort(),[...RACE_POWER_KINDS].sort());return out;
   };
   assert.deepEqual(sequence(42),sequence(42));assert.notDeepEqual(sequence(42),sequence(18));
   const solo=new Headless(host,42,{remixMode:true});solo.powerups!.activate('lift',solo.physics,solo.carriages);assert.ok(solo.liftingAnswers);assert.ok(solo.track instanceof HeightTrack);
@@ -45,7 +46,7 @@ test('network snapshots carry eight-box wagons, TNT and stable large splash IDs'
   const first=snapshotRide(g,1);assert.ok(validRideState(first));assert.equal(first.bodies[1].cargo,8);assert.ok(first.bodies[1].bombs);assert.equal(first.parcels[0].dynamite,true);assert.equal(first.impacts[0].particles.length,56);
   assert.notEqual(first.impacts[0].id,first.impacts[1].id);
   g.carriages.explosions.shift();const second=snapshotRide(g,2);assert.equal(second.impacts[0].id,first.impacts[1].id);
-  const bad=structuredClone(first);bad.power!.active='lift' as any;assert.equal(validRideState(bad),false);
+  const bad=structuredClone(first);bad.power!.active='lift' as any;assert.equal(validRideState(bad),true);
   bad.power!.active='tilt' as any;assert.equal(validRideState(bad),false);
   bad.power!.active='cargo';bad.impacts[0].particles.push(bad.impacts[0].particles[0]);assert.equal(validRideState(bad),false);
   assert.equal(parseWire({kind:'prepare',round:{id:'1',seed:42,questionSeed:1,tables:[2],difficulty:'normal',guestDifficulty:'easy',mode:'bad'}}),undefined);

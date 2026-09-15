@@ -352,3 +352,11 @@ input[type="range"] {
     font-size: 22px;
   }
 }
+
+.collection-label { display:block; font-size:11px; color:#718478; margin-bottom:8px; }
+#collection { width:100%; border:1px solid #d5dfd0; border-radius:8px; padding:10px; background:#fff; color:#294a37; margin-bottom:18px; font-size:12px; }
+.piece-list button[hidden] { display:none; }
+.piece-list { max-height:calc(100dvh - 382px); }
+
+.camera-tools button[hidden] { display:none; }
+.camera-tools { flex-wrap:wrap; max-width:calc(100% - 20px); }
