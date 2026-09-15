@@ -1,3 +1,4 @@
+import { rollingResistance } from "./ride-resistance";
 import { MINI_BOOST_ENERGY } from "./mini-config";
 import type { MiniPhysics } from "./mini-physics";
 import type { HeightTrack } from "./height-track";
@@ -15,7 +16,7 @@ export function heightGuide(track: HeightTrack, physics: MiniPhysics) {
   for (let s = physics.distance; s < next.end;) {
     const end = Math.min(s + 1, next.end), nextY = track.height(end);
     const ds = (end - s) * track.metric((s + end) / 2);
-    const drag = physics.dragAt((s + end) / 2), rolling = physics.options.rolling / physics.options.gravity;
+    const drag = physics.dragAt((s + end) / 2), rolling = rollingResistance(Math.sqrt(Math.max(0, 2 * physics.options.gravity * budget)), physics.options.rolling) / physics.options.gravity;
     const resistance = (nextY - y) / ds + rolling;
     budget = drag > 0 ? budget * Math.exp(-2*drag*ds) - resistance * -Math.expm1(-2*drag*ds)/(2*drag)
       : budget - (nextY - y) - rolling*ds;
@@ -47,7 +48,7 @@ export function skyLiftBoostEnergy(track: HeightTrack, physics: MiniPhysics) {
   for (let s = end; s > physics.distance;) {
     const start = Math.max(physics.distance, s-1), ds = (s-start)*track.metric((s+start)/2);
     const drag = physics.dragAt((s+start)/2);
-    const resistance = physics.options.gravity*(track.height(s)-track.height(start))/ds + physics.options.rolling;
+    const resistance = physics.options.gravity*(track.height(s)-track.height(start))/ds + rollingResistance(Math.sqrt(required), physics.options.rolling);
     required = Math.max(1, drag > 0 ? required*Math.exp(2*drag*ds) + resistance*Math.expm1(2*drag*ds)/drag
       : required + 2*resistance*ds);
     s = start;

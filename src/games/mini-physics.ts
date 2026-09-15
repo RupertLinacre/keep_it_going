@@ -1,3 +1,4 @@
+import { BASE_DRAG, BASE_ROLLING, rollingResistance } from "./ride-resistance";
 import * as THREE from "three";
 import type { RailFrame } from "./mini-rail";
 import type { MiniSection, MiniRail } from "./mini-track";
@@ -29,7 +30,7 @@ export function railAcceleration(track: MiniRail, s: number, v: number,
     slope = Math.cos(angle)*t.y - Math.sin(angle)*t.x;
   } else slope = track.slope(s);
   const gravity = slope >= 0 ? options.uphillGravity ?? options.gravity : options.downhillGravity ?? options.gravity;
-  return options.tailwind - gravity*slope - railDrag(track, s, options.drag)*v*v - options.rolling*Math.tanh(v*5);
+  return options.tailwind - gravity*slope - railDrag(track, s, options.drag)*v*v - rollingResistance(v, options.rolling);
 }
 
 /** Metres, seconds, kilograms. A one-way catch supplies the constraint force at rest.
@@ -147,8 +148,8 @@ export class MiniPhysics {
     this.options = {
       gravity: 9.81,
       mass: 40,
-      drag: 0.004,
-      rolling: 0.06,
+      drag: BASE_DRAG,
+      rolling: BASE_ROLLING,
       initialSpeed: MINI_START_SPEED,
       initialDistance: track.startDistance ?? 8,
       tailwind: 0,

@@ -1,3 +1,4 @@
+import { rollingResistance } from "./ride-resistance";
 import { MiniPhysics } from "./mini-physics";
 import type { MiniTrack } from "./mini-track";
 
@@ -35,7 +36,7 @@ export function jumpApproach(track: MiniTrack, physics: MiniPhysics): JumpApproa
     const nextHeight = track.height(at + step);
     const drag = physics.dragAt(at + step/2);
     const g = nextHeight >= height ? physics.options.uphillGravity ?? gravity : physics.options.downhillGravity ?? gravity;
-    const resistance = g * (nextHeight - height) / step + rolling;
+    const resistance = g * (nextHeight - height) / step + rollingResistance(Math.sqrt(speedSquared), rolling);
     const decay = Math.exp(-2 * drag * step);
     speedSquared = drag > 0
       ? speedSquared * decay - resistance * -Math.expm1(-2 * drag * step) / drag
