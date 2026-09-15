@@ -43,6 +43,7 @@ export function mountGame(
           <canvas class="game-canvas" width="${W}" height="${H}" aria-label="Keep it going game world"></canvas>
           <div class="game-hud"></div>
           ${network ? `<div class="race-hud"><span class="race-rider"><i class="rider-dot"></i><span>You <strong data-your-distance>0 m</strong>${settings.remixMode ? '<small class="race-power" data-your-power></small>' : ''}</span></span><span class="race-gap" data-race-gap>Keep it going!</span><span class="race-rider"><i class="rider-dot opponent"></i><span><span data-opponent-name></span> <strong data-rival-distance>0 m</strong>${settings.remixMode ? '<small class="race-power" data-rival-power></small>' : ''}</span></span></div>` : ""}
+          ${network ? '<button class="race-new-game" data-race-new hidden>Start new game</button>' : ""}
           <div class="game-feedback" role="status" aria-live="polite"></div>
         </div>
         <div class="play-controls"></div>
@@ -60,7 +61,7 @@ export function mountGame(
   const options = { signal: controller.signal };
   let lastStats = "";
   const safe = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-  const blocked = () => network ? network.phase !== "racing" || network.localPaused || network.remotePaused : paused;
+  const blocked = () => network ? network.phase !== "racing" || network.localPaused || network.remotePaused || (!!network.victor && network.victoryChoice !== "continue") : paused;
   if (network) root.querySelector("[data-opponent-name]")!.textContent = network.opponent;
 
   canvas.tabIndex = 0;
@@ -87,7 +88,7 @@ export function mountGame(
   };
 
   const togglePause = () => {
-    if (network) { network.pause(!network.localPaused); return; }
+    if (network) { if (!finished) network.pause(!network.localPaused); return; }
     if (finished) return;
     paused = !paused;
     if (paused) {
@@ -168,8 +169,12 @@ export function mountGame(
 
   const syncRaceOverlay = () => {
     if (!network) return;
-    const sharedPause = network.localPaused || network.remotePaused;
+    const sharedPause = network.localPaused || network.remotePaused || (!!network.victor && network.victoryChoice !== "continue");
     ghost?.setPaused(sharedPause || network.phase !== "racing");
+    root.querySelector<HTMLElement>("[data-race-new]")!.hidden = network.victor !== "local" || network.victoryChoice !== "continue" || finished || network.phase !== "racing";
+    if (finished && network.victor === "remote" && network.phase === "racing") {
+      controls.innerHTML = `<div class="prompt race-waiting"><h2>${safe(network.opponent)} won!</h2><p>${network.victoryChoice === "continue" ? "They’re keeping going. Wait here—you’ll start the next game together." : "Waiting for them to choose a new game or keep going."}</p></div>`;
+    }
     if (sharedPause && !wasSharedPause && game) network.sendState(snapshotRide(game, ++seq));
     wasSharedPause = sharedPause;
     let key = "", content = "";
@@ -177,12 +182,19 @@ export function mountGame(
       key = "error";
       content = `<div class="eyebrow">RACE INTERRUPTED</div><h2>We lost the connection.</h2><p>${safe(network.status)}</p><button class="primary-button full-button" data-overlay="menu">Back to start →</button>`;
     } else if (network.phase === "complete" && network.localResult && network.remoteResult) {
-      key = `complete:${network.localRematch}:${network.remoteRematch}:${network.connected}`;
+      key = `complete:${network.localRematch}:${network.remoteRematch}:${network.connected}:${network.victoryChoice}`;
       const winner = raceWinner(network.localResult, network.remoteResult);
       content = `<div class="eyebrow">RACE COMPLETE</div><h2>${winner === "draw" ? "A perfect tie!" : winner === "local" ? "You went further!" : `${safe(network.opponent)} went further!`}</h2>
         <p>Every answer kept you rolling.</p><div class="race-results"><div><i class="rider-dot"></i><span>You</span><strong>${network.localResult.distance.toFixed(1)} <small>m</small></strong><small>${network.localResult.correct} boosts</small></div><div><i class="rider-dot opponent"></i><span>${safe(network.opponent)}</span><strong>${network.remoteResult.distance.toFixed(1)} <small>m</small></strong><small>${network.remoteResult.correct} boosts</small></div></div>
-        <button class="primary-button full-button" data-overlay="rematch" ${network.localRematch || !network.connected ? "disabled" : ""}>${!network.connected ? "Your friend left the ride" : network.localRematch ? "Waiting for your friend…" : "Race again →"}</button>
-        ${network.connected && network.remoteRematch && !network.localRematch ? `<p>Your friend is ready for another ride.</p>` : ""}<button class="text-button" data-overlay="menu">Back to start</button>`;
+        ${winner === "local" ? `<button class="primary-button full-button" data-overlay="new-game" ${!network.connected || network.victoryChoice === "restart" ? "disabled" : ""}>${!network.connected ? "Your friend left the ride" : network.victoryChoice === "restart" ? "Starting a new game…" : "Start new game"}</button>`
+          : winner === "remote" ? `<p>${network.connected ? "Waiting for your friend to start a new game with you." : "Your friend left the ride."}</p>`
+          : `<button class="primary-button full-button" data-overlay="rematch" ${network.localRematch || !network.connected ? "disabled" : ""}>${!network.connected ? "Your friend left the ride" : network.localRematch ? "Waiting for your friend…" : "Start new game"}</button>`}
+        <button class="text-button" data-overlay="menu">Back to start</button>`;
+    } else if (network.phase === "racing" && network.victor === "local" && network.victoryChoice !== "continue") {
+      key = `won:${network.victoryChoice}`;
+      content = `<div class="eyebrow">YOU WON!</div><h2>You went further!</h2><p>Your train is still rolling. Start a new game with ${safe(network.opponent)}, or see how far you can go while they wait.</p>
+        <button class="primary-button full-button" data-overlay="new-game" ${network.victoryChoice === "restart" ? "disabled" : ""}>${network.victoryChoice === "restart" ? "Starting a new game…" : "Start new game"}</button>
+        <button class="primary-button full-button continue-ride" data-overlay="keep-going" ${network.victoryChoice === "restart" ? "disabled" : ""}>Keep going</button>`;
     } else if (network.localPaused || network.remotePaused) {
       key = `pause:${network.localPaused}:${network.remotePaused}`;
       content = `<div class="eyebrow">BOTH TRAINS PAUSED</div><h2>${network.localPaused ? "Take a breather." : `${safe(network.opponent)} paused.`}</h2><p>The race continues when you’re both ready.</p>
@@ -220,7 +232,10 @@ export function mountGame(
         syncRaceOverlay();
       }
       if (!blocked()) game!.update(dt);
-      if (network && now >= sendAt && network.phase === "racing" && !network.localPaused && !network.remotePaused) {
+      if (network?.phase === "racing" && !finished && network.remoteResult && !network.victor) {
+        network.claimVictory({distance:game!.travelled,correct:game!.correct,score:game!.score,water:false});
+      }
+      if (network && now >= sendAt && network.phase === "racing" && !network.localPaused && !network.remotePaused && (!network.victor || network.victoryChoice === "continue")) {
         network.sendState(snapshotRide(game!, ++seq)); sendAt = now + 1000 / 12;
       }
       if (network && now >= raceHudAt) {
@@ -259,7 +274,11 @@ export function mountGame(
     if (action === "restart") restart();
     if (action === "menu") settings.menu?.();
     if (action === "rematch") network?.rematch();
+    if (action === "new-game") network?.newGame();
+    if (action === "keep-going") network?.keepGoing();
   }, options);
+
+  root.querySelector("[data-race-new]")?.addEventListener("click", () => network?.newGame(), options);
 
   controls.addEventListener("click", (event) => {
     const action = (event.target as HTMLElement).closest<HTMLElement>("[data-action]")?.dataset.action;
@@ -308,7 +327,7 @@ export function mountGame(
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      if (network) network.pause(true);
+      if (network) { if (!finished) network.pause(true); }
       else if (!paused) togglePause();
     }
   }, options);

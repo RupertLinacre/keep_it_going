@@ -1184,3 +1184,18 @@ kbd {
 
 
 .power-hud[data-power="none"] { display:none; }
+
+/* Clear host/join routes, ordered left to right on every screen. */
+.multiplayer-choices { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.multiplayer-label { grid-column:1 / -1; color:#587466; font-size:12px; font-weight:600; margin-top:4px; }
+.multiplayer-choices .mode-button { padding:16px 12px; justify-content:center; text-align:center; }
+.multiplayer-choices .mode-button > span:last-child { margin:0; }
+.multiplayer-choices .mode-button strong { font-size:clamp(16px,3vw,20px); }
+.multiplayer-choices .mode-button small { font-size:11px; }
+.shared-tables { background:#f1f6e8; padding:16px; border-radius:12px; margin:18px 0; }
+.shared-tables h3 { margin:0 0 12px; color:#355b50; font-size:15px; }
+.shared-tables > div { display:flex; flex-wrap:wrap; gap:7px; }
+.shared-tables span { padding:6px 9px; background:#dfecc9; border-radius:7px; color:#46623a; font-weight:600; }
+.shared-tables p { font-size:12px; line-height:1.5; color:#687e70; margin:12px 0 0; }
+.race-new-game { position:absolute; right:12px; bottom:12px; z-index:4; padding:10px 14px; border:1px solid #bacdad; border-radius:12px; background:#f5f9e9; color:#355b50; font-size:12px; }
+.overlay-card .continue-ride { margin-top:12px; }

@@ -4,7 +4,7 @@ import type Peer from "peerjs";
 import type { DataConnection } from "peerjs";
 import { normalizeTables } from "../questions";
 import { loadRelay, networkMode, selectedRoute, TURN_ENDPOINT, type NetworkMode, type RelayStatus, type RouteInfo } from "./relay";
-import { cleanCode, cleanName, inviteCode, parseWire, PROTOCOL, validCode,
+import { cleanCode, cleanName, inviteCode, parseWire, PROTOCOL, validCode, raceWinner,
   type RaceResult, type RideState, type Round, type Wire } from "./protocol";
 
 type Phase = "idle" | "opening" | "waiting" | "ready" | "preparing" | "countdown" | "racing" | "complete" | "error" | "closed";
@@ -56,6 +56,8 @@ export class RaceSession {
   remotePaused = false;
   localResult?: RaceResult;
   remoteResult?: RaceResult;
+  victor?: "local" | "remote";
+  victoryChoice?: "continue" | "restart";
   localRematch = false;
   remoteRematch = false;
   private listeners = new Map<keyof Events, Set<(value: any) => void>>();
@@ -226,8 +228,8 @@ export class RaceSession {
       this.status = "You’re connected. Your friend will start the ride.";
       clearTimeout(this.timeout); this.change(); return;
     }
-    if (message.kind === "prepare" && this.role === "guest" && ["ready", "complete"].includes(this.phase)) {
-      if (this.phase === "complete" && !this.localRematch) return;
+    if (message.kind === "prepare" && this.role === "guest" && ["ready", "complete", "racing"].includes(this.phase)) {
+      if (this.phase !== "ready" && !this.localRematch && this.victoryChoice !== "restart") return;
       this.prepare(message.round); return;
     }
     if (!("round" in message) || message.round !== this.round?.id) return;
@@ -241,12 +243,18 @@ export class RaceSession {
       this.remoteResult = message.result; this.checkComplete();
     } else if (message.kind === "pause" && ["racing", "countdown"].includes(this.phase)) {
       this.remotePaused = message.paused; this.change();
+    } else if (message.kind === "victory" && this.phase === "racing" && !this.victor && this.localResult && raceWinner(message.result,this.localResult) === "local") {
+      this.victor = "remote"; this.change();
+    } else if (message.kind === "victory-choice" && ["racing", "complete"].includes(this.phase) && this.victor === "remote") {
+      if (message.choice === "continue" && this.phase !== "racing") return;
+      this.victoryChoice = message.choice; this.change();
+      if (message.choice === "restart" && this.role === "host") this.start();
     } else if (message.kind === "rematch" && this.phase === "complete") {
       this.remoteRematch = true; this.change(); this.maybeRematch();
     }
   }
   start() {
-    if (this.role !== "host" || !this.connected || !["ready", "complete"].includes(this.phase)) return;
+    if (this.role !== "host" || !this.connected || !(["ready", "complete"].includes(this.phase) || this.phase === "racing" && this.victoryChoice === "restart")) return;
     const seed = crypto.getRandomValues(new Uint32Array(2));
     const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: this.courseSeed ?? seed[0], questionSeed: seed[1], tables: [...this.tables], difficulty: this.difficulty, guestDifficulty: this.opponentDifficulty, mode: this.remixMode ? "remix" : "classic" };
     this.send({ kind: "prepare", round }); this.prepare(round);
@@ -255,7 +263,7 @@ export class RaceSession {
     this.remixMode = round.mode === "remix";
     this.round = round; this.phase = "preparing"; this.localReady = this.remoteReady = false;
     this.localPaused = this.remotePaused = false; this.localResult = this.remoteResult = undefined;
-    this.localRematch = this.remoteRematch = false; this.lastSeq = -1;
+    this.localRematch = this.remoteRematch = false; this.victor = undefined; this.victoryChoice = undefined; this.lastSeq = -1;
     this.deadline("Your friend’s game couldn’t load. Return to the start screen and try again.", 30000);
     this.change(); this.emit("prepare", round);
   }
@@ -284,10 +292,32 @@ export class RaceSession {
     this.localResult = result; this.send({ kind: "finish", round: this.round.id, result }); this.checkComplete();
   }
   private checkComplete() {
-    if (this.localResult && this.remoteResult) this.phase = "complete";
+    if (this.localResult && this.remoteResult) {
+      this.phase = "complete";
+      const winner = raceWinner(this.localResult,this.remoteResult);
+      this.victor = winner === "draw" ? undefined : winner;
+    }
     this.change();
   }
+  /** The stopped opponent can no longer catch a rider who has passed them. */
+  claimVictory(result: RaceResult) {
+    if (this.phase !== "racing" || this.victor || this.localResult || !this.remoteResult || raceWinner(result,this.remoteResult) !== "local") return;
+    this.victor = "local";
+    this.send({kind:"victory",round:this.round!.id,result});this.change();
+  }
+  keepGoing() {
+    if (this.phase !== "racing" || this.victor !== "local" || this.localResult || !this.connected) return;
+    this.victoryChoice = "continue";
+    this.send({kind:"victory-choice",round:this.round!.id,choice:"continue"});this.change();
+  }
+  newGame() {
+    if (!["racing","complete"].includes(this.phase) || this.victor !== "local" || !this.connected || this.victoryChoice === "restart") return;
+    this.victoryChoice = "restart";
+    this.send({kind:"victory-choice",round:this.round!.id,choice:"restart"});this.change();
+    if (this.role === "host") this.start();
+  }
   pause(paused: boolean) {
+    if (paused && this.localResult) return;
     if (!this.round || !["racing", "countdown"].includes(this.phase)) return;
     this.localPaused = paused; this.send({ kind: "pause", round: this.round.id, paused }); this.change();
   }
@@ -305,5 +335,6 @@ export class RaceSession {
     this.connected = false; this.phase = "closed"; this.round = undefined;
     this.network.stage = "closed";
     this.localResult = this.remoteResult = undefined;
+    this.victor = undefined; this.victoryChoice = undefined;
   }
 }

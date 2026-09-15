@@ -4,7 +4,7 @@ import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
 import type { HeightState } from "../games/height-track";
 
-export const PROTOCOL = 8;
+export const PROTOCOL = 9;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];
@@ -33,6 +33,8 @@ export type Wire =
   | { kind: "finish"; round: string; result: RaceResult }
   | { kind: "pause"; round: string; paused: boolean }
   | { kind: "rematch"; round: string }
+  | { kind: "victory"; round: string; result: RaceResult }
+  | { kind: "victory-choice"; round: string; choice: "continue" | "restart" }
   | { kind: "ping"; at: number }
   | { kind: "pong"; at: number }
   | { kind: "leave" }
@@ -93,7 +95,7 @@ export function validResult(v: unknown): v is RaceResult {
 export function parseWire(value: unknown): Wire | undefined {
   if (!object(value)) return;
   const v = value;
-  if (["ready", "go", "state", "finish", "pause", "rematch"].includes(String(v.kind)) && !text(v.round, 64)) return;
+  if (["ready", "go", "state", "finish", "pause", "rematch", "victory", "victory-choice"].includes(String(v.kind)) && !text(v.round, 64)) return;
   switch (v.kind) {
     case "hello": if (Number.isInteger(v.version) && text(v.name, 80) && isDifficulty(v.difficulty)) return v as Wire; break;
     case "lobby": if (text(v.name, 80) && tables(v.tables) && isDifficulty(v.difficulty) && mode(v.mode)) return { kind: "lobby", name: cleanName(v.name), tables: normalizeTables(v.tables), difficulty: v.difficulty, mode: v.mode as RaceMode | undefined }; break;
@@ -102,7 +104,8 @@ export function parseWire(value: unknown): Wire | undefined {
     case "ready": case "rematch": case "leave": return v as Wire;
     case "go": if (number(v.delay, 0, 5000)) return v as Wire; break;
     case "state": if (validRideState(v.state)) return v as Wire; break;
-    case "finish": if (validResult(v.result)) return v as Wire; break;
+    case "victory-choice": if (["continue", "restart"].includes(String(v.choice))) return v as Wire; break;
+    case "victory": case "finish": if (validResult(v.result)) return v as Wire; break;
     case "pause": if (typeof v.paused === "boolean") return v as Wire; break;
     case "ping": case "pong": if (number(v.at, 0, 1e16)) return v as Wire; break;
     case "error": if (text(v.message, 200)) return v as Wire; break;

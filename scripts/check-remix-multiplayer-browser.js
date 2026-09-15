@@ -116,7 +116,9 @@ async page => {
     for(const p of [page,phone])await p.evaluate(()=>{window.raceFixture=false;const g=window.raceGame;g.endRide(false)});
     await page.getByText('RACE COMPLETE',{exact:true}).waitFor();await phone.getByText('RACE COMPLETE',{exact:true}).waitFor();
     const a=await page.locator('.race-results strong').allInnerTexts(),b=await phone.locator('.race-results strong').allInnerTexts();check(a[0]===b[1]&&a[1]===b[0],'Results agree');
-    await page.locator('[data-overlay="rematch"]').click();await phone.getByText('Your friend is ready for another ride.',{exact:true}).waitFor();await phone.locator('[data-overlay="rematch"]').click();
+    if(await page.locator('[data-overlay="new-game"]').count())await page.locator('[data-overlay="new-game"]').click();
+    else if(await phone.locator('[data-overlay="new-game"]').count())await phone.locator('[data-overlay="new-game"]').click();
+    else {await page.locator('[data-overlay="rematch"]').click();await phone.locator('[data-overlay="rematch"]').click();}
     await Promise.all([waitRace(page),waitRace(phone)]);
     const rematch=await Promise.all([inspect(page),inspect(phone)]);check(rematch.every(g=>g.mode&&g.seed===42&&g.answers===0),'Rematch retains Remix and specified seed');report.rematch=rematch;
     await phone.locator('[data-menu]').click();await page.getByRole('heading',{name:'We lost the connection.'}).waitFor({timeout:20000});

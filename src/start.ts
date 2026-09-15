@@ -21,6 +21,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   let session: RaceSession | undefined;
   let off: (() => void) | undefined;
   let disposed = false;
+  let setupRole: "host" | "guest" = "host";
   root.innerHTML = `
     <section class="start-screen container">
       <div class="start-card">
@@ -36,7 +37,11 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           </section>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
-            <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
+            <div class="multiplayer-choices" role="group" aria-label="2 players">
+              <span class="multiplayer-label">2 players</span>
+              <button class="mode-button mode-duo" data-join-choice><span><strong>Join a game</strong><small>Enter a friend’s code</small></span></button>
+              <button class="mode-button mode-duo" data-two><span><strong>Create a game</strong><small>Invite a friend</small></span></button>
+            </div>
           </div>
           ${remixMode ? `<details class="remix-settings"><summary>Course seed & ride surprises</summary>
             <label class="setup-label" for="course-seed">Course seed <span>(optional)</span></label>
@@ -49,7 +54,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
         </div>
         <div data-join-setup hidden>
           <button class="text-button back-button" data-back>← Back</button>
-          <span class="start-kicker">BETTER TOGETHER</span><h2>Bring a friend</h2>
+          <span class="start-kicker">2 PLAYERS</span><h2 data-setup-title>Create a game</h2>
           <p class="setup-copy">Two tracks. The same questions.<br>Whoever travels furthest wins.</p>
           ${remixMode ? '<p class="difficulty-help">Race on the same fresh course with six surprise powers. Sky lift raises your own track; Downhill drift stays in solo play.</p>' : ''}
           <label class="setup-label" for="multiplayer-difficulty">Your difficulty</label>
@@ -58,7 +63,6 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
           <label class="setup-label" for="rider-name">Your name <span>(optional)</span></label>
           <input class="setup-input" id="rider-name" maxlength="18" autocomplete="nickname" placeholder="Rider" value="${escape(settings.name)}">
           <button class="primary-button full-button create-invite" data-create>Create an invite →</button>
-          <div class="join-divider"><span>or join your friend</span></div>
           <form data-join-form><label class="setup-label" for="invite-code">Their four-character code</label><div class="join-row"><input class="setup-input code-input" id="invite-code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD" value="${validCode(invite) ? invite : ""}"><button class="primary-button" type="submit">Join →</button></div></form>
           <p class="setup-error" data-join-error role="status"></p>
         </div>
@@ -76,12 +80,22 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     q("[data-table-summary]").textContent = selected.size === 12 ? "All · 1–12" : selected.size ? [...selected].sort((a, b) => a - b).join(", ") : "Choose at least one";
     q<HTMLButtonElement>("[data-single]").disabled = !selected.size;
     q<HTMLButtonElement>("[data-create]").disabled = !selected.size;
+    q<HTMLButtonElement>("[data-two]").disabled = !selected.size;
     q("[data-table-error]").textContent = selected.size ? "" : "Select at least one times table to start.";
     persist();
   };
   const show = (panel: "choose" | "join-setup" | "lobby") => {
     q(".start-screen").classList.toggle("showing-setup", panel !== "choose");
     for (const name of ["choose", "join-setup", "lobby"]) q(`[data-${name}]`).hidden = name !== panel;
+  };
+  const showSetup = (role: "host" | "guest") => {
+    setupRole = role;
+    q("[data-setup-title]").textContent = role === "host" ? "Create a game" : "Join a game";
+    q("[data-create]").hidden = role !== "host";
+    q("[data-join-form]").hidden = role !== "guest";
+    q("[data-join-error]").textContent = "";
+    show("join-setup");
+    if (role === "guest") q("#invite-code").focus();
   };
   const renderLobby = () => {
     if (!session || disposed) return;
@@ -94,12 +108,13 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     q("[data-lobby]").innerHTML = `
       <button class="text-button back-button" data-lobby-back>← ${error ? "Try again" : "Leave lobby"}</button>
       <span class="start-kicker">${error ? "LET’S TRY THAT AGAIN" : ready ? "TWO RIDERS, READY" : "YOUR PRIVATE RIDE"}</span>
-      <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : "Joining your friend"}</h2>
-      ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>2 players</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
+      <h2>${error ? "Couldn’t connect" : host ? "Here’s your invite" : ready ? "Ready to race" : "Joining your friend"}</h2>
+      ${!error && host ? `<p class="setup-copy">Ask your friend to choose <strong>Join a game</strong><br>and enter this code on their device.</p><div class="invite-code" aria-label="Invite code">${inviteReady ? session.code : "····"}</div><div class="invite-actions"><button class="text-button" data-copy="code" ${inviteReady ? "" : "disabled"}>Copy code</button><button class="text-button" data-copy="link" ${inviteReady ? "" : "disabled"}>Copy invite link</button></div>` : ""}
       <p class="lobby-status ${error ? "is-error" : ""}" role="status">${escape(session.status)}</p>
       ${!error ? `<p class="lobby-mode">${session.remixMode ? "Remix race · six powers · shared course" : "Classic race"}</p>` : ""}
       ${error || new URL(location.href).searchParams.has("network") ? `<p class="difficulty-help">Connection: ${escape(session.network.stage)} · ${escape(session.network.route)} · relay ${escape(session.network.relay)}</p><button class="text-button" data-copy-diagnostics>Copy connection details</button>` : ""}
-      ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you) · ${DIFFICULTY_LABELS[session.difficulty]}</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)} <small>${DIFFICULTY_LABELS[session.opponentDifficulty]}</small></span></div><p class="lobby-tables">Shared times tables · ${session.tables.join(", ")}</p>` : ""}
+      ${ready ? `<div class="lobby-riders"><span><i class="rider-dot"></i>${escape(session.name)} <small>(you) · ${DIFFICULTY_LABELS[session.difficulty]}</small></span><span><i class="rider-dot opponent"></i>${escape(session.opponent)} <small>${DIFFICULTY_LABELS[session.opponentDifficulty]}</small></span></div>` : ""}
+      ${!error && (host || ready) ? `<section class="shared-tables" data-shared-tables><h3>Times tables for both players</h3><div>${session.tables.map(n => `<span>${n}×</span>`).join("")}</div><p>${host ? "Your selection applies to both riders." : "Chosen by your friend. You’ll both practise these tables."}</p></section>` : ""}
       ${host && !error ? `<button class="primary-button full-button" data-start-race ${ready ? "" : "disabled"}>${ready ? "Start the race →" : "Waiting for your friend…"}</button>` : ""}
       <p class="copy-status" data-copy-status role="status"></p>`;
   };
@@ -133,9 +148,10 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
     if (!button || button.disabled) return;
     if (button.hasAttribute("data-single")) { persist(); play([...selected], settings.difficulty, remixMode ? q<HTMLInputElement>("#course-seed").value : undefined); }
-    if (button.hasAttribute("data-two")) { show("join-setup"); }
+    if (button.hasAttribute("data-two")) showSetup("host");
+    if (button.hasAttribute("data-join-choice")) showSetup("guest");
     if (button.hasAttribute("data-back")) show("choose");
-    if (button.hasAttribute("data-lobby-back")) { off?.(); session?.close(); show("join-setup"); }
+    if (button.hasAttribute("data-lobby-back")) { off?.(); session?.close(); showSetup(setupRole); }
     if (button.dataset.tables) {
       selected.clear();
       const values = button.dataset.tables === "default" ? DEFAULT_TABLES : button.dataset.tables === "all" ? ALL_TABLES : button.dataset.tables === "easy" ? [2, 5, 10] : [];
@@ -161,6 +177,6 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   }, { signal: controller.signal });
   q("[data-join-form]").addEventListener("submit", event => { event.preventDefault(); open("guest"); }, { signal: controller.signal });
   updateTables();
-  if (validCode(invite)) show("join-setup");
+  if (validCode(invite)) showSetup("guest");
   return () => { disposed = true; controller.abort(); off?.(); };
 }

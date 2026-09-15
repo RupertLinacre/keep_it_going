@@ -32,9 +32,9 @@ async (page) => {
     const value = await answer(page);
     assert((await page.locator('.answer-display').innerText()) === value, 'Complete accepted answer remains briefly visible');
     check('One player starts directly; selected table, keyboard acceptance and brief answer display work.');
-    await page.getByRole('button', { name: 'Start screen', exact: true }).click();
+    await page.getByRole('button', { name: 'Game home', exact: true }).click();
     assert(await page.locator('#ride-difficulty').inputValue() === 'very-easy', 'Difficulty persists after a solo ride');
-    await page.getByRole('button', { name: '2 players Invite a friend to race' }).click();
+    await page.getByRole('button', { name: 'Create a game' }).click();
     await page.getByRole('textbox', { name: 'Your name (optional)' }).fill('Alice');
     await page.getByRole('button', { name: 'Create an invite →' }).click();
     await page.getByText('Invite ready. Waiting for your friend…', { exact: true }).waitFor({ timeout: 25000 });
@@ -115,19 +115,22 @@ async (page) => {
     assert(JSON.stringify(before) === JSON.stringify(await Promise.all([page.locator('[data-your-distance]').innerText(), mobile.locator('[data-your-distance]').innerText()])), 'Both trains remain still during a shared pause');
     await page.getByRole('button', { name: 'I’m ready →' }).click();
     check('Shared pause freezes both players and resumes cleanly.');
+    await Promise.race([page,mobile].flatMap(p=>[
+      p.locator('[data-overlay="keep-going"]').waitFor({timeout:60000}),
+      p.getByText('RACE COMPLETE',{exact:true}).waitFor({timeout:60000})]));
+    for(const p of [page,mobile])if(await p.locator('[data-overlay="keep-going"]').isVisible())await p.locator('[data-overlay="keep-going"]').click();
     await page.getByText('RACE COMPLETE', { exact: true }).waitFor({ timeout: 60000 });
     await mobile.getByText('RACE COMPLETE', { exact: true }).waitFor({ timeout: 60000 });
     const a = await page.locator('.race-results strong').allInnerTexts(), b = await mobile.locator('.race-results strong').allInnerTexts();
     assert(a[0] === b[1] && a[1] === b[0], 'Results agree across both peers');
     await mobile.screenshot({ path: `output/playwright/multiplayer-results-final${suffix}.png`, scale: 'css' });
-    await page.getByRole('button', { name: 'Race again →' }).click();
-    await mobile.getByText('Your friend is ready for another ride.', { exact: true }).waitFor();
-    assert(await visible(page, '.race-results'), 'One player alone cannot start a rematch');
-    await mobile.getByRole('button', { name: 'Race again →' }).click();
+    if(await page.locator('[data-overlay="new-game"]').count())await page.locator('[data-overlay="new-game"]').click();
+    else if(await mobile.locator('[data-overlay="new-game"]').count())await mobile.locator('[data-overlay="new-game"]').click();
+    else {await page.locator('[data-overlay="rematch"]').click();await mobile.locator('[data-overlay="rematch"]').click();}
     await waitFor(page, '.game-overlay[hidden]'); await waitFor(mobile, '.game-overlay[hidden]');
     assert(await page.locator('.prompt h2').innerText() === await mobile.locator('.prompt h2').innerText(), 'Rematch questions reset together');
-    check('Both peers agree on results; rematch waits for both players and resets the game.');
-    await mobile.getByRole('button', { name: 'Start screen', exact: true }).click();
+    check('Both peers agree on results; the winner restarts both players together.');
+    await mobile.getByRole('button', { name: 'Game home', exact: true }).click();
     await page.getByRole('heading', { name: 'We lost the connection.' }).waitFor({ timeout: 20000 });
     assert(await visible(page, '[data-overlay="menu"]'), 'Disconnected players can return to the start');
     check('Leaving mid-race stops the other client with a recovery path.');

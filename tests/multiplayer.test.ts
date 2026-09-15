@@ -221,3 +221,41 @@ test('host selects Remix and course seed even when the guest joins from Classic;
     assert.notEqual(a.round!.id,old);assert.equal(a.round!.mode,'remix');assert.equal(a.round!.seed,0);assert.deepEqual(a.round,b.round);
   }finally{a.close();b.close();}
 });
+
+for (const winningRole of ['host','guest'] as const) test(`${winningRole} winner can continue then restart both riders with the same tables and difficulties`, async()=>{
+  const {factory}=peers(),a=new RaceSession(factory),b=new RaceSession(factory);
+  try {
+    await a.open('host','Parent',[3,7,12],'','hard',{remixMode:true});await until(()=>a.phase==='waiting');
+    await b.open('guest','Child',[2,5],a.code,'very-easy');await until(()=>b.phase==='ready');
+    a.on('prepare',()=>a.ready());b.on('prepare',()=>b.ready());a.start();await until(()=>b.phase==='countdown');a.begin();b.begin();
+    const winner=winningRole==='host'?a:b,loser=winner===a?b:a;
+    const result={distance:100,correct:7,score:500,water:false};
+    winner.claimVictory({...result,distance:200});assert.equal(winner.victor,undefined,'no victory while opponent is active');
+    loser.finish(result);await until(()=>!!winner.remoteResult);
+    winner.claimVictory({...result,distance:99});assert.equal(winner.victor,undefined);
+    winner.claimVictory({...result,distance:100.01});assert.equal(winner.victor,undefined,'rounded tie is not a win');
+    winner.claimVictory({...result,distance:101});await until(()=>loser.victor==='remote');
+    assert.equal(winner.localResult,undefined,'winning rider is still alive');assert.equal(winner.victoryChoice,undefined);
+    loser.newGame();loser.keepGoing();assert.equal(loser.victoryChoice,undefined,'loser cannot choose for winner');
+    winner.keepGoing();await until(()=>loser.victoryChoice==='continue');
+    loser.pause(true);assert.equal(loser.localPaused,false,'waiting spectator cannot pause the winner');
+    let received=false;loser.on('state',()=>received=true);winner.sendState(state(15,400));await until(()=>received);
+    const old=a.round!.id;winner.newGame();await until(()=>b.phase==='countdown'&&b.round!.id!==old);
+    assert.deepEqual(a.round,b.round);assert.deepEqual(b.round!.tables,[3,7,12]);
+    assert.equal(b.round!.difficulty,'hard');assert.equal(b.round!.guestDifficulty,'very-easy');
+    assert.equal(a.localResult,undefined);assert.equal(a.victor,undefined);assert.equal(b.victoryChoice,undefined);
+    a.begin();b.begin();
+    // Both trains eventually stopping also offers a one-click same-opponent restart.
+    loser.finish(result);winner.finish({...result,distance:120});await until(()=>a.phase==='complete'&&b.phase==='complete');
+    const second=a.round!.id;winner.newGame();await until(()=>b.phase==='countdown'&&b.round!.id!==second);
+  } finally {a.close();b.close();}
+});
+
+test('victory messages require a current round, valid result and a supported choice',()=>{
+  assert.ok(parseWire({kind:'victory',round:'x',result:{distance:100,correct:2,score:0,water:false}}));
+  assert.ok(parseWire({kind:'victory-choice',round:'x',choice:'continue'}));
+  assert.ok(parseWire({kind:'victory-choice',round:'x',choice:'restart'}));
+  assert.equal(parseWire({kind:'victory-choice',choice:'restart'}),undefined);
+  assert.equal(parseWire({kind:'victory-choice',round:'x',choice:'revive'}),undefined);
+  assert.equal(parseWire({kind:'victory',round:'x',result:{distance:NaN}}),undefined);
+});

@@ -10,9 +10,9 @@ The host chooses the game mode, track seed, question seed and tables. A prepare/
 
 The data connection sends bounded, validated snapshots at 12 Hz. They include actual carriage poses (including jumps and vertical lift), cargo, detached coaches, loose parcels, couplings and impacts. An adaptive 150–350 ms presentation buffer interpolates motion at display rate, with short, bounded prediction for packet gaps. It does not invent boosts or extrapolate a train indefinitely when packets stop arriving. Out-of-order snapshots and messages for old rounds are ignored. Buffered snapshots are skipped when the data channel is congested; final results, pause and rematch messages remain reliable.
 
-Either player can pause both trains. Each must clear their own pause before play resumes. A final pose is sent when a pause starts. A heartbeat detects a lost or unresponsive peer, freezes an unfinished race and provides a way back to the start screen. Results already completed remain visible after a disconnect. One player’s rematch request never forces a new round on the other player; both must agree, and seeds, results, pauses, snapshots and coach counts then reset.
+Either active rider can pause both trains; a finished spectator cannot pause the winner. Each must clear their own pause before play resumes. A final pose is sent when a pause starts. A heartbeat detects a lost or unresponsive peer, freezes an unfinished race and provides a way back to the start screen. Results already completed remain visible after a disconnect. A winner can start a new game for both players without a new invite. Tied games retain the mutual rematch handshake. Results, pauses, snapshots and coach counts reset, while the host’s tables and each rider’s difficulty persist.
 
-The race continues until both riders have stopped or missed a water jump. Distance, rounded to the same tenth of a metre shown in the result card, decides the winner. Score and answer count do not break ties. A finished rider sees their distance and waits for the other rider. When a train is far beyond the other player’s current view, the distance indicator tracks it rather than zooming arbitrarily far away from the local train.
+If one rider stops and the other passes their final distance, the moving rider wins immediately. Their train pauses for a choice: **Start new game** restarts both players; **Keep going** resumes their existing run while the finished player waits. A small Start new game button remains available during that continuation. If both trains stop first, the result screen offers the winner a new game; stopped or crashed trains are not revived. Distance, rounded to the same tenth of a metre shown in the result card, decides the winner. Score and answer count do not break ties. A finished rider sees their distance and waits for the other rider. When a train is far beyond the other player’s current view, the distance indicator tracks it rather than zooming arbitrarily far away from the local train.
 
 This is a private game between friends, with each rider’s results supplied by their own browser. It is not an authoritative server or a competitive anti-cheat system. Connectivity depends on PeerJS and the players’ network conditions; unavailable rooms, full rooms, failed connections and dropped peers have explicit recovery messages.
 
@@ -36,4 +36,21 @@ A production build served under `/keep_it_going/` passed the real-browser workfl
 
 Remix races and their six independent powers are described in [the Remix notes](remix.md#two-player-remix). Classic remains available and uses the same connection lifecycle.
 
-Adventure-world builds use protocol 8 so they cannot accidentally join an older protocol 5, 6 or 7 course with different generated rails. Both sides derive the worlds from the seeded course; separate lift snapshots describe each rider’s raised rail.
+Adventure-world builds use protocol 9 for winner decisions and cannot join older builds with incompatible race flow. Both sides derive the worlds from the seeded course; separate lift snapshots describe each rider’s raised rail.
+
+
+## Join/create and winner-flow checks
+
+The start screen has separate Join a game (left) and Create a game (right) routes.
+After a guest submits a valid invite code and connects, the lobby prominently
+shows the host's tables for both riders. Guest practice selections never replace
+those tables. Both players retain their individual difficulty.
+
+Run `scripts/check-multiplayer-flow-browser.js` through playwright-cli against
+Vite for a repeatable real WebRTC desktop/touch-phone test. It checks shared table
+confirmation, a host winning and continuing, a guest winning and immediately
+restarting, and settings preserved across consecutive games. Session tests also
+cover both trains stopping, ties, invalid choices, and rounded-distance ties.
+Winner/choice messages are scoped to the current round; only the winning rider
+can request continuation or a unilateral restart. The host remains responsible
+for generating the next round and the usual prepare/ready countdown.

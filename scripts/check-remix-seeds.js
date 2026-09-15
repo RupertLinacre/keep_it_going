@@ -41,7 +41,7 @@ async (page) => {
 
   await open('?mode=classic');
   await page.locator('[data-two]').click();
-  await page.getByRole('heading', { name: 'Bring a friend' }).waitFor();
+  await page.getByRole('heading', { name: 'Create a game' }).waitFor();
   await page.locator('[data-back]').click();
   const classic = await start();
   if (classic.remix || await page.locator('.power-hud').count()) throw new Error('Remix leaked into classic');
@@ -52,7 +52,7 @@ async (page) => {
   if (classicAnswers !== 1) throw new Error('Classic answer input failed');
   await page.keyboard.press('p');
   await open('?join=ABCD');
-  await page.getByRole('heading', { name: 'Bring a friend' }).waitFor();
+  await page.getByRole('heading', { name: 'Join a game' }).waitFor();
   if (await page.locator('#invite-code').inputValue() !== 'ABCD') throw new Error('Classic invite route broke');
   if (errors.length) throw new Error(errors.join('\n'));
   return { fixed, fixedReplay, fresh, freshReplay, zero, classic, classicAnswers, inviteRoute: true, errors };
