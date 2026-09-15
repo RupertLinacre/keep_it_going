@@ -23,33 +23,21 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
   let disposed = false;
   root.innerHTML = `
     <section class="start-screen container">
-      <div class="start-intro">
-        <span class="start-kicker">${remixMode ? "FOUR WORLDS. ONE LITTLE TRAIN." : "A LITTLE MATHS. A LOT OF MOMENTUM."}</span>
-        <h1>${remixMode ? "Little sums.<br>Big adventures<span>.</span>" : "How far can<br>you keep it going<span>?</span>"}</h1>
-        <p>${remixMode ? "Wave to sheep. Climb mountains. Chase the stars.<br>Answer to boost into your next adventure." : "Answer to boost. Fly through the loops.<br>Keep your train rolling."}</p>
-        ${remixMode ? `<ol class="world-route" aria-label="Your journey"><li><span aria-hidden="true">🐑</span>Meadows</li><li><span aria-hidden="true">🏔️</span>Mountains</li><li><span aria-hidden="true">✨</span>Starlight</li><li><span aria-hidden="true">🎃</span>Pumpkins</li></ol>` : ''}
-        <svg class="start-rails" viewBox="0 0 640 250" aria-hidden="true">
-          <path d="M-20 208 C85 208 70 100 155 100 S230 223 308 213 C417 198 441 22 355 22 C255 22 251 211 430 211 S555 110 670 134" fill="none" stroke="#a2c7bc" stroke-width="12"/>
-          <path d="M-20 198 C85 198 70 90 155 90 S230 213 308 203 C417 188 441 12 355 12 C255 12 251 201 430 201 S555 100 670 124" fill="none" stroke="#edb079" stroke-width="5"/>
-          <g transform="translate(114 59) rotate(-12)"><rect width="35" height="24" rx="5" fill="#6eb7aa"/><rect x="42" y="3" width="35" height="24" rx="5" fill="#e99f8c"/><path d="M35 19h7" stroke="#4c756b" stroke-width="3"/><g fill="#496b68"><circle cx="8" cy="26" r="4"/><circle cx="27" cy="26" r="4"/><circle cx="50" cy="29" r="4"/><circle cx="69" cy="29" r="4"/></g></g>
-        </svg>
-      </div>
       <div class="start-card">
         <div data-choose>
-          <span class="start-kicker">ALL ABOARD</span><h2>${remixMode ? "Your adventure starts here." : "Choose your ride"}</h2>
+          <h1>Your adventure starts here.</h1>
           <label class="setup-label" for="ride-difficulty">Difficulty</label>
-          <select class="setup-input difficulty-select" id="ride-difficulty" aria-describedby="difficulty-help">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
-          <p class="difficulty-help" id="difficulty-help">${remixMode ? "Explore four worlds with surprise power-ups. Choose Very easy for more thinking time. Each rider can choose their own difficulty." : "Easier rides keep momentum longer, so you can answer less often. Each rider chooses their own difficulty."}</p>
+          <select class="setup-input difficulty-select" id="ride-difficulty">${DIFFICULTIES.map(level => `<option value="${level}" ${settings.difficulty === level ? "selected" : ""}>${DIFFICULTY_LABELS[level]}</option>`).join("")}</select>
+          <section class="table-settings" aria-labelledby="tables-heading"><h2 id="tables-heading">Choose your times tables</h2><span class="table-selection" data-table-summary></span>
+            <p>Tap to choose. In a race, the host picks for both players.</p>
+            <div class="table-chips" role="group" aria-label="Times tables">${ALL_TABLES.map(n => `<label><input type="checkbox" name="table" value="${n}" ${selected.has(n) ? "checked" : ""}><span>${n}×</span></label>`).join("")}</div>
+            <div class="table-shortcuts"><button class="text-button" data-tables="default">Default · 2–12</button><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
+            <p class="setup-error" data-table-error role="status"></p>
+          </section>
           <div class="mode-buttons">
             <button class="mode-button mode-solo" data-single><span class="mode-number">1</span><span><strong>1 player</strong><small>Jump straight in</small></span><span aria-hidden="true">↗</span></button>
             <button class="mode-button mode-duo" data-two><span class="mode-number">2</span><span><strong>2 players</strong><small>Invite a friend to race</small></span><span aria-hidden="true">↗</span></button>
           </div>
-          <details class="table-settings"><summary>Times tables <span data-table-summary></span></summary>
-            <p>Choose the tables you’d like to practise. In a race, the host chooses for both players.</p>
-            <div class="table-chips" role="group" aria-label="Times tables">${ALL_TABLES.map(n => `<label><input type="checkbox" name="table" value="${n}" ${selected.has(n) ? "checked" : ""}><span>${n}×</span></label>`).join("")}</div>
-            <div class="table-shortcuts"><button class="text-button" data-tables="default">Default · 2–12</button><button class="text-button" data-tables="all">All tables</button><button class="text-button" data-tables="easy">2, 5 & 10</button><button class="text-button" data-tables="clear">Clear</button></div>
-            <p class="setup-error" data-table-error role="status"></p>
-          </details>
           ${remixMode ? `<details class="remix-settings"><summary>Course seed & ride surprises</summary>
             <label class="setup-label" for="course-seed">Course seed <span>(optional)</span></label>
             <input class="setup-input" id="course-seed" maxlength="40" placeholder="Leave blank for a fresh ride" value="${escape(new URL(location.href).searchParams.get("seed") || "")}">
