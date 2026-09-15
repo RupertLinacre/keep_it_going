@@ -27,6 +27,10 @@ body {
   justify-content: flex-end;
   gap: 12px;
 }
+.logo-home { display: block; padding: 0; border: 0; background: transparent; margin-right: auto; border-radius: 8px; cursor: pointer; }
+.logo-home:focus-visible, .fullscreen-button:focus-visible { outline: 3px solid #527cbe; outline-offset: 3px; }
+.fullscreen-button { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 8px; }
+.fullscreen-button:disabled { opacity: .4; cursor: default; }
 .game-logo {
   display: block;
   width: 192px;
@@ -1001,7 +1005,9 @@ kbd {
 .at-start #main-content { height: auto; }
 .at-start .tiny-utility { justify-content: center; position: relative; padding-top: 20px; }
 .at-start .tiny-utility .game-logo { width: min(270px, 65vw); height: auto; margin: 0; }
-.at-start .track-gallery-link { position: absolute; right: 0; top: 20px; }
+.at-start .logo-home { margin: 0; }
+.at-start .fullscreen-button { position: absolute; right: 0; top: 16px; }
+.at-start .track-gallery-link { position: absolute; right: 0; top: 72px; }
 .start-screen { max-width: 560px; padding-block: 16px 30px; }
 .start-kicker { font-size: 11px; font-weight: 700; color: #658579; letter-spacing: 1.6px; }
 .start-card { background: #fffff9; border: 1px solid #dee6d9; border-radius: 26px; padding: 28px; box-shadow: 0 18px 60px #3454430a; }
@@ -1139,8 +1145,6 @@ kbd {
 .power-menu i { font-style: normal; width: 30px; text-align: center; color: var(--power-color); font-size: 26px; }
 .power-menu strong { display: block; font-size: 13px; }
 .power-menu small { color: #74806e; font-size: 11px; }
-.seed-copy { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.seed-copy b { font-size: 19px; }
 @media (max-width: 800px), (hover: none) and (pointer: coarse) {
   .is-remix .game-hud { display: none; }
   .power-hud { top: 10px; right: 10px; width: 188px; padding: 9px 10px 12px; gap: 7px; grid-template-columns: 29px 1fr auto; border-radius: 13px; }
@@ -1149,8 +1153,7 @@ kbd {
   .power-copy strong { font-size: 13px; }
   .power-copy p { display: none; }
   .power-time { font-size: 15px; padding-top: 6px; }
-  .remix-root:not(.at-start) .track-gallery-link, .seed-copy span { display: none; }
-  .seed-copy { padding: 5px; }
+  .remix-root:not(.at-start) .track-gallery-link { display: none; }
 }
 
 /* Remix race effects sit inside the existing rider cards, leaving the question clear. */

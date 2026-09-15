@@ -29,15 +29,6 @@ async (page) => {
   if (await page.locator('#course-seed').inputValue() !== 'RIVER') throw new Error('Seed link was not populated');
   const fixed = await start(), fixedReplay = await restart();
   if (!fixed.remix || fixed.seed !== fixedReplay) throw new Error('Fixed seed restart changed course');
-  await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { window.copiedRide = value; } }); });
-  await page.locator('[data-copy-seed]').click();
-  const copied = await page.evaluate(() => window.copiedRide);
-  const link = await page.evaluate(value => {
-    const query = new URL(value).searchParams;
-    return { mode: query.get('mode'), seed: Number(query.get('seed')) };
-  }, copied);
-  if (link.mode !== 'remix' || link.seed !== fixed.seed) throw new Error('Copy ride serialized the wrong course');
-
   await open('?mode=remix');
   const fresh = await start(), freshReplay = await restart();
   if (fresh.seed === freshReplay) throw new Error('Blank seed restart reused the course');
@@ -64,5 +55,5 @@ async (page) => {
   await page.getByRole('heading', { name: 'Bring a friend' }).waitFor();
   if (await page.locator('#invite-code').inputValue() !== 'ABCD') throw new Error('Classic invite route broke');
   if (errors.length) throw new Error(errors.join('\n'));
-  return { fixed, fixedReplay, copied, fresh, freshReplay, zero, classic, classicAnswers, inviteRoute: true, errors };
+  return { fixed, fixedReplay, fresh, freshReplay, zero, classic, classicAnswers, inviteRoute: true, errors };
 }
