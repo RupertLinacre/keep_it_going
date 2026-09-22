@@ -13,8 +13,8 @@ export function pumpkin(m:WorldModel,x:number,y:number,z:number,size:number,colo
   for(const side of [-1,1])m.add(G.cone,'#ffe5a0',[x+side*size*.31,y+size*.85,z+size*.82],[size*.15,size*.28,size*.07],[],true);
   for(let i=0;i<5;i++)m.add(G.box,'#ffdf8e',[x+(i-2)*size*.13,y+size*(.37+.035*(i-2)**2),z+size*.86],[size*.14,size*.09,size*.055],[],true);
 }
-export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {
-  halloweenLandscape(m,x,back,front,r,place);
+export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number,place:PumpkinPlacement=(...args)=>pumpkin(m,...args),variant?:number) {
+  halloweenLandscape(m,x,back,front,r,place,variant);
 }
 
 export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {

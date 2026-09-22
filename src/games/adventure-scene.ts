@@ -1,4 +1,7 @@
-import { meadowScenery } from './background-meadow';
+import { meadowScenery, meadowTerrain } from './background-meadow';
+import { mountainTerrain } from './background-mountains';
+import { nightTerrain } from './background-night';
+import { halloweenTerrain } from './background-halloween';
 import { tunnelRevealAt } from "./mountain-landforms";
 import { AttractionDrive } from './attraction-drive';
 import { SceneryFlight } from './scenery-flight';
@@ -115,20 +118,30 @@ export class AdventureScene {
     const back = -Math.max(10,Math.abs(bounds.min.z-section.origin.z),Math.abs(bounds.max.z-section.origin.z))-12;
     const front = Math.max(9, bounds.max.z - section.origin.z + 7);
     const span = section.span;
-    const n = Math.min(12, Math.max(1, Math.ceil(span / 32)));
+    // A tiny joining straight cannot hold a whole farmyard/fairground court.
+    // Keeping bays at least 28m apart prevents large props from crowding each
+    // other. Short pieces still get cheap distant terrain, so even several
+    // narrow loops/connectors in a row cannot leave a hole in the backdrop.
+    const n = Math.min(12, Math.floor(span / 28));
+    if (!n && !this.options.attractionsOnly) {
+      const terrain = { meadow: meadowTerrain, mountain: mountainTerrain, night: nightTerrain, halloween: halloweenTerrain };
+      terrain[world.id](model, span / 2, back, random);
+    }
     for (let i = 0; i < (this.options.attractionsOnly ? 0 : n); i++) {
       const x = span * (i+.5) / n;
+      const variant = ((track.seed % 3 + section.id + i) % 3 + 3) % 3;
       if(world.id==='mountain') {
-        mountainScenery(model,x,back,front,random);
+        mountainScenery(model,x,back,front,random,variant);
         if(i%2===0) {
           model.add(G.box,'#697d88',[x,15,back-8],[24,.055,.055]);
           for(const dx of [-12,12])model.add(G.pole,'#9aa7a4',[x+dx,7.5,back-8],[.17,15,.17]);
           actors.push({kind:'cable',x,y:12.8,z:back-8,phase:random()*6.28,size:1});
         }
       } else if(world.id==='night') {
-        nightScenery(model,x,back,front,random);
+        nightScenery(model,x,back,front,random,variant);
         if(i===0 && section.id%4===0) {
-          const z=back-3;
+          // The moving wheel/cabins need a clear plane behind the pavilion roof.
+          const z=back-14;
           for(const side of [-1,1]) model.add(G.box,'#797aa7',[x+side*2.3,4.5,z],[.3,10,.3],[0,0,side*-.46]);
           const phase=random()*6.28;
           actors.push({kind:'wheel',x,y:9,z,phase,size:1});
@@ -142,10 +155,10 @@ export class AdventureScene {
         }
         for(let j=0;j<10;j++)actors.push({kind:'firefly' ,x:x-14+random()*28,y:1+random()*3,z:front+random()*7,phase:random()*6.28,size:.7+random()});
       } else if(world.id==='halloween') {
-        halloweenScenery(model,x,back,front,random,placePumpkin);
+        halloweenScenery(model,x,back,front,random,placePumpkin,variant);
         for(let j=0;j<2;j++)actors.push({kind:'ghost',x:x-10+random()*20,y:2+random()*2,z:front+2+random()*5,phase:random()*6.28,size:.9+random()*.4,onTrack:true});
         for(let j=0;j<3;j++)actors.push({kind:'bat',x:x-12+random()*24,y:7+random()*3,z:back+3,phase:random()*6.28,size:.7+random()*.3});
-      } else meadowScenery(model, actor => actors.push(actor), x, back, front, random);
+      } else meadowScenery(model, actor => actors.push(actor), x, back, front, random,variant);
     }
     let formation:T.Group|undefined, gorgeWall:T.Group|undefined;
     if (['sheepbank','pondbridge','windmillloop'].includes(section.kind)) {

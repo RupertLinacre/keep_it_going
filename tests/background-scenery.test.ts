@@ -8,20 +8,21 @@ import { nightScenery } from '../src/games/world-night';
 import { halloweenScenery } from '../src/games/world-halloween';
 import { seededRandom } from '../src/games/mini-rail';
 import { AdventureScene } from '../src/games/adventure-scene';
-import { MiniTrack } from '../src/games/mini-track';
+import { MiniSection, MiniTrack } from '../src/games/mini-track';
+import { WORLDS } from '../src/games/adventure-worlds';
 
 test('background bays keep explicit geometry budgets, finite normals and separate race sightlines', () => {
   // These caps protect the geometry savings, including all optional buildings.
   const builders = [
-    { name: 'meadow', limit: 1800, build: (m: WorldModel, r: () => number) => meadowScenery(m, () => {}, 16, -22, 9, r) },
-    { name: 'mountain', limit: 1800, build: (m: WorldModel, r: () => number) => mountainScenery(m, 16, -22, 9, r) },
-    { name: 'night', limit: 2600, build: (m: WorldModel, r: () => number) => nightScenery(m, 16, -22, 9, r) },
-    { name: 'halloween', limit: 1600, build: (m: WorldModel, r: () => number) => halloweenScenery(m, 16, -22, 9, r, () => {}) },
+    { name: 'meadow', limit: 1800, build: (m: WorldModel, r: () => number, v: number) => meadowScenery(m, () => {}, 16, -22, 9, r, v) },
+    { name: 'mountain', limit: 1800, build: (m: WorldModel, r: () => number, v: number) => mountainScenery(m, 16, -22, 9, r, v) },
+    { name: 'night', limit: 2600, build: (m: WorldModel, r: () => number, v: number) => nightScenery(m, 16, -22, 9, r, v) },
+    { name: 'halloween', limit: 1600, build: (m: WorldModel, r: () => number, v: number) => halloweenScenery(m, 16, -22, 9, r, () => {}, v) },
   ];
   const solid = new MeshBasicMaterial(), glow = new MeshBasicMaterial();
   try {
-    for (const { name, limit, build } of builders) for (let seed = 1; seed <= 32; seed++) {
-      const model = new WorldModel(true); build(model, seededRandom(seed));
+    for (const { name, limit, build } of builders) for (let variant = 0; variant < 3; variant++) for (let seed = 1; seed <= 32; seed++) {
+      const model = new WorldModel(true); build(model, seededRandom(seed), variant);
       const group = model.finish(solid, glow); let triangles = 0;
       assert.ok(group.children.length <= 4, `${name}: static material batches`);
       for (const child of group.children) {
@@ -79,4 +80,35 @@ test('backgrounds stay anchored and shared behind both race lanes', () => {
       }
     }
   } finally { scene.destroy(); }
+});
+
+test('consecutive short sections retain a cheap continuous backdrop without crowded props', () => {
+  const track = new MiniTrack(42, { generative: true });
+  track.sections.splice(0, track.sections.length, ...Array.from({ length: 5 }, (_, i) =>
+    new MiniSection(i, 'station', i * 20, new Vector3(i * 20, 4, 0), 20, 0, 0, 1)));
+  for (const world of WORLDS) {
+    const scene = new AdventureScene(new Scene(), { world });
+    try {
+      scene.render(track, 40, 0, 0, 0);
+      assert.equal(scene.tiles.size, 5);
+      let previousRight = -Infinity;
+      for (const tile of [...scene.tiles.values()].sort((a, b) => a.section.id - b.section.id)) {
+        assert.equal(tile.actors.length, 0, `${world.id}: no dense animated props on connectors`);
+        assert.equal(tile.root.children.length, 1, `${world.id}: a single static backdrop batch`);
+        const mesh = tile.root.children[0] as Mesh;
+        assert.equal(mesh.userData.front, false);
+        assert.ok(mesh.geometry.getAttribute('position').count / 3 <= 400, `${world.id}: cheap terrain`);
+        mesh.geometry.computeBoundingBox();
+        const bounds = mesh.geometry.boundingBox!;
+        const left = bounds.min.x + tile.section.origin.x, right = bounds.max.x + tile.section.origin.x;
+        if (Number.isFinite(previousRight)) assert.ok(left < previousRight, `${world.id}: hills overlap between connectors`);
+        previousRight = right;
+      }
+    } finally { scene.destroy(); }
+    const gallery = new AdventureScene(new Scene(), { world, attractionsOnly: true });
+    try {
+      gallery.render(track, 40, 0, 0, 0);
+      assert.ok([...gallery.tiles.values()].every(tile => tile.root.children.length === 0), 'Gallery keeps its clear backdrop');
+    } finally { gallery.destroy(); }
+  }
 });

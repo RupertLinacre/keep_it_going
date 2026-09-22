@@ -3,8 +3,8 @@ import { nightBackground } from "./background-night";
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 import type { MiniSection } from './mini-track';
 
-export function nightScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number) {
-  nightBackground(m,x,back,front,r);
+export function nightScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number,variant?:number) {
+  nightBackground(m,x,back,front,r,variant);
 }
 
 export function lanternParade(m:WorldModel,section:MiniSection) {

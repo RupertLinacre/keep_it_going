@@ -3,8 +3,8 @@ import { alpineBackground } from './background-mountains';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 import type { MiniSection } from './mini-track';
 
-export function mountainScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number) {
-  alpineBackground(m,x,back,front,r);
+export function mountainScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number,variant?:number) {
+  alpineBackground(m,x,back,front,r,variant);
 }
 
 export { mountainGorge as mountainRidge, mountainTunnel as tunnelModel } from "./mountain-landforms";
