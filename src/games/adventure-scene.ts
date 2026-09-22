@@ -176,8 +176,8 @@ export class AdventureScene {
         for(let i=0;i<4;i++)actors.push({kind:'duck',x:section.span*.4+i*1.3,y:.32,z:section.hand*4+9+i*.3,phase:i*.7,size:1,onTrack:true});
       }
       if(section.kind==='windmillloop') {
-        meadowWindmill(attraction,section);
-        actors.push({kind:'mill',x:section.width*.5,y:section.origin.y+section.amplitude,z:-3.1,phase:0,size:section.amplitude*.22,onTrack:true});
+        const rotor = meadowWindmill(attraction,section);
+        actors.push({kind:'mill',...rotor,phase:0,onTrack:true});
       }
       formation=attraction.finish(this.material,this.luminous);this.group.add(formation);
     }

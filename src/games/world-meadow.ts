@@ -76,14 +76,30 @@ export function lilyBridge(m: WorldModel, section: MiniSection) {
   }
 }
 
+const windmillTower = new T.CylinderGeometry(1.7, 3.1, 1, 7);
 export function meadowWindmill(m: WorldModel, section: MiniSection) {
-  // Its sails sit inside the loop silhouette, safely behind the entire rail.
-  const x = section.width * .5, y = section.origin.y + section.amplitude, z = -3.7;
-  m.add(G.cone, '#f2dfb0', [x, y * .45, z], [3.1, y * .9, 3.1]);
-  m.add(G.cone, '#da8e6e', [x, y - 1.4, z], [3.4, 4, 3.4]);
-  m.add(G.box, '#739693', [x, 1.7, z + 2.3], [1.3, 3.4, .12]);
-  for (const wy of [5, 8]) m.add(G.box, '#9fbbc0', [x, wy, z + 1.8], [.8, 1.1, .1]);
-  m.add(G.round, '#9c7652', [x, y, z + .5], [.65, .65, .7]);
+  const x = section.width * .5, y = section.origin.y + section.amplitude;
+  const rotorZ = Math.min(0, section.shift) - 2.8, size = section.amplitude * .22, roofRadius = 3.4;
+  // Keep the sail plane behind every rail, including loops that bend backwards.
+  // Put the whole building behind its swept volume, including the wider roof
+  // and blade thickness. Share this hub position with the animated instance.
+  const z = rotorZ - roofRadius - .65 - size * .045, height = y + .5;
+  const facet = Math.cos(Math.PI / 7), slope = 1.4 / height * facet;
+  const facade = (at: number) => z + 3.1 * facet - at * slope;
+  m.add(windmillTower, '#f2dfb0', [x, height / 2, z], [1, height, 1], [0, -Math.PI / 7, 0]);
+  m.add(G.cone, '#da8e6e', [x, height + 1.7, z], [roofRadius, 3.4, roofRadius], [0, -Math.PI / 7, 0]);
+  // Door and window frames follow the tapered wall rather than floating in it.
+  const lean = [-Math.atan(slope), 0, 0];
+  m.add(G.box, '#cba774', [x, 1.65, facade(1.65) + .06], [1.6, 3.3, .13], lean);
+  m.add(G.box, '#739693', [x, 1.65, facade(1.65) + .15], [1.3, 3.05, .08], lean);
+  for (const wy of [height * .4, height * .66]) {
+    m.add(G.box, '#fff0cc', [x, wy, facade(wy) + .06], [1.15, 1.45, .14], lean);
+    m.add(G.box, '#9fbbc0', [x, wy, facade(wy) + .15], [.85, 1.15, .08], lean);
+  }
+  const axleBack = facade(y) - .25;
+  m.add(G.pole, '#9c7652', [x, y, (axleBack + rotorZ) / 2], [.23, rotorZ - axleBack, .23], [Math.PI / 2, 0, 0]);
+  m.add(G.round, '#9c7652', [x, y, rotorZ + .1], [.65, .65, .4]);
+  return { x, y, z: rotorZ, size };
 }
 
 export function duckModel() {
