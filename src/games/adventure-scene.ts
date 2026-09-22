@@ -1,3 +1,4 @@
+import { meadowScenery } from './background-meadow';
 import { tunnelRevealAt } from "./mountain-landforms";
 import { AttractionDrive } from './attraction-drive';
 import { SceneryFlight } from './scenery-flight';
@@ -144,7 +145,7 @@ export class AdventureScene {
         halloweenScenery(model,x,back,front,random,placePumpkin);
         for(let j=0;j<2;j++)actors.push({kind:'ghost',x:x-10+random()*20,y:2+random()*2,z:front+2+random()*5,phase:random()*6.28,size:.9+random()*.4,onTrack:true});
         for(let j=0;j<3;j++)actors.push({kind:'bat',x:x-12+random()*24,y:7+random()*3,z:back+3,phase:random()*6.28,size:.7+random()*.3});
-      } else this.meadow(model, actors, x, back, front, random);
+      } else meadowScenery(model, actor => actors.push(actor), x, back, front, random);
     }
     let formation:T.Group|undefined, gorgeWall:T.Group|undefined;
     if (['sheepbank','pondbridge','windmillloop'].includes(section.kind)) {
@@ -224,39 +225,6 @@ export class AdventureScene {
     if(tunnel)this.group.add(tunnel);
     return { root, actors, section, tunnel, formation, gorgeWall, builtHeight:section.height(section.start+section.length/2), drives:[new AttractionDrive(),new AttractionDrive()],
       portals:section.kind==='pumpkintunnel'?[new PortalImpact(),new PortalImpact()]:undefined };
-  }
-  private meadow(m: WorldModel, actors: Actor[], x: number, back: number, front: number, r: () => number) {
-    // Broad, overlapping hills read as a landscape rather than miniature cones.
-    m.add(G.round, r()>.5 ? "#88b968" : "#97c574", [x, -2, back-19], [24, 9+r()*8, 15]);
-    m.add(G.round, "#afcf84", [x+9, -2, back-38], [29, 18+r()*8, 20]);
-    for(let i=0;i<3;i++) {
-      const sx=x-9+r()*18, z=front+1+r()*5;
-      actors.push({kind:"sheep",x:sx,y:.15,z,phase:r()*6.28,size:.8+r()*.35,onTrack:true});
-      // A little grass island makes each flock feel settled in the field.
-      m.add(G.round,"#99c56c",[sx,-.1,z],[2.2,.23,1.9]);
-    }
-    for(let i=0;i<5;i++) {
-      const tx=x-13+i*6, tz=back-2;
-      m.add(G.pole,"#a47d51",[tx, .8, tz],[.11,1.6,.11]);
-      if(i<4) for(const y of [.6,1.25]) m.add(G.box,"#f3deb1",[tx+3,y,tz],[6,.12,.12]);
-    }
-    for(let i=0;i<14;i++) {
-      const fx=x-13+r()*26, fz=front+6+r()*6;
-      m.add(G.pole,"#689454",[fx,.25,fz],[.035,.5,.035]);
-      m.add(G.round,i%3 ? "#fff4bb" : "#ec9caf",[fx,.52,fz],[.23,.13,.23]);
-      m.add(G.round,"#efc356",[fx,.64,fz],[.08,.06,.08]);
-    }
-    const tx=x+6,tz=back+2;
-    m.add(G.pole,"#977957",[tx,1.8,tz],[.35,3.6,.35]);
-    for(const [dx,dy,dz] of [[-1,4,0],[1.2,4.4,.2],[0,5.3,-.6]])
-      m.add(G.round,"#639c65",[tx+dx,dy,tz+dz],[2.2,2.1,1.9]);
-    if(r()<.38) {
-      const mx=x-8,mz=back-5;
-      m.add(G.cone,"#f4dfb2",[mx,3.5,mz],[2,7,2]);
-      m.add(G.cone,"#da8c72",[mx,7,mz],[2.2,2.1,2.2]);
-      m.add(G.box,"#789996",[mx,2.4,mz+1.4],[.7,1.4,.1]);
-      actors.push({kind:"mill",x:mx,y:6,z:mz+1.6,phase:r()*6.28,size:1});
-    }
   }
   setTunnelCutaway(reveal: boolean) { this.options.tunnelCutaway = reveal; }
   render(track: MiniTrack, distance: number, anchor: number, laneOffset: number, time: number, opponentDistance?: number, gravity=9.81, opponentGravity=9.81, opponentTrack?:MiniTrack) {
@@ -409,11 +377,20 @@ export class AdventureScene {
         if(actor.kind==='pumpkin')this.pumpkinFaces.setMatrixAt(index,this.dummy.matrix);
       }
     }
-    this.pumpkinFaces.count=Math.min(192,counts.pumpkin);this.pumpkinFaces.instanceMatrix.needsUpdate=true;
+    this.uploadActors(this.pumpkinFaces, counts.pumpkin);
     this.portalEffects.finish();
     for(const kind of Object.keys(this.actorMeshes) as Actor["kind"][]) {
-      const mesh=this.actorMeshes[kind];mesh.count=Math.min(192,counts[kind]);mesh.instanceMatrix.needsUpdate=true;
+      this.uploadActors(this.actorMeshes[kind], counts[kind]);
     }
+  }
+  private uploadActors(mesh: T.InstancedMesh, count: number) {
+    mesh.count = Math.min(192, count);
+    mesh.visible = mesh.count > 0;
+    if (!mesh.visible) return;
+    // Capacity is shared by both riders; only the live prefix changed this frame.
+    mesh.instanceMatrix.clearUpdateRanges();
+    mesh.instanceMatrix.addUpdateRange(0, mesh.count * 16);
+    mesh.instanceMatrix.needsUpdate = true;
   }
   private revealTunnel(group:T.Group,reveal:number,side:number) {
     group.traverse(o=>{

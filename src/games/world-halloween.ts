@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 import type { MiniSection } from './mini-track';
+import { halloweenLandscape } from './background-halloween';
 export type PumpkinPlacement = (x:number,y:number,z:number,size:number,color?:string)=>void;
 
 export function pumpkin(m:WorldModel,x:number,y:number,z:number,size:number,color='#ed984c') {
@@ -13,38 +14,7 @@ export function pumpkin(m:WorldModel,x:number,y:number,z:number,size:number,colo
   for(let i=0;i<5;i++)m.add(G.box,'#ffdf8e',[x+(i-2)*size*.13,y+size*(.37+.035*(i-2)**2),z+size*.86],[size*.14,size*.09,size*.055],[],true);
 }
 export function halloweenScenery(m:WorldModel,x:number,back:number,front:number,r:()=>number,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {
-  m.add(G.round,'#65566e',[x,-2,back-20],[24,10+r()*5,15]);
-  m.add(G.round,'#574860',[x+12,-2,back-39],[27,16+r()*7,20]);
-  for(let i=0;i<6;i++)place(x-13+r()*26,.1,front+1+r()*8,.65+r()*.75,i%2?'#e7a44f':'#d98852');
-  for(let i=0;i<4;i++) {
-    const tx=x-13+i*8,tz=back+2, lean=(r()-.5)*.3;
-    m.add(G.pole,'#827386',[tx,2.8,tz],[.27,5.6,.27],[0,0,lean]);
-    for(const side of [-1,1]) {
-      m.add(G.box,'#827386',[tx+side*.95,4.2,tz],[.2,2.6,.2],[0,0,side*-.75]);
-      m.add(G.box,'#827386',[tx+side*1.9,5,tz],[1.3,.16,.16]);
-    }
-    m.add(G.round,'#b298c5',[tx,5.4,tz],[.13,.13,.13],[],true);
-  }
-  // A crooked storybook cottage with a welcoming, glowing front door.
-  if(r()<.42) {
-    const hx=x-5,hz=back+3;
-    m.add(G.box,'#9480a1',[hx,2.4,hz],[4.8,4.8,3.6],[0,0,.08]);
-    m.add(G.cone,'#615276',[hx-.4,5.8,hz],[4,3.8,3.8],[0,Math.PI/4,-.16]);
-    m.add(G.box,'#ffe0a1',[hx,1.3,hz+1.9],[1.1,2.6,.08],[],true);
-    for(const dx of [-1.5,1.5]){
-      m.add(G.box,'#f3c591',[hx+dx,3.1,hz+1.9],[.85,1.15,.08],[],true);
-      m.add(G.box,'#6c5b79',[hx+dx,3.1,hz+1.95],[.09,1.2,.09]);
-    }
-    m.add(G.pole,'#aa91ae',[hx+1.1,6.2,hz-.5],[.35,2.6,.35],[0,0,-.14]);
-    place(hx+2.8,.1,hz+2.1,1);
-  }
-  // Candy-coloured fence lanterns make the darkness inviting.
-  for(let i=0;i<5;i++) {
-    const px=x-13+i*6,pz=front+10;
-    m.add(G.pole,'#b1a0b8',[px,.85,pz],[.1,1.7,.1]);
-    m.add(G.round,i%2?'#d3b4ef':'#ffbb64',[px,1.8,pz],[.23,.32,.23],[],true);
-    if(i<4)m.add(G.box,'#a18aab',[px+3,.9,pz],[6,.1,.1]);
-  }
+  halloweenLandscape(m,x,back,front,r,place);
 }
 
 export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacement=(...args)=>pumpkin(m,...args)) {
