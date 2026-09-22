@@ -101,3 +101,129 @@ update/render/build costs, long tasks, draw calls, triangles and coach count in
 `window.profileResult`. It changes the random seed only in the diagnostic
 browser session. Run before and after sequentially, avoiding builds, recordings
 and other load while measuring. All times in the result are milliseconds.
+
+## Large external display investigation — 22 September 2026
+
+Baseline: `2af785c`, branch `codex/background-world-polish`. The reported device
+was this MacBook Air with a 4K monitor. Tests used the Apple M4 Metal renderer,
+real animation frames and keyboard answers, first at native 3840 × 2160, then
+with macOS-style scaled windows at DPR 2. The exact physical monitor scaling
+was unavailable, so the larger window is a reproduction scenario, not a claim
+about the user's display settings.
+
+### Causes and fixes
+
+1. **The old density cap did not cap total GPU work.** A 3008 × 1692 CSS window
+   at DPR 2 produced a 5028 × 2544 game canvas: 12.79 million pixels, before
+   antialiasing, shadows and transparent effects. GPU timer queries identified
+   expensive combinations including pond/splash sections with cargo, tunnel
+   and ravine scenery, and a heartline with tailwind. The worst recorded GPU
+   sample was 41.4 ms. Native 4K was much less demanding and did not reproduce
+   the same sustained pressure in that run.
+2. **Building scenery allocated and transformed many temporary geometries.**
+   New carnival sections, sometimes several entering the view together, made
+   single-frame scenery construction particularly costly. `WorldModel` now
+   expands immutable primitives once, snapshots each placement, and writes
+   directly to final position/normal/colour buffers. It preserves the geometry,
+   material batches, shadows, lamp phases and glow halos. Mirrored triangle
+   winding and mutable custom shapes are covered by equivalence tests.
+
+The 3D canvas now has a six-million-pixel budget in addition to the existing
+1.7 density cap. The large reproduction window renders at 3443 × 1742 instead
+of 5028 × 2544. This reduces scene resolution on very large windows; DOM text
+and controls remain native-resolution. Ordinary desktop and phone sizes retain
+their previous density. Resizing recalculates the budget. No scenery density,
+particles, gameplay physics or multiplayer update rate was reduced.
+
+### Live comparisons
+
+One-player: seed 42, 70 seconds. Two-player: seed 6, 90 seconds, actual WebRTC
+room and two independently answered games. Host viewport 3008 × 1692, DPR 2,
+no CPU throttle. The guest ran normal input, physics and networking on the same
+Mac, with rendering disabled to avoid benchmarking a second device's graphics
+on the host GPU. Both sides used Easy, normal auto-accept and roughly 1.6–1.8
+seconds per answer. No builds or other benchmarks ran concurrently.
+
+| Measurement | Solo before | Solo after | Race before | Race after |
+| --- | ---: | ---: | ---: | ---: |
+| Measured frame intervals | 4,215 | 4,246 | 5,239 | 5,463 |
+| Mean interval | 16.80 ms | 16.67 ms | 17.37 ms | 16.67 ms |
+| 99th-percentile interval | 19.2 ms | 18.9 ms | 39.8 ms | 20.1 ms |
+| Frames over 25 ms | 5 | 0 | 246 | 0 |
+| Frames over 50 ms | 4 | 0 | 23 | 0 |
+| 99th-percentile GPU time | 25.92 ms | 9.84 ms | 14.79 ms | 11.81 ms |
+| Longest scenery build frame | 16.9 ms | 8.2 ms | 53.3 ms | 6.8 ms |
+
+GPU measurements use asynchronous `EXT_disjoint_timer_query_webgl2` queries
+on every fourth rendered frame, ignoring disjoint results. They measure GPU
+work independently of JavaScript command submission. CPU timings are nested,
+so their columns must not be added together. The instrumentation also records
+individual WebGL stalls and correlates frames with track pieces, neighbours,
+power-ups and world. Average FPS alone concealed the initial outliers.
+
+An isolated four-pass scenery construction comparison (same seed and distances,
+272 calls) reduced mean construction from 3.29 to 1.37 ms and p95 from 10.11 to
+4.11 ms. Cold maximum timings varied; these are supporting measurements, not
+an additional live-game FPS claim. Normal Sky Lift deformation was inexpensive
+in the native-speed solo runs, so its physics was left alone.
+
+These are successive browser runs on a shared Mac, with shader/cache/host timing
+variation. They demonstrate improved headroom and fewer reproduced hitches,
+not a guarantee that all stalls on every external display have disappeared.
+
+### Reproduce a long live run
+
+Start Vite, open the local page with Playwright CLI, then:
+
+```sh
+npx @playwright/cli -s=stutters eval '() => { window.stutterConfig = { seed: 6, seconds: 90, throttle: 1, width: 3008, height: 1692, dpr: 2, race: true, pass: "race-retina" }; }'
+npx @playwright/cli -s=stutters run-code --filename scripts/profile-stutters-browser.js
+```
+
+`race: false` measures solo play. `mobile: true` uses a 390 × 844 touch viewport;
+`throttle: 4` adds CPU stress without pretending to emulate a phone GPU. A
+separate browser context is used for explicit DPR/mobile runs and closed on
+completion. The returned JSON includes timing distributions, the worst frames,
+GPU samples, WebGL stalls, scene counts, section/power transitions, and received
+race snapshots. Screenshots go to ignored `output/playwright/`. Measure only one
+active game at a time; close unrelated game windows first.
+
+A warm-cache reversal check reinstated the original geometry builder and original
+1.7 render density in a fresh race context: the same 90-second race then also
+had zero intervals over 25 ms (p99 19.8 ms). GPU mean was 9.08 ms versus 7.42 ms
+with the changes; maximum scenery build was 9.7 ms versus 6.8 ms. This is an
+important limit on attribution: the initial 246-frame hitch count is not a
+stable baseline, and the entire reduction must not be credited to these edits.
+The fixes reduce measured work and add headroom; cold/driver/host stalls may
+still occur.
+
+The controlled 4× CPU-stress reversal comparison was a 60-second race with the
+same seed and viewport. This reproduced construction hitches in the warm-cache
+baseline. At approximately 1,562 m, building the next Lantern Run while the
+train was on a jump took 36.1 ms; with direct baking it took 15.0 ms. Midway Loop
+and carousel construction were other recurring costs. This explains why a
+hitch can seem to belong to a particular combination: the expensive section
+is often being prepared ahead of the currently ridden piece.
+
+| 4× CPU stress, 60-second race | Original builder/density | Changes |
+| --- | ---: | ---: |
+| Mean frame interval | 16.77 ms | 16.68 ms |
+| 99th-percentile frame interval | 23.2 ms | 21.8 ms |
+| Frames over 25 ms | 26 / 3,652 | 5 / 3,625 |
+| Frames over 50 ms | 4 | 0 |
+| Longest frame interval | 65.1 ms | 36.5 ms |
+| Longest scenery build | 36.1 ms | 15.0 ms |
+| 95th-percentile draw CPU time | 8.7 ms | 6.9 ms |
+
+The remaining stressed outliers include that 15 ms Lantern Run build plus rail
+construction/rendering in the same frame, and a cargo frame with a 15.2 ms
+WebGL submission. The work reduces these costs; it does not claim zero hitches
+under CPU stress. All 189 tests and the TypeScript/production build pass.
+
+The final mobile regression run used actual keypad taps at 390 × 844, DPR 2 and
+4× CPU throttle. Over 65 seconds it answered 39 questions, traversed all four
+worlds and exercised Sky Lift, Gravity Flip and cargo. It averaged 16.67 ms
+between frames, with p99 19.4 ms, one interval over 25 ms (28 ms), and no page
+errors. GPU p99 was 6.82 ms. The scene remained 625 × 742 pixels, its existing
+mobile density; this is an emulated layout/CPU check on the M4, not physical
+phone performance certification.

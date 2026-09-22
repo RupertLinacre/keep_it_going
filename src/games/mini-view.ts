@@ -28,6 +28,7 @@ import { lanePosition, mirrorRotation } from "../multiplayer/ghost";
 import type { RideState } from "../multiplayer/protocol";
 import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
 import { DOWNHILL_TILT, tiltPoint } from "./mini-tilt";
+import { scenePixelRatio } from "./render-resolution";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
 const CART_COLORS = ["#e5ef93", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987", "#a8dac7"].map(c => new THREE.Color(c));
@@ -86,7 +87,6 @@ export class MiniView {
     this.riderRole = options.role ?? "host";
     this.spacing = options.spacing ?? new RaceSpacing();
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.domElement.className = "coaster-canvas mini-canvas";
@@ -157,18 +157,20 @@ export class MiniView {
     this.waterDroplets.setColorAt(0, new THREE.Color("#8adbe6"));
     this.waterDroplets.castShadow = false;
     this.scene.add(this.lamp);
-    this.resize = new ResizeObserver(() => {
+    const resize = () => {
       const w = stage.clientWidth,
         h = stage.clientHeight;
       if (w && h) {
+        const ratio = scenePixelRatio(w, h, window.devicePixelRatio);
+        if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h);
         this.aspect = w / h;
         this.lastState = "";
       }
-    });
+    };
+    this.resize = new ResizeObserver(resize);
     this.resize.observe(stage);
-    this.renderer.setSize(stage.clientWidth, stage.clientHeight);
-    this.aspect = stage.clientWidth / stage.clientHeight;
+    resize();
     this.render(track.startDistance, MINI_START_SPEED, 0, false);
     // Compile the water materials during setup, so the first entry splash is smooth.
     void this.renderer.compileAsync(this.scene, this.camera).catch(() => {});
