@@ -1195,6 +1195,14 @@ kbd {
 .race-new-game { position:absolute; right:12px; bottom:12px; z-index:4; padding:10px 14px; border:1px solid #bacdad; border-radius:12px; background:#f5f9e9; color:#355b50; font-size:12px; }
 .overlay-card .continue-ride { margin-top:12px; }
 
-@media (max-width: 800px) {
-  .answer-count { padding: 3px 10px; gap: 6px; font-size: 11px; }
+.scene-answer-count { display: none; }
+@media (max-width: 800px), (hover: none) and (pointer: coarse) {
+  .answer-count { display: none; }
+  .scene-answer-count {
+    display: block; position: absolute; z-index: 3; right: 8px; bottom: 8px;
+    padding: 6px 9px; border-radius: 30px; background: #fffdf2e8;
+    color: #37594d; font-size: 10px; font-weight: 700;
+    font-variant-numeric: tabular-nums; pointer-events: none;
+    box-shadow: 0 2px 12px #243b3710;
+  }
 }

@@ -42,6 +42,7 @@ export class Mini extends BaseGame {
   a = 3;
   b = 4;
   answer = "";
+  private readonly answerBadge = document.createElement("div");
   private answerFeedback = "";
   private acceptedAnswer?: { a: number; b: number; answer: string; until: number };
   private answerFeedbackUntil = 0;
@@ -102,6 +103,9 @@ export class Mini extends BaseGame {
     }
   }
   setup() {
+    this.answerBadge.className = "scene-answer-count";
+    this.answerBadge.setAttribute("role", "status");
+    this.host.stage.append(this.answerBadge);
     if (this.remixMode) this.adventureHud = new AdventureHud(this.host.stage);
     if (!this.heightMode && !this.remixMode) this.readouts = new MiniReadouts(this.host.stage);
     if (this.remixMode && !this.multiplayer) this.powerHud = new PowerupHud(this.host.stage);
@@ -120,6 +124,7 @@ export class Mini extends BaseGame {
     this.panel();
   }
   panel() {
+    this.answerBadge.textContent = `${this.correct.toLocaleString()} answers`;
     const shown = this.acceptedAnswer ?? this;
     const feedback = this.answerFeedback === "incorrect" ? "Try again" : this.answerFeedback === "correct"
       ? this.answerWasLift ? `↑ +${HEIGHT_PER_ANSWER} m ${this.pendingLifts ? "saved for landing" : this.lastImpulse > 0 ? "track lift + boost" : "track lift"}` : "Correct!" : "";
@@ -529,6 +534,7 @@ export class Mini extends BaseGame {
     ctx.restore();
   }
   destroy() {
+    this.answerBadge.remove();
     record(this.recordId, this.host.difficulty, this.score);
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
     this.powerHud?.destroy();
