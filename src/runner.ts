@@ -125,7 +125,7 @@ export function mountGame(
         <div class="eyebrow">RIDE COMPLETE</div>
         <h2>${result.message.startsWith("Splash!") ? "Into the drink!" : "Keep it going?"}</h2>
         <p>${result.message}</p>
-        <div class="result-score">${result.score.toLocaleString()} <span>points · ${result.correct} ${settings.heightMode ? result.correct === 1 ? "lift" : "lifts" : result.correct === 1 ? "boost" : "boosts"}</span></div>
+        <div class="result-score">${result.correct.toLocaleString()} <span>${result.correct === 1 ? "question" : "questions"} answered correctly</span></div>
         ${ride ? `<div class="ride-result-grid">
           <div><span>Distance</span><strong>${Math.floor(ride.distance).toLocaleString()} <small>m</small></strong></div>
           <div><span>Longest train</span><strong>${ride.longestTrain} <small>coaches</small></strong></div>
@@ -185,7 +185,7 @@ export function mountGame(
       key = `complete:${network.localRematch}:${network.remoteRematch}:${network.connected}:${network.victoryChoice}`;
       const winner = raceWinner(network.localResult, network.remoteResult);
       content = `<div class="eyebrow">RACE COMPLETE</div><h2>${winner === "draw" ? "A perfect tie!" : winner === "local" ? "You went further!" : `${safe(network.opponent)} went further!`}</h2>
-        <p>Every answer kept you rolling.</p><div class="race-results"><div><i class="rider-dot"></i><span>You</span><strong>${network.localResult.distance.toFixed(1)} <small>m</small></strong><small>${network.localResult.correct} boosts</small></div><div><i class="rider-dot opponent"></i><span>${safe(network.opponent)}</span><strong>${network.remoteResult.distance.toFixed(1)} <small>m</small></strong><small>${network.remoteResult.correct} boosts</small></div></div>
+        <p>Every answer kept you rolling.</p><div class="race-results"><div><i class="rider-dot"></i><span>You</span><strong>${network.localResult.distance.toFixed(1)} <small>m</small></strong><small>${network.localResult.correct} questions solved</small></div><div><i class="rider-dot opponent"></i><span>${safe(network.opponent)}</span><strong>${network.remoteResult.distance.toFixed(1)} <small>m</small></strong><small>${network.remoteResult.correct} questions solved</small></div></div>
         ${winner === "local" ? `<button class="primary-button full-button" data-overlay="new-game" ${!network.connected || network.victoryChoice === "restart" ? "disabled" : ""}>${!network.connected ? "Your friend left the ride" : network.victoryChoice === "restart" ? "Starting a new game…" : "Start new game"}</button>`
           : winner === "remote" ? `<p>${network.connected ? "Waiting for your friend to start a new game with you." : "Your friend left the ride."}</p>`
           : `<button class="primary-button full-button" data-overlay="rematch" ${network.localRematch || !network.connected ? "disabled" : ""}>${!network.connected ? "Your friend left the ride" : network.localRematch ? "Waiting for your friend…" : "Start new game"}</button>`}

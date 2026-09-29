@@ -129,7 +129,7 @@ export class Mini extends BaseGame {
         <p class="answer-feedback" role="status">${feedback}</p>
         ${this.liftingAnswers ? '<p class="height-guide">Answer early to raise your track</p>' : ''}
         <p class="keyboard-hint">${this.liftingAnswers ? this.remixMode ? "Answers raise this section; struggling climbs also get a boost." : "Correct answers raise this section. Gravity supplies the speed." : "Type the correct answer to boost automatically"}</p>
-      </div><div class="coaster-controls">${numberPad()}<button class="camera-switch" data-action="camera"><span>${this.close ? "Close side view" : "Miniature side view"}</span><kbd>C</kbd></button></div>`);
+      </div><div class="coaster-controls">${numberPad()}<div class="answer-count" role="status"><strong>${this.correct.toLocaleString()}</strong><span>${this.correct === 1 ? "question" : "questions"} solved</span></div></div>`);
   }
   hud() {
     const bestJump = Math.max(this.personalBest.jump, this.physics.bestJump);

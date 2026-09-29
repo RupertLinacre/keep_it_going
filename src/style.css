@@ -519,7 +519,7 @@ kbd {
   gap: 10px;
   align-items: stretch;
 }
-.camera-switch {
+.answer-count {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -531,12 +531,7 @@ kbd {
   color: #638278;
   font-size: 10px;
 }
-.camera-switch:hover {
-  background: #e3eee9;
-}
-.camera-switch kbd {
-  font-size: 8px;
-}
+.answer-count strong { font-size: 1.35em; font-variant-numeric: tabular-nums; }
 @keyframes loading {
   to {
     transform: translateX(233%);
@@ -833,7 +828,7 @@ kbd {
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
   }
-  .camera-switch {
+  .answer-count {
     min-height: 36px;
     font-size: 11px;
   }
@@ -932,7 +927,7 @@ kbd {
   #main-content, .standalone-game { min-height: 0; height: 100%; padding: 0; }
   .play-zone { height: 100%; display: flex; flex-direction: column; border-radius: 16px; box-shadow: none; }
   .game-stage { flex: 1; height: auto; min-height: 0; aspect-ratio: auto; }
-  .game-hud, .mini-readouts, .game-feedback, .camera-switch, .keyboard-hint { display: none; }
+  .game-hud, .mini-readouts, .game-feedback, .keyboard-hint { display: none; }
   .play-controls {
     order: 0;
     display: flex;
@@ -1199,3 +1194,7 @@ kbd {
 .shared-tables p { font-size:12px; line-height:1.5; color:#687e70; margin:12px 0 0; }
 .race-new-game { position:absolute; right:12px; bottom:12px; z-index:4; padding:10px 14px; border:1px solid #bacdad; border-radius:12px; background:#f5f9e9; color:#355b50; font-size:12px; }
 .overlay-card .continue-ride { margin-top:12px; }
+
+@media (max-width: 800px) {
+  .answer-count { padding: 3px 10px; gap: 6px; font-size: 11px; }
+}
