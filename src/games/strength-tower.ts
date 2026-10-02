@@ -1,7 +1,8 @@
 import { Quaternion, Vector3 } from 'three';
 import { MINI_CART_SPACING } from './mini-config';
 import { StrengthTowerMotion } from './strength-tower-motion';
-import { towerCurveFrame, towerEntrance, towerExit, towerExitFrame, towerFrame } from './strength-tower-rail';
+import { towerCurveFrame, towerEntrance, towerExit, towerExitFrame, towerFrame, towerReturnRail } from './strength-tower-rail';
+import type { MiniPhysicsOptions } from './mini-physics';
 import type { MiniTrack, MiniSection } from './mini-track';
 
 /** Bonus state, real carriage frames and a small HUD. Rendering belongs to MiniView. */
@@ -14,10 +15,13 @@ export class StrengthTower {
   private best=0;
   private score?:HTMLElement;
   private result?:HTMLElement;
-  constructor(stage:HTMLElement,readonly track:MiniTrack,readonly section:MiniSection,speed:number,coaches:number) {
+  constructor(stage:HTMLElement,readonly track:MiniTrack,readonly section:MiniSection,speed:number,coaches:number,physics?:Partial<MiniPhysicsOptions>) {
     this.origin=section.sample(section.start).position.clone();
-    this.motion=new StrengthTowerMotion(speed,towerEntrance.getLength(),towerExit.getLength());
     this.trainLength=(coaches-1)*MINI_CART_SPACING;
+    this.motion=new StrengthTowerMotion(speed,towerEntrance.getLength(),towerExit.getLength(),{
+      rail:towerReturnRail(section.sample(section.end).position.y-this.origin.y,track,section.end,this.origin),
+      physics,trainLength:this.trainLength,
+    });
     if(typeof document==='undefined')return;
     this.root=document.createElement('div');
     try{this.best=Number(localStorage.getItem('keep-going-tower-best'))||0;}catch{/* Optional storage. */}
@@ -63,7 +67,7 @@ export class StrengthTower {
       try{if(record)localStorage.setItem('keep-going-tower-best',String(m.score));}catch{/* Optional storage. */}
     }
     if(m.phase==='descend')this.result.hidden=true;
-    if(m.phase==='descend'||m.phase==='exit')this.root.querySelector('.tower-height small')!.textContent=m.banked?`Exit boost +${m.banked} m/s`:'Answers boost your exit';
+    if(m.phase==='descend'||m.phase==='exit')this.root.querySelector('.tower-height small')!.textContent=m.phase==='exit'?'Answers keep you rolling':m.banked?`Exit boost +${m.banked} m/s`:'Answers boost your exit';
   }
   destroy(){this.root?.remove();}
 }

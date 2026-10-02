@@ -1,5 +1,6 @@
 import { CatmullRomCurve3, Matrix4, Quaternion, Vector3 } from 'three';
 import type { RailFrame } from './mini-rail';
+import type { MiniRail } from './mini-track';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
 
 // Both ends meet the ordinary railway on its centreline and point forwards.
@@ -37,6 +38,31 @@ export function towerExitFrame(distance:number,rise=0) {
   frame.tangent.y+=rise*derivative;
   frame.tangent.normalize();
   return towerFrame(frame.position,frame.tangent);
+}
+
+/** Signed distance along the return route: negative on the vertical mast,
+ * then through the switch and onto the ordinary railway. */
+export function towerReturnRail(rise=0,following?:MiniRail,followingDistance=0,origin=new Vector3()):MiniRail {
+  const length=towerExit.getLength();
+  const sample=(distance:number)=>{
+    if(distance<0)return towerFrame(new Vector3(50,8-distance,-14),new Vector3(0,-1,0));
+    if(distance>length&&following){
+      const frame=following.sample(followingDistance+distance-length);
+      frame.position.sub(origin);return frame;
+    }
+    return towerExitFrame(distance,rise);
+  };
+  return {
+    sample,slope:distance=>sample(distance).tangent.y,height:distance=>sample(distance).position.y,
+    waterDepth:distance=>distance>length?following?.waterDepth?.(followingDistance+distance-length)??0:0,
+    metric:distance=>{
+      if(distance>length&&following)return following.metric?.(followingDistance+distance-length)??1;
+      if(distance<=0||distance>=length||!rise)return 1;
+      const t=distance/length,dy=rise*30*t*t*(1-t)*(1-t)/length;
+      // Raising an exit stretches its physical rail, so m/s must remain m/s.
+      return Math.sqrt(1+2*towerExit.getTangentAt(t).y*dy+dy*dy);
+    },
+  };
 }
 export function towerJunctionModel(exitRise=0) {
   const model=new WorldModel();

@@ -16,9 +16,10 @@ test("the playable demo naturally enters the tower and returns to the normal gam
   const { game, finishes } = ride(true);
   const seen = new Set<string>();
   let entered = false;
+  let lastTower: Mini['tower'];
   for (let frame = 0; frame < 60 * 50; frame++) {
     game.update(1 / 60);
-    if (game.tower) { entered = true; seen.add(game.tower.motion.phase); }
+    if (game.tower) { entered = true; lastTower=game.tower; seen.add(game.tower.motion.phase); }
     if (entered && !game.tower) break;
   }
   assert.ok(entered);
@@ -26,7 +27,8 @@ test("the playable demo naturally enters the tower and returns to the normal gam
   assert.equal(game.tower, undefined);
   assert.equal(game.ended, false);
   assert.deepEqual(finishes, []);
-  assert.equal(game.physics.velocity, 28);
+  assert.ok(game.physics.velocity>0);
+  assert.equal(game.physics.velocity,lastTower!.motion.exitSpeed,"normal physics inherits the actual return speed");
   const distance = game.physics.distance;
   for (let frame = 0; frame < 10; frame++) game.update(1 / 60);
   assert.ok(game.physics.distance > distance);
@@ -59,11 +61,13 @@ test("entering a real four-world tower at rest suspends normal powers and accept
   assert.equal(game.tower.motion.peak, peak);
   assert.equal(game.tower.motion.banked, 4);
   const exitDistance = game.tower.exitDistance;
+  const returningTower=game.tower;
   for (let frame = 0; frame < 3000 && game.tower; frame++) game.update(1 / 60);
   assert.equal(game.tower, undefined);
   assert.equal(game.physics.distance, exitDistance);
   assert.equal(game.physics.renderDistance, exitDistance, "exit resets interpolation as well as logical distance");
-  assert.equal(game.physics.velocity, 32);
+  assert.equal(game.physics.velocity, returningTower.motion.exitSpeed);
+  assert.ok(game.physics.peakSpeed>=game.physics.velocity,"tower speeds count toward the ride's top speed");
   assert.deepEqual(finishes, []);
 });
 

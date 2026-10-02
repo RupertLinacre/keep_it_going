@@ -280,13 +280,14 @@ export class Mini extends BaseGame {
       // A waiting arrival cannot follow the scripted two-way junction. The
       // normal catch-up system will send another coach after the bonus exit.
       this.carriages.incoming=undefined;
-      this.tower = new StrengthTower(this.host.stage,this.track,section,this.physics.velocity,this.cartCount);
+      this.tower = new StrengthTower(this.host.stage,this.track,section,this.physics.velocity,this.cartCount,this.physics.options);
       this.physics.relocate(section.start, this.physics.velocity);
       this.panel();this.host.sound("jump");
     }
     if (this.tower) {
       const phase = this.tower.motion.phase;
       this.tower.update(dt);
+      this.physics.peakSpeed=Math.max(this.physics.peakSpeed,this.tower.motion.speed);
       if (phase !== "celebrate" && this.tower.motion.phase === "celebrate") this.host.sound("win");
       if (this.tower.motion.phase === "done") {
         this.completedTower=this.tower.section.id;

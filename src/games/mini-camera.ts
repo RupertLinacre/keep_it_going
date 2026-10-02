@@ -20,6 +20,16 @@ export function coasterFraming(lead: THREE.Vector3, skyline: number, aspect: num
   return { focus, height };
 }
 
+/** An increasingly spacious climb, without trying to fit the entire endless
+ * tower. Using both ends of the train keeps the target continuous at the turn. */
+export function towerFraming(head: THREE.Vector3, tail: THREE.Vector3, trainLength: number, peak: number, compact: boolean) {
+  return {
+    focus: head.clone().add(tail).multiplyScalar(.5).add(new THREE.Vector3(0, 3, 0)),
+    height: Math.max(compact ? 34 : 30, trainLength + 18)
+      + (compact ? 16 : 24) * (1 - Math.exp(-Math.max(0, peak) / 150)),
+  };
+}
+
 /** Fit airborne action without changing the horizon or losing the train. */
 export class MiniCameraRig {
   readonly focus = new THREE.Vector3();

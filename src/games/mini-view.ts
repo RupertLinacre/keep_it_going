@@ -28,7 +28,7 @@ import { clamp } from "../math";
 import type { MiniCarriages } from "./mini-carriages";
 import { lanePosition, mirrorRotation } from "../multiplayer/ghost";
 import type { RideState } from "../multiplayer/protocol";
-import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
+import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming, towerFraming } from "./mini-camera";
 import { DOWNHILL_TILT, tiltPoint } from "./mini-tilt";
 import { scenePixelRatio } from "./render-resolution";
 import { CART_COLORS, createMiniCar, createMiniParcel } from "./train-model";
@@ -604,6 +604,14 @@ export class MiniView {
       skyline=Math.max(skyline,elevation+10+(p.y+29-elevation-10)*influence);
     }
     const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches, elevation);
+    if(tower && poses?.length){
+      const target=towerFraming(lane(f.position),lane(poses.at(-1)!.frame.position),tower.trainLength,tower.motion.peak,this.compactLayout.matches);
+      const blend=THREE.MathUtils.smoothstep(tower.cameraBlend,0,1);
+      // Feed a changing destination into the normal damped rig. Never overwrite
+      // its eased position/zoom after updating: that snaps onto the train.
+      framing.focus.lerp(target.focus,blend);
+      framing.height=THREE.MathUtils.lerp(framing.height,target.height,blend);
+    }
     // Follow the head of a long train. New arrivals enter from behind without
     // pulling the camera hundreds of metres back to its ever-growing tail.
     // Loose objects receive a smaller, separate framing budget.
@@ -642,12 +650,6 @@ export class MiniView {
     this.scene.updateMatrix();
     this.boardInlay.visible = tilt > .0001;
     (this.boardInlay.material as THREE.MeshStandardMaterial).opacity = .65 * tilt / DOWNHILL_TILT;
-    if(tower){
-      const blend=tower.cameraBlend,target=lane(f.position).add(new THREE.Vector3(0,3,0));
-      if(tower.motion.phase!=="approach"&&tower.motion.phase!=="exit")target.y=tower.origin.y+8+tower.motion.height-tower.trainLength/2+3;
-      this.cameraRig.focus.lerp(target,blend);
-      this.cameraRig.height=THREE.MathUtils.lerp(this.cameraRig.height,Math.max(this.compactLayout.matches?34:30,tower.trainLength+18),blend);
-    }
     const height = this.cameraRig.height;
     const focus = this.cameraRig.focus.clone();
     focus.x -= anchor;
@@ -658,7 +660,7 @@ export class MiniView {
     this.camera.bottom = -height / 2;
     this.camera.far = cameraDistance + height * 3 + 220;
     this.camera.updateProjectionMatrix();
-    this.camera.position.copy(focus).addScaledVector(MINI_CAMERA_DIRECTION.clone().lerp(new THREE.Vector3(0,0,1),tower?.cameraBlend??0).normalize(), cameraDistance);
+    this.camera.position.copy(focus).addScaledVector(MINI_CAMERA_DIRECTION, cameraDistance);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(focus);
     this.camera.updateMatrixWorld(true);

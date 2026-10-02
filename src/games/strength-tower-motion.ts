@@ -1,3 +1,7 @@
+import { MiniPhysics, type MiniPhysicsOptions } from './mini-physics';
+import type { MiniRail } from './mini-track';
+import { towerReturnRail } from './strength-tower-rail';
+
 /** A reversible bonus ride. A zero climbing speed is a score, never a death. */
 export class StrengthTowerMotion {
   phase: 'approach' | 'climb' | 'celebrate' | 'descend' | 'exit' | 'done' = 'approach';
@@ -8,13 +12,20 @@ export class StrengthTowerMotion {
   progress = 0;
   banked = 0;
   climbingAnswers = 0;
-  constructor(entrySpeed = 26, readonly approachLength=48, readonly exitLength=87.5) { this.speed = Math.max(22, Math.min(36, entrySpeed)); }
+  private returning?:MiniPhysics;
+  constructor(entrySpeed = 26, readonly approachLength=48, readonly exitLength=87.5,
+    private readonly descent:{rail?:MiniRail;physics?:Partial<MiniPhysicsOptions>;trainLength?:number}={}) {
+    this.speed = Math.max(22, Math.min(36, entrySpeed));
+  }
   answer() {
     if (this.phase === 'approach' || this.phase === 'climb') {
       this.speed += 9 / (1 + this.climbingAnswers * .12);
       this.climbingAnswers++;
     }
-    else if (this.phase !== 'done') this.banked = Math.min(18, this.banked + 4);
+    else if(this.phase==='exit'&&this.returning){
+      this.returning.impulse();this.speed=this.returning.velocity;
+    }
+    else if(this.phase!=='done')this.banked=Math.min(18,this.banked+4);
   }
   update(dt: number) {
     // Small bounded steps keep peak height and direction changes stable at low FPS.
@@ -31,16 +42,24 @@ export class StrengthTowerMotion {
         if (!next) { this.phase = 'celebrate'; this.time = 0; this.speed = 0; }
       } else if (this.phase === 'celebrate' && this.time >= 2.8) {
         this.phase = 'descend'; this.time = 0;
-      } else if (this.phase === 'descend') {
-        this.speed = Math.min(36, this.speed + 10 * step);
-        this.height = Math.max(0, this.height - this.speed * step);
-        if (!this.height) { this.phase = 'exit'; this.time = 0; this.progress = 0; }
-      } else if (this.phase === 'exit') {
-        this.progress = Math.min(1, this.progress + step * this.exitSpeed / this.exitLength);
-        if (this.progress >= 1) this.phase = 'done';
+        this.returning=new MiniPhysics(this.descent.rail??towerReturnRail(),{
+          ...this.descent.physics,initialDistance:(this.descent.trainLength??0)-this.peak,initialSpeed:0,
+        });
+      } else if ((this.phase === 'descend'||this.phase === 'exit')&&this.returning) {
+        this.returning.update(step);
+        const travel=this.returning.distance-(this.descent.trainLength??0);
+        this.height=Math.max(0,-travel);this.speed=this.returning.velocity;
+        if(this.phase==='descend'&&travel>=0){
+          this.phase='exit';this.time=0;
+          this.returning.impulse(this.banked*this.returning.options.mass);this.speed=this.returning.velocity;
+        }
+        if(this.phase==='exit'){
+          this.progress=Math.min(1,Math.max(0,travel/this.exitLength));
+          if(this.progress>=1)this.phase='done';
+        }
       }
     }
   }
   get score() { return Math.round(this.peak * 10); }
-  get exitSpeed() { return 28 + this.banked; }
+  get exitSpeed() { return this.speed; }
 }
