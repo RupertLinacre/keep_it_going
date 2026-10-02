@@ -6,7 +6,7 @@ export default defineConfig({
   base: "./",
   build: {
     rollupOptions: {
-      input: { game: "index.html", tracks: "tracks.html" },
+      input: { game: "index.html", tracks: "tracks.html", tower: "tower.html" },
       output: {
         manualChunks: (id: string) =>
           id.includes("/node_modules/three/") ? "three" : undefined,

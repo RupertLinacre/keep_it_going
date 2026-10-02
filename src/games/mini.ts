@@ -1,3 +1,4 @@
+import { StrengthTower } from "./strength-tower";
 import { rollFrame } from "./ride-roll";
 import { iceDeployment, drawIceIcicles } from './ice-icicles';
 import { drawAdventureFallback } from "./adventure-fallback";
@@ -39,6 +40,8 @@ export class Mini extends BaseGame {
   readonly physics: MiniPhysics;
   readonly carriages: MiniCarriages;
   view?: MiniView;
+  private tower?: StrengthTower;
+  private towerLap = 0;
   a = 3;
   b = 4;
   answer = "";
@@ -196,7 +199,9 @@ export class Mini extends BaseGame {
         this.powerups?.answered();
         this.answerFeedback = "correct";
         this.answerWasLift = this.liftingAnswers;
-        if (this.track instanceof HeightTrack && this.liftingAnswers) {
+        if (this.tower) {
+          this.tower.motion.answer();
+        } else if (this.track instanceof HeightTrack && this.liftingAnswers) {
           const rescue = this.remixMode ? skyLiftBoostEnergy(this.track, this.physics) : 0;
           if (this.physics.flight) this.pendingLifts++;
           else this.track.raise(this.physics.distance);
@@ -263,6 +268,24 @@ export class Mini extends BaseGame {
     this.flash = Math.max(0, this.flash - dt);
     if (this.ended) {
       this.carriages.update(dt, this.physics.distance, 0, false);
+      return;
+    }
+    const lap = Math.floor(this.physics.distance / 4200);
+    if (!this.tower && this.remixMode && lap > this.towerLap && this.view) {
+      this.towerLap = lap;
+      this.powerups?.finish(this.physics, this.carriages);
+      this.tower = new StrengthTower(this.host.stage, this.physics.velocity, this.cartCount);
+      this.host.sound("jump");
+    }
+    if (this.tower) {
+      const phase = this.tower.motion.phase;
+      this.tower.update(dt);
+      if (phase !== "celebrate" && this.tower.motion.phase === "celebrate") this.host.sound("win");
+      if (this.tower.motion.phase === "done") {
+        this.physics.velocity = this.tower.motion.exitSpeed;
+        this.tower.destroy(); this.tower = undefined;
+        this.hud();
+      }
       return;
     }
     this.track.ensure(this.physics.distance + this.physics.velocity * dt,
@@ -332,6 +355,7 @@ export class Mini extends BaseGame {
     }
   }
   draw(ctx: CanvasRenderingContext2D) {
+    if (this.tower) return;
     this.adventureHud?.render(this.track,this.physics.distance,this.elapsed);
     if (this.view) {
       ctx.clearRect(0, 0, 1100, 570);
@@ -536,6 +560,7 @@ export class Mini extends BaseGame {
     ctx.restore();
   }
   destroy() {
+    this.tower?.destroy();
     this.answerBadge?.remove();
     record(this.recordId, this.host.difficulty, this.score);
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
