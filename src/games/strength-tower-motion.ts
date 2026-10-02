@@ -8,7 +8,7 @@ export class StrengthTowerMotion {
   progress = 0;
   banked = 0;
   climbingAnswers = 0;
-  constructor(entrySpeed = 26) { this.speed = Math.max(22, Math.min(36, entrySpeed)); }
+  constructor(entrySpeed = 26, readonly approachLength=48, readonly exitLength=87.5) { this.speed = Math.max(22, Math.min(36, entrySpeed)); }
   answer() {
     if (this.phase === 'approach' || this.phase === 'climb') {
       this.speed += 9 / (1 + this.climbingAnswers * .12);
@@ -21,7 +21,7 @@ export class StrengthTowerMotion {
     for (let left = Math.min(.25, Math.max(0, dt)); left > 1e-8;) {
       const step = Math.min(left, 1 / 120); left -= step; this.time += step;
       if (this.phase === 'approach') {
-        this.progress = Math.min(1, this.progress + this.speed * step / 48);
+        this.progress = Math.min(1, this.progress + this.speed * step / this.approachLength);
         this.speed = Math.min(48, this.speed + 2 * step);
         if (this.progress >= 1) { this.phase = 'climb'; this.time = 0; }
       } else if (this.phase === 'climb') {
@@ -36,7 +36,7 @@ export class StrengthTowerMotion {
         this.height = Math.max(0, this.height - this.speed * step);
         if (!this.height) { this.phase = 'exit'; this.time = 0; this.progress = 0; }
       } else if (this.phase === 'exit') {
-        this.progress = Math.min(1, this.progress + step * .32);
+        this.progress = Math.min(1, this.progress + step * this.exitSpeed / this.exitLength);
         if (this.progress >= 1) this.phase = 'done';
       }
     }

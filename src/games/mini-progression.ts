@@ -23,6 +23,7 @@ export const CHALLENGES: readonly (readonly MiniKind[])[] = [
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  strengthtower: "SKY STRIKER",
   sheepbank: "SHEEP SHUFFLE", pondbridge: "LILY PAD BRIDGE", windmillloop: "WINDMILL LOOP",
   ravinebridge: "WATERFALL VIADUCT",
   midwayloop: "MARQUEE LOOP", carouselhelix: "CAROUSEL CLIMB",

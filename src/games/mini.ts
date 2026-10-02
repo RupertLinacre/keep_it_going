@@ -40,8 +40,8 @@ export class Mini extends BaseGame {
   readonly physics: MiniPhysics;
   readonly carriages: MiniCarriages;
   view?: MiniView;
-  private tower?: StrengthTower;
-  private towerLap = 0;
+  tower?: StrengthTower;
+  private completedTower = -1;
   a = 3;
   b = 4;
   answer = "";
@@ -80,7 +80,7 @@ export class Mini extends BaseGame {
   private answerWasLift = false;
   readonly recordId: "mini" | "height" | "remix";
   private pendingLifts = 0;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean } = {}) {
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean } = {}) {
     super(host);
     this.heightMode = !!options.heightMode && !options.multiplayer;
     this.remixMode = !!options.remixMode;
@@ -90,8 +90,8 @@ export class Mini extends BaseGame {
     this.personalBest = bestRide(host.difficulty, this.recordId);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
     this.track = this.heightMode || this.remixMode
-      ? new HeightTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer })
-      : new MiniTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer });
+      ? new HeightTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer, towerDemo: options.towerDemo })
+      : new MiniTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer, towerDemo: options.towerDemo });
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => rollFrame(this.physics.sample(distance), this.powerups?.roll ?? 0);
@@ -122,7 +122,10 @@ export class Mini extends BaseGame {
   get cartCount() {
     return this.carriages.coaches.length;
   }
-  get liftingAnswers() { return this.heightMode || this.powerups?.active === "lift"; }
+  get liftingAnswers() { return !this.tower && (this.heightMode || this.powerups?.active === "lift"); }
+  ridePoses(distance=this.physics.renderDistance,alpha=this.physics.renderAlpha) {
+    return this.tower ? this.carriages.coaches.map((coach,index)=>({coach,frame:this.tower!.pose(index)})) : this.carriages.poses(distance,alpha);
+  }
   next() {
     [this.a, this.b] = this.nextQuestion?.() ?? multiplication(this.host.difficulty);
     this.answer = "";
@@ -149,14 +152,14 @@ export class Mini extends BaseGame {
       const guide = this.host.stage.parentElement?.querySelector(".height-guide");
       if (guide) guide.textContent = this.ended ? "The ride stopped. Earn height earlier next time." : heightGuide(this.track, this.physics);
     }
-    if (this.ended) this.stalling = false;
+    if (this.ended || this.tower) this.stalling = false;
     else if (this.elapsed >= this.guideAt) {
       this.stalling = approachingStall(this.physics);
       this.guideAt = this.elapsed + 0.25;
     }
     this.host.stage.parentElement?.classList.toggle("needs-boost", this.stalling);
     const stats = [
-      { label: "SPEED", value: `${(this.physics.velocity * 3.6).toFixed(0)} km/h` },
+      { label: "SPEED", value: `${((this.tower?.motion.speed ?? this.physics.velocity) * 3.6).toFixed(0)} km/h` },
       { label: "DISTANCE", value: `${Math.floor(this.travelled)} m` },
       { label: "YOUR TRAIN", value: `${this.cartCount} ${this.cartCount === 1 ? "coach" : "coaches"}` },
       this.track instanceof HeightTrack
@@ -270,22 +273,28 @@ export class Mini extends BaseGame {
       this.carriages.update(dt, this.physics.distance, 0, false);
       return;
     }
-    const lap = Math.floor(this.physics.distance / 4200);
-    if (!this.tower && this.remixMode && lap > this.towerLap && this.view) {
-      this.towerLap = lap;
+    const section=this.track.sectionAt(this.physics.distance);
+    if (!this.tower && section.kind === "strengthtower" && section.id !== this.completedTower && !this.physics.flight) {
       this.powerups?.finish(this.physics, this.carriages);
-      this.tower = new StrengthTower(this.host.stage, this.physics.velocity, this.cartCount);
-      this.host.sound("jump");
+      this.pendingLifts=0;
+      // A waiting arrival cannot follow the scripted two-way junction. The
+      // normal catch-up system will send another coach after the bonus exit.
+      this.carriages.incoming=undefined;
+      this.tower = new StrengthTower(this.host.stage,this.track,section,this.physics.velocity,this.cartCount);
+      this.physics.relocate(section.start, this.physics.velocity);
+      this.panel();this.host.sound("jump");
     }
     if (this.tower) {
       const phase = this.tower.motion.phase;
       this.tower.update(dt);
       if (phase !== "celebrate" && this.tower.motion.phase === "celebrate") this.host.sound("win");
       if (this.tower.motion.phase === "done") {
-        this.physics.velocity = this.tower.motion.exitSpeed;
-        this.tower.destroy(); this.tower = undefined;
-        this.hud();
+        this.completedTower=this.tower.section.id;
+        this.physics.relocate(this.tower.exitDistance,this.tower.motion.exitSpeed);
+        for(const coach of this.carriages.coaches){coach.lift=0;coach.previousLift=0;coach.liftVelocity=0;}
+        this.tower.destroy(); this.tower = undefined;this.panel();
       }
+      this.hud();
       return;
     }
     this.track.ensure(this.physics.distance + this.physics.velocity * dt,
@@ -314,7 +323,7 @@ export class Mini extends BaseGame {
     this.physics.update(dt, (step) => {
       shed = this.carriages.update(step, this.physics.distance, this.physics.velocity) || shed;
       this.longestTrain = Math.max(this.longestTrain, this.cartCount);
-      if (this.physics.crashed || this.physics.held) {
+      if (this.physics.crashed || (this.physics.held && this.track.sectionAt(this.physics.distance).kind!=="strengthtower")) {
         this.endRide(this.physics.crashed);
         return false;
       }
@@ -355,8 +364,7 @@ export class Mini extends BaseGame {
     }
   }
   draw(ctx: CanvasRenderingContext2D) {
-    if (this.tower) return;
-    this.adventureHud?.render(this.track,this.physics.distance,this.elapsed);
+    this.adventureHud?.render(this.track,this.physics.distance,this.elapsed,!!this.tower);
     if (this.view) {
       ctx.clearRect(0, 0, 1100, 570);
       this.view.render(
@@ -371,6 +379,7 @@ export class Mini extends BaseGame {
         this.opponent?.sample(),
         this.powerups,
         this.opponent?.track,
+        this.tower,
       );
     } else if (this.opponent) drawRaceFallback(this, ctx);
     else this.fallback(ctx);

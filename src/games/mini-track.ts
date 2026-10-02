@@ -1,4 +1,4 @@
-import { adventureAt, WORLD_ENCORES } from "./adventure-worlds";
+import { adventureAt, WORLD_ENCORES, WORLDS, WORLD_LAP } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import { clamp } from "../math";
@@ -7,7 +7,7 @@ import { specialElement, type SpecialKind } from "./mini-elements";
 import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
-  "station" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
   | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
   | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
@@ -302,6 +302,10 @@ export class MiniSection implements MiniRail {
 /** Shared piece factory for the game and the track gallery. */
 export function createMiniSection(kind: MiniKind, start: number, origin: THREE.Vector3,
   generated: number, random: () => number, varied = false, multiplayer = false): MiniSection {
+    // The bonus controller supplies the uncapped vertical excursion. This
+    // finite route connector reserves its entrance and exit in the real course.
+    // Its fixed footprint does not grow with difficulty or consume random picks.
+    if (kind === "strengthtower") return new MiniSection(generated, kind, start, origin, 100, 0, 0, 1);
     const r = (min: number, max: number) => min + random() * (max - min);
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
@@ -428,7 +432,8 @@ export class MiniTrack implements MiniRail {
   private bag: MiniKind[] = [];
   private bags = 0;
   private bagWorld = -1;
-  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean } = {}) {
+  private nextTowerLap = 1;
+  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean; towerDemo?: boolean } = {}) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
     // Retain real rail behind the six coaches on the opening hill.
@@ -445,10 +450,11 @@ export class MiniTrack implements MiniRail {
       ),
     );
     const firstHill = new MiniSection(-1, "firsthill", 0, new THREE.Vector3(0, 4, 0),
-      options.generative ? 80 + this.random()*28 : 90, options.generative ? 22 + this.random()*6 : 22, 0, 1);
+      options.towerDemo ? 60 : options.generative ? 80 + this.random()*28 : 90, options.towerDemo ? 8 : options.generative ? 22 + this.random()*6 : 22, 0, 1);
     this.sections.push(firstHill);
     // Just over the broad crest: a gentle roll immediately gains speed from gravity.
     this.startDistance = firstHill.start + firstHill.length / 2 + 2;
+    if(options.towerDemo){this.append("strengthtower");this.append("station");this.ensure(this.startDistance);return;}
     this.append("station");
     if (options.generative) {
       const gentle: MiniKind[] = ["hill", "dip", "heartline", "corkscrew", "waveturn"];
@@ -480,7 +486,17 @@ export class MiniTrack implements MiniRail {
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
-      const adventure = adventureAt(this.end);
+      // Finish the current element before adding the four-world finale. In
+      // particular, never splice a tower through a loop or a water jump.
+      // Scheduling precedes the next world's bag so its signature tour follows
+      // the bonus exit, and pruning cannot make a completed finale reappear.
+      if (this.options.generative && this.end >= this.nextTowerLap * WORLD_LAP) {
+        this.append("strengthtower");
+        this.nextTowerLap++;
+        this.prune(distance);
+        continue;
+      }
+      const adventure = this.options.towerDemo ? {...adventureAt(this.end),world:WORLDS[2],stage:2} : adventureAt(this.end);
       const newWorld = this.options.generative && this.bagWorld !== adventure.stage;
       if (newWorld) {
         this.bag = []; this.bagWorld = adventure.stage;

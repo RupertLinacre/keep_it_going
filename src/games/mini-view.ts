@@ -1,10 +1,12 @@
+import { StrengthTowerAttraction } from "./strength-tower-attraction";
+import type { StrengthTower } from "./strength-tower";
 import { LoopFireworks } from "./loop-fireworks";
 import { gravityRoll, rollFrame, rollShader } from "./ride-roll";
 import { iceDeployment, ICICLES } from './ice-icicles';
 import { AdventureScene } from "./adventure-scene";
-import { adventureAt } from "./adventure-worlds";
+import { adventureAt, WORLDS } from "./adventure-worlds";
 import { sailDeployment } from "./tailwind-sails";
-import { groundBounds, RaceSpacing } from "./mini-world";
+import { groundBounds, RaceSpacing, sectionAnchorY } from "./mini-world";
 import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
 import * as THREE from "three";
 import { mergeStaticMeshes, railGeometries, refreshRails } from "./mini-mesh";
@@ -29,9 +31,9 @@ import type { RideState } from "../multiplayer/protocol";
 import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming } from "./mini-camera";
 import { DOWNHILL_TILT, tiltPoint } from "./mini-tilt";
 import { scenePixelRatio } from "./render-resolution";
+import { CART_COLORS, createMiniCar, createMiniParcel } from "./train-model";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
-const CART_COLORS = ["#e5ef93", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987", "#a8dac7"].map(c => new THREE.Color(c));
 
 /** A fixed-horizon, orthographic model railway view. The camera never rides the train. */
 export class MiniView {
@@ -140,9 +142,9 @@ export class MiniView {
     }
     this.scene.add(this.board);
     // Instance each material batch, so adding coaches does not add draw calls.
-    this.trainParts = this.instanceModel(this.car("#ffffff"), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
-    this.wagonParts = this.instanceModel(this.car("#ffffff", true), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
-    this.parcelParts = this.instanceModel(this.parcel(), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
+    this.trainParts = this.instanceModel(createMiniCar("#ffffff", false, (geometry, color) => this.mesh(geometry, color)), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
+    this.wagonParts = this.instanceModel(createMiniCar("#ffffff", true, (geometry, color) => this.mesh(geometry, color)), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
+    this.parcelParts = this.instanceModel(createMiniParcel((geometry, color) => this.mesh(geometry, color)), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
     this.train.push(...[...this.trainParts, ...this.wagonParts].map(part => part.mesh));
     this.couplings = this.instances(new THREE.CylinderGeometry(0.085, 0.085, 1, 6), "#ffffff", 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS));
     this.debris = this.instances(new THREE.BoxGeometry(1, 1, 1), "#ffffff", 2 * MINI_MAX_EXPLOSIONS * MINI_EXPLOSION_PARTICLES);
@@ -297,64 +299,6 @@ export class MiniView {
     }
     return group;
   }
-  private car(color: string, open = false) {
-    const group = new THREE.Group();
-    const board = this.mesh(new THREE.BoxGeometry(1.45, 0.25, 2.1), "#6f8e89");
-    board.position.y = 0.26;
-    group.add(board);
-    if (open) {
-      for (const x of [-0.62, 0.62]) {
-        const wall = this.mesh(new THREE.BoxGeometry(0.16, 0.58, 2.02), color);
-        wall.position.set(x, 0.66, 0); group.add(wall);
-        const rim = this.mesh(new THREE.BoxGeometry(0.2, 0.08, 2.06), "#fff0ca");
-        rim.position.set(x, 0.98, 0); group.add(rim);
-      }
-      for (const z of [-0.95, 0.95]) {
-        const wall = this.mesh(new THREE.BoxGeometry(1.1, 0.58, 0.16), color);
-        wall.position.set(0, 0.66, z); group.add(wall);
-      }
-    } else {
-      const cube = new THREE.BoxGeometry(0.7, 0.52, 0.52);
-      for (let row = 0; row < 2; row++)
-        for (let col = 0; col < 3; col++) {
-          const block = this.mesh(cube, color);
-          block.position.set(0, 0.64 + row * 0.56, (col - 1) * 0.57);
-          group.add(block);
-        }
-    }
-    for (const x of [-0.6, 0.6])
-      for (const z of [-0.68, 0.68]) {
-        const wheel = this.mesh(
-          new THREE.CylinderGeometry(0.22, 0.22, 0.18, 12),
-          "#536b73",
-        );
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(x, 0.12, z);
-        group.add(wheel);
-      }
-    if (!open) for (const z of [-0.22, 0.22]) {
-      const eye = this.mesh(new THREE.SphereGeometry(0.2, 10, 8), "#fffef7");
-      eye.scale.set(0.4, 1.2, 0.8);
-      eye.position.set(0.4, 1.1, z);
-      group.add(eye);
-      const pupil = this.mesh(new THREE.SphereGeometry(0.067, 8, 6), "#3b465a");
-      pupil.position.set(0.49, 1.09, z - 0.025);
-      group.add(pupil);
-    }
-    if (!open) {
-      const roof = this.mesh(new THREE.BoxGeometry(0.84, 0.12, 1.9), "#fff0ca");
-      roof.position.y = 1.57;
-      group.add(roof);
-    }
-    return group;
-  }
-  private parcel() {
-    const group = new THREE.Group();
-    group.add(this.mesh(new THREE.BoxGeometry(0.68, 0.68, 0.68), "#c89560"));
-    group.add(this.mesh(new THREE.BoxGeometry(0.12, 0.69, 0.69), "#f9e8b9"));
-    group.add(this.mesh(new THREE.BoxGeometry(0.69, 0.69, 0.12), "#f9e8b9"));
-    return group;
-  }
   private dynamite() {
     const group = new THREE.Group();
     for (const x of [-.2, 0, .2]) {
@@ -368,6 +312,11 @@ export class MiniView {
     return group;
   }
   private build(section: MiniSection, rival = false) {
+    if(section.kind === "strengthtower") {
+      const attraction=new StrengthTowerAttraction(),group=attraction.group;
+      group.userData.section=section;group.userData.towerAttraction=attraction;
+      (rival?this.opponentPieces:this.pieces).set(section.id,group);this.scene.add(group);return;
+    }
     const group = new THREE.Group();
     group.userData.section = section;
     const dynamic = this.track instanceof HeightTrack;
@@ -556,6 +505,7 @@ export class MiniView {
     this.scene.add(group);
   }
   private release(group: THREE.Object3D, disposeGeometry = true) {
+    if(group.userData.towerAttraction){group.userData.towerAttraction.destroy();return;}
     const geometries = new Set<THREE.BufferGeometry>();
     group.traverse((object) => {
       if (object instanceof THREE.Mesh) geometries.add(object.geometry);
@@ -576,8 +526,9 @@ export class MiniView {
     opponent?: RideState,
     powerups?: RidePowerups,
     opponentTrack?: MiniTrack,
+    tower?: StrengthTower,
   ) {
-    const flights = effects?.flights ?? [], parcels = effects?.parcels ?? [], explosions = effects?.explosions ?? [];
+    const flights = tower ? [] : effects?.flights ?? [], parcels = tower ? [] : effects?.parcels ?? [], explosions = tower ? [] : effects?.explosions ?? [];
     const dt = clamp(time - this.lastTime, 0, 0.05) || 1 / 60;
     this.lastTime = time;
     const state = `${distance}:${velocity}:${flash}:${close}:${cartCount}:${this.track.generated}:${effects?.spilled}:${effects?.refills}:${time}:${flights.map(c => c.age)}:${parcels.map(p => p.age + p.groundedFor)}:${explosions.map(e => e.age)}`;
@@ -596,7 +547,7 @@ export class MiniView {
     const lane = (position: THREE.Vector3, rival = false) => lanePosition(position, this.multiplayer ? this.laneOffset : 0, rival);
     this.rollUniforms[0].value=powerups?.roll??0;
     this.rollUniforms[1].value=gravityRoll(opponent?.power?.active,opponent?.power?.age??0,opponent?.power?.remaining??0);
-    const poses = effects?.poses(distance, alpha);
+    const poses = tower ? effects?.coaches.map((coach,index)=>({coach,frame:tower.pose(index)})) : effects?.poses(distance, alpha);
     const f = poses?.[0]?.frame ?? this.track.sample(distance),
       anchor = Math.floor(f.position.x / 25) * 25;
     for (const section of visibleSections) {
@@ -605,9 +556,14 @@ export class MiniView {
       if (!this.pieces.has(section.id)) this.build(section);
       const piece = this.pieces.get(section.id)!;
       piece.userData.refresh?.();
-      if (piece.position.x !== section.origin.x - anchor || piece.position.y !== section.origin.y || piece.position.z !== section.origin.z + this.laneOffset) {
-        piece.position.set(section.origin.x - anchor, section.origin.y, section.origin.z + this.laneOffset);
+      const anchorY=sectionAnchorY(section);
+      if (piece.position.x !== section.origin.x - anchor || piece.position.y !== anchorY || piece.position.z !== section.origin.z + this.laneOffset) {
+        piece.position.set(section.origin.x - anchor, anchorY, section.origin.z + this.laneOffset);
         piece.updateMatrix();
+      }
+      if(piece.userData.towerAttraction){
+        piece.userData.towerAttraction.setExitRise(section.sample(section.end).position.y-section.sample(section.start).position.y);
+        piece.userData.towerAttraction.update(time,f.position.clone().sub(section.sample(section.start).position),tower?.section.id===section.id?tower:undefined);
       }
       if (this.multiplayer) {
         const remoteSection = opponentTrack?.sections.find(s => s.id === section.id) ?? section;
@@ -619,8 +575,13 @@ export class MiniView {
         const mirrored = this.opponentPieces.get(section.id)!;
         mirrored.userData.refresh?.();
         mirrored.scale.z = -1;
-        mirrored.position.set(remoteSection.origin.x - anchor, remoteSection.origin.y, -remoteSection.origin.z - this.laneOffset);
+        mirrored.position.set(remoteSection.origin.x - anchor, sectionAnchorY(remoteSection), -remoteSection.origin.z - this.laneOffset);
         mirrored.updateMatrix();
+        if(mirrored.userData.towerAttraction){
+          const remote=opponent?.bodies[0],p=remote?new THREE.Vector3(...remote.position).sub(remoteSection.sample(remoteSection.start).position):new THREE.Vector3();
+          mirrored.userData.towerAttraction.setExitRise(remoteSection.sample(remoteSection.end).position.y-remoteSection.sample(remoteSection.start).position.y);
+          mirrored.userData.towerAttraction.update(time,p,undefined,remote?Math.max(0,p.y-8):0);
+        }
       }
     }
     // Frame taller hills from the side. Fade the influence of approaching
@@ -681,6 +642,12 @@ export class MiniView {
     this.scene.updateMatrix();
     this.boardInlay.visible = tilt > .0001;
     (this.boardInlay.material as THREE.MeshStandardMaterial).opacity = .65 * tilt / DOWNHILL_TILT;
+    if(tower){
+      const blend=tower.cameraBlend,target=lane(f.position).add(new THREE.Vector3(0,3,0));
+      if(tower.motion.phase!=="approach"&&tower.motion.phase!=="exit")target.y=tower.origin.y+8+tower.motion.height-tower.trainLength/2+3;
+      this.cameraRig.focus.lerp(target,blend);
+      this.cameraRig.height=THREE.MathUtils.lerp(this.cameraRig.height,Math.max(this.compactLayout.matches?34:30,tower.trainLength+18),blend);
+    }
     const height = this.cameraRig.height;
     const focus = this.cameraRig.focus.clone();
     focus.x -= anchor;
@@ -691,7 +658,7 @@ export class MiniView {
     this.camera.bottom = -height / 2;
     this.camera.far = cameraDistance + height * 3 + 220;
     this.camera.updateProjectionMatrix();
-    this.camera.position.copy(focus).addScaledVector(MINI_CAMERA_DIRECTION, cameraDistance);
+    this.camera.position.copy(focus).addScaledVector(MINI_CAMERA_DIRECTION.clone().lerp(new THREE.Vector3(0,0,1),tower?.cameraBlend??0).normalize(), cameraDistance);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(focus);
     this.camera.updateMatrixWorld(true);
@@ -884,10 +851,11 @@ export class MiniView {
       if (!this.track.options.generative) this.material("#d5e3c3").color.lerp(new THREE.Color(active === "reverse" ? "#dcd6e7" : active === "heavy" ? "#e2d2bc" : "#d5e3c3"), blend);
     }
     if (this.track.options.generative) {
-      const world = adventureAt(Math.max(0,this.track.sectionAt(distance).start)).world;
+      const towerNearby=this.track.sections.some(s=>s.kind==='strengthtower'&&distance>=s.start-45&&distance<=s.end);
+      const world = tower||towerNearby||this.track.options.towerDemo?WORLDS[2]:adventureAt(Math.max(0,this.track.sectionAt(distance).start)).world;
       this.fireworks ??= new LoopFireworks(this.scene);
       this.fireworks.update(this.track,distance,time,anchor,this.laneOffset,opponent?.distance,opponentTrack,this.reducedMotion.matches,this.renderer.getPixelRatio());
-      this.adventureScene ??= new AdventureScene(this.scene);
+      this.adventureScene ??= new AdventureScene(this.scene,this.track.options.towerDemo?{world:WORLDS[2]}:{});
       this.adventureScene.render(this.track,distance,anchor,this.laneOffset,time,opponent?.distance,
         effects?.gravity??9.81,opponent?.power?.active==='reverse'?-19.62:opponent?.power?.active==='heavy'?29.43:9.81,opponentTrack);
       const blend=1-Math.exp(-dt*1.5), dark=world.darkness;
@@ -952,6 +920,7 @@ export class MiniView {
     }
   }
   destroy() {
+    for(const group of [...this.pieces.values(),...this.opponentPieces.values()])if(group.userData.towerAttraction)group.userData.towerAttraction.destroy();
     this.resize.disconnect();
     this.adventureScene?.destroy();
     this.fireworks?.destroy();

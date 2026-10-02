@@ -161,6 +161,10 @@ export class MiniPhysics {
     this.previousDistance = this.distance;
     this.velocity = this.options.initialSpeed;
   }
+  /** Resume from a scripted rail segment without a stale interpolation or flight. */
+  relocate(distance:number,speed:number) {
+    this.distance=this.previousDistance=distance;this.velocity=speed;this.flight=undefined;this.traces=[];this.accumulator=0;
+  }
   get held() {
     return this.velocity === 0;
   }

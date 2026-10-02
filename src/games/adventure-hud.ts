@@ -13,8 +13,11 @@ export class AdventureHud {
     this.announcement.setAttribute("role", "status");
     host.append(this.element, this.announcement);
   }
-  render(track: MiniTrack, distance: number, time: number) {
-    const {world,index,stage,lap}=adventureAt(Math.max(0,track.sectionAt(distance).start));
+  render(track: MiniTrack, distance: number, time: number, inTower = false) {
+    const section=track.sectionAt(distance),journey=adventureAt(Math.max(0,section.start));
+    const {lap}=journey;
+    const bonus=inTower||section.kind==="strengthtower"||track.options.towerDemo;
+    const world=bonus?WORLDS[2]:journey.world,index=bonus?2:journey.index,stage=bonus?100000+journey.lap:journey.stage;
     if(stage!==this.stage) {
       this.stage=stage;this.entered=time;
       this.element.querySelector('.world-symbol')!.textContent=world.icon;

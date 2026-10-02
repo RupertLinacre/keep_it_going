@@ -1,14 +1,33 @@
 import { Box3, Vector3 } from "three";
 import type { MiniSection, MiniTrack } from "./mini-track";
+import { towerEntrance, towerExit } from "./strength-tower-rail";
 
 const bounds = new WeakMap<MiniSection, Box3>();
 const revisions = new WeakMap<MiniSection, number>();
+// The tower's logical connector is flat, while its actual two-way junction
+// bends inward by fourteen metres. Reserve its physical rail gauge as well.
+const towerFootprint = new Box3().setFromPoints([
+  ...towerEntrance.getPoints(160), ...towerExit.getPoints(160),
+]).expandByScalar(.8);
+
+/** Ordinary rails bake their lift into vertices; the tower is a rigid scene
+ * child anchored to its raised entrance, with its exit warped separately. */
+export const sectionAnchorY = (section: MiniSection) =>
+  section.kind === "strengthtower" ? section.frames[0].position.y : section.origin.y;
+
 /** Immutable geometry bounds, cached once per section rather than scanned per frame. */
 export function sectionBounds(section: MiniSection) {
   let box = bounds.get(section);
   if (!box || revisions.get(section) !== section.revision) {
     box = new Box3();
     for (const frame of section.frames) box.expandByPoint(frame.position);
+    if (section.kind === "strengthtower") {
+      const entrance = section.frames[0].position, exit = section.frames.at(-1)!.position;
+      const actual = towerFootprint.clone().translate(entrance);
+      actual.min.y += Math.min(0, exit.y - entrance.y);
+      actual.max.y += Math.max(0, exit.y - entrance.y);
+      box.union(actual);
+    }
     bounds.set(section, box);
     revisions.set(section, section.revision);
   }

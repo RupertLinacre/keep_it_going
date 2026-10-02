@@ -19,6 +19,7 @@ import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  strengthtower: "A Starlight Carnival finale: climb for a height score, turn around, and return through the switch. Play it at tower.html.",
   sheepbank: "Sheep graze on three gentle crests, then leap safely onto the banks as your train approaches.",
   pondbridge: "A curving timber bridge climbs gently above a pond of lilies and ducks.",
   windmillloop: "A complete loop curls around the turning sails of a giant meadow windmill.",
@@ -74,7 +75,8 @@ const descriptions: Record<MiniKind, string> = {
     "A fantasy element: a smaller complete inversion tucked into the crown of a giant loop.",
 };
 const signatures = WORLDS.flatMap(w=>w.pieces);
-const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>!signatures.includes(k))];
+// The tower has a two-way, unlimited route; its playable preview is tower.html.
+const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>k!=="strengthtower"&&!signatures.includes(k))];
 let collection = new URLSearchParams(location.search).get("world") ?? "all";
 if (!WORLDS.some(w=>w.id===collection)) collection="all";
 const shownKinds = () => collection === "all" ? kinds : [...WORLDS.find(w=>w.id===collection)!.pieces];

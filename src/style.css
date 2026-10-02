@@ -1207,37 +1207,23 @@ kbd {
   }
 }
 
-/* The strength-tester is a bonus, not a normal stall. */
-.strength-tower { position:absolute; inset:0; z-index:7; overflow:hidden; color:#fff5d5; background:#162b49; }
-.strength-tower canvas { display:block; width:100%; height:100%; }
-.tower-heading { position:absolute; top:20px; left:24px; pointer-events:none; text-shadow:0 2px 12px #162b49; }
-.tower-heading small { color:#9de8df; font-size:10px; letter-spacing:2px; font-weight:800; }
-.tower-heading h2 { color:#ffe491; font-size:38px; margin:4px 0; }
-.tower-heading p { font-size:13px; margin:0; }
-.tower-meter { position:absolute; right:20px; top:20px; padding:12px 20px; border:1px solid #ffe49155; border-radius:18px; background:#112036dc; text-align:center; }
-.tower-meter small,.tower-meter span { display:block; font-size:10px; letter-spacing:1px; color:#abdddf; }
-.tower-meter strong { display:block; font:800 40px Outfit,sans-serif; font-variant-numeric:tabular-nums; color:#ffe491; }
-.tower-foot { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:#112036dd; border-radius:30px; padding:9px 18px; font-size:12px; white-space:nowrap; }
-.tower-celebration { position:absolute; left:50%; top:45%; transform:translate(-50%,-50%); text-align:center; background:#172541ed; border:2px solid #ffe491; border-radius:26px; padding:22px 42px; box-shadow:0 0 65px #ffca4d45; white-space:nowrap; }
-.tower-celebration small,.tower-celebration span { display:block; }
-.tower-celebration small { color:#b2f9dc; font-weight:800; letter-spacing:2px; font-size:12px; }
-.tower-celebration strong { display:block; font:800 88px Outfit,sans-serif; color:#ffe491; line-height:1.25; }
-.tower-demo { width:100%; max-width:1450px; margin:auto; padding:16px; }
-.tower-demo header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:12px; }
-.tower-demo header img { width:180px; }
-.tower-demo header a { color:#42695e; }
-.tower-demo .game-stage { height:calc(100svh - 200px); min-height:370px; border-radius:20px; }
-.tower-demo-panel { display:flex; justify-content:center; align-items:center; gap:20px; padding:16px; }
-.tower-demo-panel h2 { margin:0; font-size:30px; }
-.tower-demo input { width:100px; padding:10px; border:2px solid #adccb2; border-radius:12px; font:700 25px Outfit,sans-serif; text-align:center; }
-.tower-demo button { padding:10px 16px; border:1px solid #b0c7a0; background:#dfedb6; border-radius:12px; color:#284c40; font:600 15px Outfit,sans-serif; cursor:pointer; }
-.tower-demo-note { margin:0;text-align:center;font-size:12px;color:#638278; }
-@media(max-width:800px) {
- .tower-heading { top:14px; left:12px; } .tower-heading small {font-size:8px;letter-spacing:1px} .tower-heading h2 {font-size:25px} .tower-heading p {font-size:10px;max-width:170px}
- .tower-meter {top:12px;right:10px;padding:8px 12px} .tower-meter strong {font-size:30px} .tower-meter small,.tower-meter span {font-size:8px}
- .tower-celebration {padding:18px 24px} .tower-celebration strong {font-size:68px} .tower-celebration span {font-size:12px}
- .tower-demo {padding:8px} .tower-demo header img {width:140px} .tower-demo .game-stage {height:calc(100svh - 220px)}
- .tower-demo-panel {gap:10px;padding:12px 0} .tower-demo-panel h2 {font-size:22px} .tower-demo input {width:72px} .tower-demo-note {font-size:11px}
+/* Carnival bonus: the scene stays in the game; only a score badge floats above it. */
+.tower-hud { position:absolute; inset:0; z-index:5; pointer-events:none; }
+.tower-height { position:absolute; top:16px; right:16px; background:#fff9ebeF; color:#37594d; padding:10px 16px; border-radius:16px; text-align:center; box-shadow:0 3px 20px #17213d18; }
+.tower-height span { display:block; font-size:9px; font-weight:800; letter-spacing:1.4px; color:#887888; }
+.tower-height strong { display:block; font:700 35px Outfit,sans-serif; font-variant-numeric:tabular-nums; }
+.tower-height small { display:block; font-size:10px; }
+.tower-result { position:absolute; top:43%; left:50%; transform:translate(-50%,-50%); min-width:220px; padding:22px 36px; border-radius:24px; background:#fff9ebf0; text-align:center; color:#37594d; border:1px solid #ffffffba; box-shadow:0 6px 35px #21374725; }
+.tower-result span { font-size:11px; font-weight:800; letter-spacing:1.6px; color:#997c99; }
+.tower-result strong { display:block; font:800 74px Outfit,sans-serif; color:#66527e; }
+.tower-result p { margin:0; font-size:14px; }
+.tower-demo-logo { display:block; width:190px; }
+.tower-retry { border:1px solid #d1ddc5; border-radius:12px; background:#e6eecf; color:#42695e; padding:10px 14px; font:600 14px Outfit,sans-serif; cursor:pointer; }
+@media(max-width:800px),(hover:none) and (pointer:coarse) {
+ .tower-height { top:10px; right:10px; padding:7px 12px; border-radius:12px; }
+ .tower-height strong {font-size:28px} .tower-height span {font-size:8px} .tower-height small {font-size:9px}
+ .tower-result {min-width:190px;padding:18px 24px} .tower-result strong {font-size:62px}
+ .tower-demo-logo {width:135px} .tower-retry {font-size:12px;padding:8px 10px}
 }
 
-#app:has(.tower-demo) { display:block; height:auto; min-height:100svh; padding-bottom:0; }
+.tiny-utility:has(.tower-retry) > a { margin-right:auto; }

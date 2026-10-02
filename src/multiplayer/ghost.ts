@@ -21,35 +21,41 @@ const entityId = (entity: object, prefix: string) => {
 };
 export function snapshotRide(game: Mini, seq: number): RideState {
   const distance = game.physics.renderDistance;
+  const tower = !!game.tower;
+  const poses = game.ridePoses?.(distance, game.physics.renderAlpha)
+    ?? game.carriages.poses(distance, game.physics.renderAlpha);
   const incoming = game.carriages.incoming;
   const closing = incoming ? Math.min(2 + game.physics.velocity * .7,
     Math.max(0, incoming.offset - game.carriages.coaches.at(-1)!.offset - MINI_CART_SPACING) * 5) : 0;
   return {
-    seq, time: game.elapsed, distance: game.physics.distance, speed: game.ended ? 0 : game.physics.velocity,
+    seq, time: game.elapsed, distance: game.physics.distance, speed: game.ended || tower ? 0 : game.physics.velocity,
     correct: game.correct, ended: game.ended,
     ...(game.powerups ? { power: game.powerups.snapshot() } : {}),
-    ...(game.track instanceof HeightTrack ? { heights: game.track.snapshot(!game.physics.flight && !game.ended) } : {}),
+    ...(game.track instanceof HeightTrack ? { heights: game.track.snapshot(!tower && !game.physics.flight && !game.ended) } : {}),
     bodies: [
-      ...game.carriages.poses(distance, game.physics.renderAlpha).map(({ coach, frame }): Body => ({
+      ...poses.map(({ coach, frame }): Body => ({
         id: `coach-${coach.id}`, color: coach.id, cargo: coach.cargo, cargoAge: coach.cargoAge,
         bombs: (coach.dynamite ?? 0) & ((1 << coach.cargo)-1),
         position: frame.position.toArray(), rotation: frame.rotation.toArray(),
-        velocity: frame.tangent.clone().multiplyScalar(game.physics.velocity + (coach === incoming ? closing : 0)).add(new Vector3(0, coach.liftVelocity, 0)).toArray(),
-        ...(!game.physics.sample(game.track.followerDistance(distance, coach.offset)).airborne ? { rail: {
+        // Tower motion follows its own guided climb/turn/descent. Without a
+        // rail or velocity hint the peer interpolates the actual poses, then
+        // holds the last pose instead of predicting along the ground or falling.
+        ...(!tower ? { velocity: frame.tangent.clone().multiplyScalar(game.physics.velocity + (coach === incoming ? closing : 0)).add(new Vector3(0, coach.liftVelocity, 0)).toArray() } : {}),
+        ...(!tower && !game.physics.sample(game.track.followerDistance(distance, coach.offset)).airborne ? { rail: {
           distance: game.track.followerDistance(distance, coach.offset), speed: game.physics.velocity + (coach === incoming ? closing : 0),
           lift: coach.previousLift + (coach.lift - coach.previousLift) * game.physics.renderAlpha,
           liftSpeed: coach.liftVelocity, coupled: coach !== game.carriages.incoming,
         } } : {}),
       })),
-      ...game.carriages.flights.map((cart): Body => ({ id: entityId(cart, "flight"), color: cart.colorIndex,
+      ...(tower ? [] : game.carriages.flights).map((cart): Body => ({ id: entityId(cart, "flight"), color: cart.colorIndex,
         velocity: cart.velocity.toArray(), spin: cart.angularVelocity.toArray(), cargo: cart.cargo, cargoAge: 1, position: cart.position.toArray(), rotation: cart.rotation.toArray() })),
     ],
-    impacts: game.carriages.explosions.map(e => ({ id: impactId(e),
+    impacts: (tower ? [] : game.carriages.explosions).map(e => ({ id: impactId(e),
       position: e.position.toArray(), age: e.age, color: e.colorIndex, water: !!e.water,
       dynamite: !!e.dynamite, ...(e.flood ? { flood: { rotation: e.flood.rotation.toArray(), strength: e.flood.strength } } : {}),
       particles: e.particles.map(p => ({ position: p.position.toArray(), size: p.size })) })),
-    parcels: game.carriages.parcels.map(p => ({ id: entityId(p, "parcel"), dynamite: !!p.dynamite, velocity: p.velocity.toArray(), spin: p.angularVelocity.toArray(), position: p.position.toArray(), rotation: p.rotation.toArray() })),
-    links: game.carriages.links(distance).map(link => ({ start: link.start.toArray(), end: link.end.toArray(), stress: link.stress })),
+    parcels: (tower ? [] : game.carriages.parcels).map(p => ({ id: entityId(p, "parcel"), dynamite: !!p.dynamite, velocity: p.velocity.toArray(), spin: p.angularVelocity.toArray(), position: p.position.toArray(), rotation: p.rotation.toArray() })),
+    links: game.carriages.links(distance, poses).map(link => ({ start: link.start.toArray(), end: link.end.toArray(), stress: link.stress })),
   };
 }
 

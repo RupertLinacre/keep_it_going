@@ -13,7 +13,7 @@ import { halloweenScenery, pumpkinHops, witchHat, witchHatCenter, ghostModel, ba
 import { nightScenery, lanternParade, marqueeLoop, carouselClimb, carouselCenter, carouselRotation, carouselModel, gondolaModel, tracksideLights } from "./world-night";
 import { mountainScenery, mountainRidge, tunnelModel, ravineBridge } from "./world-mountains";
 import * as T from "three";
-import { adventureAt, type AdventureWorld } from "./adventure-worlds";
+import { adventureAt, WORLDS, type AdventureWorld } from "./adventure-worlds";
 import { WorldModel, WORLD_SHAPES as G } from "./world-models";
 import { sectionBounds } from "./mini-world";
 import { seededRandom } from "./mini-rail";
@@ -112,7 +112,7 @@ export class AdventureScene {
   private build(section: MiniSection, track: MiniTrack): Tile {
     const model = new WorldModel(true), actors: Actor[] = [];
     const placePumpkin=(x:number,y:number,z:number,size:number)=>actors.push({kind:'pumpkin',x,y,z,size,phase:x*.7+z*.3,onTrack:true});
-    const world = this.options.world ?? adventureAt(Math.max(0, section.start)).world;
+    const world = section.kind === "strengthtower" ? WORLDS[2] : this.options.world ?? adventureAt(Math.max(0, section.start)).world;
     const random = seededRandom((track.seed ^ Math.imul(section.id + 17, 17041)) >>> 0);
     const bounds = sectionBounds(section);
     const back = -Math.max(10,Math.abs(bounds.min.z-section.origin.z),Math.abs(bounds.max.z-section.origin.z))-12;
@@ -122,7 +122,7 @@ export class AdventureScene {
     // Keeping bays at least 28m apart prevents large props from crowding each
     // other. Short pieces still get cheap distant terrain, so even several
     // narrow loops/connectors in a row cannot leave a hole in the backdrop.
-    const n = Math.min(12, Math.floor(span / 28));
+    const n = section.kind === "strengthtower" ? 0 : Math.min(12, Math.floor(span / 28));
     if (!n && !this.options.attractionsOnly) {
       const terrain = { meadow: meadowTerrain, mountain: mountainTerrain, night: nightTerrain, halloween: halloweenTerrain };
       terrain[world.id](model, span / 2, back, random);

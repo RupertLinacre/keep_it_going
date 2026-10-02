@@ -13,7 +13,7 @@ export function mountGame(
   root: HTMLElement,
   difficulty: Difficulty,
   restart: () => void,
-  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; seed?: number } = {},
+  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; seed?: number } = {},
 ): () => void {
   const controller = new AbortController();
   let disposed = false;
@@ -218,7 +218,7 @@ export function mountGame(
   }
 
   try {
-    game = new Mini(host, settings.round?.seed ?? settings.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed ?? (settings.seed === undefined ? undefined : settings.seed ^ 0x517ab1e), multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode, remixMode: settings.remixMode });
+    game = new Mini(host, settings.round?.seed ?? settings.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed ?? (settings.seed === undefined ? undefined : settings.seed ^ 0x517ab1e), multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode, remixMode: settings.remixMode, towerDemo: settings.towerDemo });
     game.opponent = ghost;
     ghost?.configure(game.track, network?.opponentDifficulty ?? "normal");
     if (network) { ghost!.push(snapshotRide(game, 0)); syncRaceOverlay(); network.ready(); }
