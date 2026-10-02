@@ -1,7 +1,7 @@
 import * as T from 'three';
-import { WorldModel, WORLD_SHAPES as G } from './world-models';
-import type { MiniSection } from './mini-track';
-import { halloweenLandscape } from './background-halloween';
+import { WorldModel, WORLD_SHAPES as G } from '../../games/world-models';
+import type { MiniSection } from '../../games/mini-track';
+import { halloweenLandscape } from '../../games/background-halloween';
 export type PumpkinPlacement = (x:number,y:number,z:number,size:number,color?:string)=>void;
 
 export function pumpkin(m:WorldModel,x:number,y:number,z:number,size:number,color='#ed984c') {
@@ -22,22 +22,6 @@ export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacem
     const f=section.frames[Math.round(section.resolution*(i+.5)/3)];
     const x=f.position.x-section.origin.x,z=f.position.z-section.origin.z-5;
     place(x,0,z,2.3+i*.25);
-    // A pumpkin percussion balcony beside each crest. The train plays both
-    // drums; sticks and a short candy-green shower are separately instanced.
-    for(const side of [-1,1]){
-      const dz=f.position.z-section.origin.z+side*4.8,top=f.position.y;
-      m.add(G.pole,'#89788a',[x,top/2,dz],[.32,top,.32]);
-      m.add(G.pole,'#aa79a7',[x,top-.25,dz],[1.9,.4,1.9]);
-      m.add(G.pole,i%2?'#c9a0dc':'#eda66c',[x,top+.6,dz],[1.25,1.35,1.25]);
-      for(const y of [top+.03,top+1.2])m.add(G.pole,'#f5dc9e',[x,y,dz],[1.34,.12,1.34]);
-      m.add(G.pole,'#dcf3b2',[x,top+1.27,dz],[1.18,.08,1.18]);
-      for(let j=0;j<10;j++){
-        const a=j*Math.PI/5;
-        m.add(G.box,'#fff0c9',[x+Math.sin(a)*1.26,top+.6,dz+Math.cos(a)*1.26],[.07,1,.07]);
-      }
-      for(const eye of [-1,1])m.add(G.round,'#4e4563',[x+eye*.34,top+.7,dz+1.2],[.1,.15,.08]);
-      m.add(G.round,'#724d79',[x,top+.36,dz+1.24],[.2,.08,.06]);
-    }
     m.add(G.pole,'#a99a78',[x-2,1.5,z+1],[.1,3,.1]);
     m.add(G.box,'#f6cd7a',[x-1.6,2.5,z+1],[1.5,.75,.12]);
     // Curving vines carry little lanterns beside each hop.
@@ -47,30 +31,6 @@ export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacem
       if(j%2)m.add(G.round,j%3?'#edb168':'#bda2df',[px,py-.38,z+1.5],[.2,.3,.2],[],true,i+j*.4);
     }
   }
-}
-
-/** A wonky sweet-shop arch frames the smashable pumpkin pile. The opening is
- * deliberately wide/high enough for the entire train and its airborne wagons. */
-export function pumpkinPortalFrame(m:WorldModel,section:MiniSection){
-  const f=section.sample(section.start+section.length/2);
-  const place=(x:number,y:number,z:number)=>new T.Vector3(x,y,z).applyQuaternion(f.rotation).add(f.position).sub(new T.Vector3(section.origin.x,0,section.origin.z));
-  const rotation=new T.Euler().setFromQuaternion(f.rotation);
-  for(const side of [-1,1]){
-    for(let j=0;j<9;j++)m.add(G.pole,j%2?'#c4e69b':'#f0b8d2',place(side*(5.7+j*.045),j*.8-.1,0).toArray(),[.72,.83,.72],[rotation.x,rotation.y,rotation.z]);
-    m.add(G.cone,'#a387c2',place(side*6.1,7.7,0).toArray(),[1.25,2.1,1.25],[rotation.x,rotation.y,rotation.z]);
-    m.add(G.round,'#d6ff96',place(side*6.1,8.85,0).toArray(),[.3,.3,.3],[],true,side+2);
-  }
-  let previous:T.Vector3|undefined;
-  for(let i=0;i<=20;i++){
-    const a=i*Math.PI/20,p=place(-Math.cos(a)*5.7,6.2+Math.sin(a)*3,0);
-    if(previous)m.beam('#f0c987',previous,p,.3);
-    if(i%2===0)m.add(G.round,i%4?'#bbefa1':'#edb4e0',p.toArray(),[.26,.26,.26],[],true,i*.3);
-    previous=p;
-  }
-  const p=place(0,10.1,0);
-  m.add(G.round,'#f6e4b5',p.toArray(),[1.15,1.15,.24],[],true);
-  for(const side of [-1,1])m.add(G.round,'#745c86',[p.x+side*.34,p.y+.1,p.z+.24],[.1,.16,.07]);
-  m.add(G.round,'#c790b2',[p.x,p.y-.38,p.z+.25],[.35,.12,.07]);
 }
 
 export function ghostModel() {
@@ -108,23 +68,6 @@ export function witchHat(m:WorldModel,section:MiniSection,place:PumpkinPlacement
   m.add(G.pole,'#b194bd',[x,1.5,z],[radius-.4,.5,radius-.4]);
   m.add(G.cone,'#a387b3',[x,height*.5+1.6,z],[radius-2,height,radius-2]);
   m.add(G.cone,'#b098bf',[x+1.2,height+1,z],[1.1,4,1.1],[0,0,-.8]);
-  // Patchwork seams, stitched stars and an oversize twisted hat-band give the
-  // old plain cone the character of a friendly storybook witch's workshop.
-  for(let row=0;row<6;row++){
-    const y=4+row*height*.115,r=(radius-2)*(1-(y-1.6)/height);
-    for(let j=0;j<8;j++){
-      const a=j*Math.PI/4+row*.3;
-      m.add(G.box,row%2?'#e1c49b':'#c2d9aa',[x+Math.sin(a)*(r+.06),y,z+Math.cos(a)*(r+.06)],[.13,.36,.06],[0,a,.4]);
-    }
-  }
-  for(const side of [-1,1]){
-    const px=x+side*(radius+3.6),pz=z+radius*.7;
-    m.add(G.round,'#564d73',[px,1.3,pz],[1.65,1.3,1.65]);
-    m.add(G.pole,'#837191',[px,2.15,pz],[1.58,.16,1.58]);
-    m.add(G.pole,'#c3f49c',[px,2.23,pz],[1.35,.09,1.35],[],true);
-    for(let j=0;j<3;j++)m.add(G.rock,'#a39b82',[px+Math.sin(j*2.094)*1.2,.2,pz+Math.cos(j*2.094)*1.2],[.5,.3,.5]);
-    for(const eye of [-1,1])m.add(G.round,'#e5d6af',[px+eye*.42,1.45,pz+1.5],[.16,.23,.08],[],true);
-  }
   m.add(G.pole,'#d59857',[x,3.3,z],[radius-2.25,.9,radius-2.25]);
   m.add(G.box,'#ffd98a',[x,3.3,z+radius-2.17],[1.3,1.15,.1],[],true);
   m.add(G.box,'#8a6592',[x,3.3,z+radius-2.05],[.75,.66,.12]);

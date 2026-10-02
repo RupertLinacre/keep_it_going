@@ -1,0 +1,76 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { MiniSection, type MiniKind } from '../src/games/mini-track';
+import { createMountainPieceAnimation, mountainGreeting } from '../src/games/mountain-piece-animation';
+import { FairgroundLights } from '../src/games/world-lighting';
+import { mountainGondolaPosition } from '../src/games/mountain-gondolas';
+
+function section(kind: MiniKind) {
+  return new MiniSection(7, kind, 400, new Vector3(100, 7, 30), kind === 'tunnel' ? 52 : 90, kind === 'tunnel' ? 1.1 : 22, 0, 1);
+}
+const meshes = (animation: NonNullable<ReturnType<typeof createMountainPieceAnimation>>) => animation.group.children as InstancedMesh[];
+const matrices = (animation: NonNullable<ReturnType<typeof createMountainPieceAnimation>>) => meshes(animation).map(m => Array.from(m.instanceMatrix.array));
+
+test('mountain animation batches are bounded, replayable and release only owned geometry', () => {
+  for (const kind of ['mountainpass', 'tunnel', 'ravinebridge'] as const) {
+    const s = section(kind), material = new MeshStandardMaterial(), lights = new FairgroundLights();
+    let materialDisposals = 0; material.addEventListener('dispose', () => materialDisposals++); lights.addEventListener('dispose', () => materialDisposals++);
+    const animation = createMountainPieceAnimation(s, material, lights)!;
+    assert.ok(meshes(animation).length <= 3);
+    meshes(animation).forEach(m => {
+      assert.ok(m.geometry.getAttribute('color'), 'Shared vertex-colour materials need explicit colours on every geometry');
+      if (m.material === lights) assert.ok(m.geometry.getAttribute('lightPhase'));
+    });
+    const buffers = meshes(animation).map(m => m.instanceMatrix.array), counts = meshes(animation).map(m => m.count);
+    animation.update(3, s.start + s.length * .5, false); const expected = matrices(animation);
+    animation.update(100, s.end + 100, false);
+    animation.update(3, s.start + s.length * .5, false); assert.deepEqual(matrices(animation), expected, 'Scrubbing reproduces the original pose');
+    for (let i = 0; i < 600; i++) animation.update(i / 60, s.start + i / 5, false);
+    meshes(animation).forEach((m, i) => { assert.equal(m.instanceMatrix.array, buffers[i]); assert.equal(m.count, counts[i]); assert.ok(Array.from(m.instanceMatrix.array).every(Number.isFinite)); });
+    let disposals = 0, instanceDisposals = 0; meshes(animation).forEach(m => {
+      m.geometry.addEventListener('dispose', () => disposals++);
+      m.addEventListener('dispose', () => instanceDisposals++);
+    });
+    animation.dispose(); assert.equal(disposals, buffers.length); assert.equal(instanceDisposals, buffers.length); assert.equal(materialDisposals, 0);
+    material.dispose(); lights.dispose();
+  }
+});
+
+test('reduced motion holds all mountain ornaments still and cached heights avoid double lifting', () => {
+  for (const kind of ['mountainpass', 'tunnel', 'ravinebridge'] as const) {
+    const s = section(kind), material = new MeshStandardMaterial(), lights = new FairgroundLights();
+    const animation = createMountainPieceAnimation(s, material, lights)!;
+    animation.update(0, s.start, true); const still = matrices(animation);
+    animation.update(80, s.end, true); assert.deepEqual(matrices(animation), still);
+    animation.update(3, s.start + 20, false); const beforeLift = matrices(animation);
+    s.frames.forEach(f => f.position.y += 40);
+    animation.update(3, s.start + 20, false); assert.deepEqual(matrices(animation), beforeLift);
+    animation.dispose(); material.dispose(); lights.dispose();
+  }
+});
+
+test('goat greetings respond to each train while their platforms remain outside the railway', () => {
+  const s = section('mountainpass'), material = new MeshStandardMaterial(), lights = new FairgroundLights();
+  const animation = createMountainPieceAnimation(s, material, lights)!;
+  const goats = meshes(animation)[0], matrix = new Matrix4(), position = new Vector3(), scale = new Vector3(), rotation = new Quaternion();
+  animation.update(.32, s.start + s.length * .5, false);
+  for (let i = 0; i < goats.count; i++) {
+    goats.getMatrixAt(i, matrix); matrix.decompose(position, rotation, scale);
+    const worldX = s.origin.x + position.x;
+    const frame = s.frames.reduce((best, f) => Math.abs(f.position.x - worldX) < Math.abs(best.position.x - worldX) ? f : best);
+    assert.ok(position.z + s.origin.z - frame.position.z > 3.9, 'Goats never jump onto the rails');
+  }
+  assert.equal(mountainGreeting(s.start + 30, s.start + 30), 1);
+  assert.ok(mountainGreeting(s.start - 100, s.start + 30) < .001);
+  animation.dispose(); material.dispose(); lights.dispose();
+});
+
+test('gondolas keep moving between trains while retaining exact train coupling', () => {
+  const s = section('tunnel'), at = s.start - 20;
+  const a = mountainGondolaPosition(s, at, .25, 10), b = mountainGondolaPosition(s, at, .25, 10.01);
+  assert.ok(Math.abs(a.distanceTo(b) - .0085) < 1e-6);
+  const center = s.start + s.length / 2;
+  const c = mountainGondolaPosition(s, center, .25, 10), d = mountainGondolaPosition(s, center + .01, .25, 10);
+  assert.ok(Math.abs(c.distanceTo(d) - .01) < 1e-6);
+});

@@ -1,17 +1,9 @@
 import * as T from 'three';
-import { WorldModel, WORLD_SHAPES as G } from './world-models';
-import type { MiniSection } from './mini-track';
+import { WorldModel, WORLD_SHAPES as G } from '../../games/world-models';
+import type { MiniSection } from '../../games/mini-track';
 import { mountainRopeway } from './mountain-gondolas';
 
 type Point = [number, number, number];
-
-export const GORGE_GOAT_STOPS = [.19, .35, .5, .66, .81] as const;
-/** Small rock balconies beyond the fence. Kept in formation coordinates so
- * their occupants share the same lift and mirrored-lane transform. */
-export function gorgeLookout(section: MiniSection, fraction: number) {
-  const p = section.sample(section.start + section.length * fraction).position;
-  return new T.Vector3(p.x - section.origin.x, p.y - .4, p.z - section.origin.z + 4.1);
-}
 
 /** Join cross-sections into a closed-looking faceted landscape, not overlapping
  * rocks across a railway. The profiles explicitly leave clearance for the train. */
@@ -53,24 +45,6 @@ export function mountainGorge(m: WorldModel, section: MiniSection, backdrop = m)
   ribbon(m, ledge, ['#718892', '#b5b6a2', '#718892', '#96a3a5']);
   ribbon(m, river, ['#b8c6b4', '#64bac9', '#a1c7c2']);
   ribbon(m, near, ['#758f9a', '#b0bdba', '#8f9fa1']);
-  // A pale ribbon of snow makes the craggy ridge legible at game-camera scale.
-  ribbon(backdrop, cliffs.map(row => [
-    [row[2][0], row[2][1] - .35, row[2][2] - 1.1],
-    [row[2][0], row[2][1] + .12, row[2][2]],
-    [row[2][0], row[2][1] - .55, row[2][2] + 1.25],
-  ]), ['#edf3ed', '#f8f4df']);
-  for (const [i, fraction] of GORGE_GOAT_STOPS.entries()) {
-    const p = gorgeLookout(section, fraction);
-    m.add(G.rock, '#9aa8a6', [p.x, p.y - 1.1, p.z], [2.05, 1.5, 1.75]);
-    m.add(G.rock, '#edf0df', [p.x, p.y - .13, p.z], [1.65, .3, 1.35]);
-    // Crystals sit outside the rail envelope and light up as coaches pass.
-    for (let j = 0; j < 3; j++) {
-      const h = 1.15 + (j % 2) * .6, x = p.x + 1.35 + j * .3;
-      m.add(G.cone, ['#91d8de', '#bdd1ed', '#c0ece4'][j], [x, p.y + h * .35, p.z + .45], [.32, h, .3], [0, i + j, -.2 + j * .2], true, i * .9 + j * .4);
-    }
-    m.add(G.round, '#718e78', [p.x - 1.3, p.y, p.z + .35], [.4, .22, .35]);
-    for (let j = 0; j < 3; j++) m.add(G.round, '#edc67d', [p.x - 1.3 + j * .18, p.y + .18, p.z + .45], [.13, .12, .13]);
-  }
   for (let i = 1; i < 16; i++) {
     const t = i / 16, f = section.frames[Math.round(section.resolution * t)], p = f.position;
     const x = p.x - section.origin.x, z = p.z - section.origin.z, floor = .25 + Math.max(0, p.y - 4) * .12;
@@ -90,21 +64,6 @@ export function mountainGorge(m: WorldModel, section: MiniSection, backdrop = m)
       backdrop.add(G.pole, '#77766b', [x, y + 1, z - 7.8], [.14, 2, .14]);
       backdrop.add(G.cone, '#426f68', [x, y + 2.6, z - 7.8], [1, 3, 1]);
       backdrop.add(G.cone, '#e7eee7', [x, y + 3.7, z - 7.8], [.4, 1.2, .4]);
-    }
-    if (i % 3 === 0) {
-      // Long glacial seams remain on the rock face, safely above the railway.
-      const y = p.y + 7 + Math.sin(Math.PI * t) * 5;
-      backdrop.add(G.cone, '#c4e7e8', [x, y, z - 3.95], [.32, 2.8, .24], [0, 0, Math.PI]);
-      backdrop.add(G.cone, '#e1f1eb', [x + .6, y + .4, z - 4.1], [.2, 1.9, .2], [0, 0, Math.PI]);
-    }
-    if (i % 4 === 0) {
-      const lip = floor + Math.sin(Math.PI * t) ** .75 * (4.2 + 2 * Math.sin(t * Math.PI * 6) ** 2);
-      // Larger ice outcrops read from the normal play camera; their long tips
-      // stay on the far river bank, many metres from the coaches.
-      for (let j = 0; j < 3; j++) {
-        const h = 2.4 + (j % 2) * 1.4;
-        m.add(G.cone, ['#a6e4e3', '#d3e9f0', '#c1e7dc'][j], [x + (j - 1) * .9, lip + h * .38, z + 11.5], [.7, h, .6], [0, j, (j - 1) * .18], true, i * .6 + j);
-      }
     }
   }
 }
@@ -185,12 +144,6 @@ export function mountainTunnel(material: T.Material, luminous: T.Material) {
         [2.5, 3 + (i % 3) * .7, 2.7], [0, i * .43, side * .16]);
     }
   }
-  for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
-    const model = side < 0 ? back : cover, x = side * (9.6 + i * .7), z = -8 + i * 5;
-    model.add(G.pole, '#837768', [x, .5, z], [.17, 1.8, .17]);
-    model.add(G.cone, '#598c80', [x, 2.1, z], [1.3, 3.3, 1.3]);
-    model.add(G.cone, '#eaf0e2', [x, 3.13, z], [.62, 1.45, .62]);
-  }
   for (let i = 0; i < 9; i++) {
     const z = -HALF + 2 + i * 3;
     solid.add(G.box, '#829ca1', [-2.3, 2.5, z], [.2, .25, .35]);
@@ -198,13 +151,6 @@ export function mountainTunnel(material: T.Material, luminous: T.Material) {
     if (i % 2 === 0) {
       solid.add(G.cone, '#8dd5d8', [-2.25, .3, z + .7], [.25, .85, .25], [0, 0, -.15], true);
       solid.add(G.cone, '#bab9de', [-2, .1, z + 1.1], [.16, .5, .16], [], true);
-    }
-    // Recessed glowing mineral seams trace the real arch; they do not narrow
-    // the usable bore or attach to the wall that fades for the train reveal.
-    for (let j = 0; j < 3; j++) {
-      const a = .55 + j * .7;
-      solid.add(G.rock, ['#a7e1db', '#b5c5e8', '#eed8a0'][j],
-        [Math.cos(a) * 2.72, SPRING + Math.sin(a) * 2.72, z], [.18, .12, .27], [0, 0, a], true, i * .65 + j * .3);
     }
   }
   mountainRopeway(solid);

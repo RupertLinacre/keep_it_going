@@ -9,25 +9,39 @@ export function nightScenery(m:WorldModel,x:number,back:number,front:number,r:()
 
 export function lanternParade(m:WorldModel,section:MiniSection) {
   for(let i=0;i<7;i++) {
-    const f=section.sample(section.start+section.length*(.06+i*.146));
+    const f=section.sample(lanternDistance(section,i));
     const center=f.position.clone();center.x-=section.origin.x;center.z-=section.origin.z;
-    const h=center.y+4.2;
+    const h=center.y+5.5;
     for(const side of [-1,1]){
-      const p=center.clone().addScaledVector(f.right,side*3.6);
-      m.add(G.pole,'#ac91b5',[p.x,h/2,p.z],[.11,h,.11]);
-      m.add(G.round,BULBS[i%4],[p.x,h+.35,p.z],[.4,.62,.4],[],true,i*.7);
+      const p=center.clone().addScaledVector(f.right,side*4.4);
+      m.add(G.pole,'#9675b0',[p.x,h/2,p.z],[.18,h,.18]);
+      m.add(G.pole,'#e8c489',[p.x,.3,p.z],[.58,.6,.58]);
+      // Candy-striped columns and little petal lanterns give each gate a face.
+      for(let j=0;j<5;j++)m.add(G.pole,BULBS[(i+j)%4],[p.x,h*(j+.5)/5,p.z],[.23,.3,.23]);
+      for(let j=0;j<5;j++){
+        const a=j*Math.PI*2/5;
+        m.add(G.rock,BULBS[i%4],[p.x+Math.sin(a)*.5,h+.2+Math.cos(a)*.5,p.z],[.32,.38,.24],[],true,i*.7+j*.1);
+      }
+      m.add(G.round,'#fff0b1',[p.x,h+.2,p.z+.2],[.26,.26,.2],[],true,i*.7);
+      star(m,p.x,h+1.3,p.z,.48,'#ffe29c');
     }
-    // A high scalloped light garland: plenty of headroom for flying coaches.
+    // The train passes through seven colourful prosceniums. Every pendant is
+    // at least four metres above the sampled rail; the mascot floats above it.
     let previous:T.Vector3|undefined;
     for(let j=0;j<=12;j++){
-      const p=center.clone().addScaledVector(f.right,(j/12-.5)*7.2);p.y=h+2.2-Math.sin(j*Math.PI/12)*.65;
+      const p=center.clone().addScaledVector(f.right,(j/12-.5)*8.8);p.y=h+.9-Math.sin(j*Math.PI/12)*.65;
       if(previous)m.beam('#8d83ad',previous,p,.04);
-      m.add(G.round,BULBS[(i+j)%4],p.toArray(),[.18,.18,.18],[],true,i*.8+j*.35);
-      if(j%3===0){m.add(G.cone,BULBS[(i+j)%4],[p.x,p.y-.45,p.z],[.3,.65,.06],[0,0,Math.PI]);}
+      m.add(j%2?G.rock:G.round,BULBS[(i+j)%4],p.toArray(),[.22,.22,.22],[],true,i*.8+j*.35);
+      if(j%2===0){m.add(G.cone,BULBS[(i+j)%4],[p.x,p.y-.5,p.z],[.34,.7,.08],[0,0,Math.PI]);}
       previous=p;
     }
+    // A second scallop makes a shallow theatrical arch instead of a lone wire.
+    const a=center.clone().addScaledVector(f.right,-4.4),b=center.clone().addScaledVector(f.right,4.4);
+    a.y=b.y=h-.2;m.beam('#d8b0b9',a,b,.07);
   }
 }
+
+export const lanternDistance=(section:MiniSection,index:number)=>section.start+section.length*(.06+index*.146);
 
 const BULBS = ['#ffc876', '#ed97c6', '#9cdfd4', '#b8a3f5'];
 
@@ -45,18 +59,46 @@ export function tracksideLights(m:WorldModel,section:MiniSection) {
 }
 
 export function marqueeLoop(m: WorldModel, section: MiniSection) {
-  let previous: number[] | undefined;
-  for (let i = 0; i <= 100; i++) {
-    const f = section.sample(section.start + section.length * i / 100);
-    const p = f.position.clone().addScaledVector(f.up, -1.05); p.x -= section.origin.x; p.z -= section.origin.z;
-    if (previous) m.beam('#646a9d', new T.Vector3(...previous), p, .14);
-    m.add(G.round, BULBS[Math.floor(i / 6) % 4], p.toArray(), [.23, .23, .23], [], true, i * .28);
-    if (i % 5 === 0) m.beam('#807aab', p, p.clone().addScaledVector(f.up, .85), .055);
-    previous = p.toArray();
+  const previous: (T.Vector3|undefined)[]=[];
+  for (let i = 0; i <= 72; i++) {
+    const f = section.sample(section.start + section.length * i / 72);
+    for(let side=0;side<2;side++){
+      const p = f.position.clone().addScaledVector(f.up, -1.55).addScaledVector(f.right,(side-.5)*3.6);
+      p.x -= section.origin.x; p.z -= section.origin.z;
+      if (previous[side]) m.beam('#886cac', previous[side]!, p, .11);
+      m.add(i%2?G.rock:G.round, BULBS[(Math.floor(i / 4)+side) % 4], p.toArray(), [.25, .25, .25], [], true, i * .25+side*.7);
+      if (i % 4 === 0) {
+        m.beam('#d8b382',p,p.clone().addScaledVector(f.up,.8),.065);
+        if(side===1)star(m,p.x,p.y,p.z+.1,.48,BULBS[Math.floor(i/4)%4]);
+      }
+      previous[side]=p;
+    }
   }
   const top = section.frames[Math.round(section.resolution / 2)].position;
-  const x = top.x - section.origin.x, y = top.y + 3, z = top.z - section.origin.z;
-  star(m, x, y, z, 1.6, '#ffdb92');
+  const x = top.x - section.origin.x, y = top.y + 5.8, z = top.z - section.origin.z;
+  // A big smiling sun is a landmark above the loop, outside the train envelope.
+  for(let i=0;i<12;i++){
+    const a=i*Math.PI/6;
+    m.add(G.cone,i%2?'#f6bd89':'#efd28a',[x+Math.sin(a)*2,y+Math.cos(a)*2,z],[.36,1,.26],[0,0,-a]);
+  }
+  m.add(G.round,'#ffdc8e',[x,y,z],[1.62,1.62,.46],[],true);
+  for(const side of [-1,1]){
+    m.add(G.round,'#62527f',[x+side*.55,y+.24,z+.43],[.13,.21,.1]);
+    m.add(G.round,'#f397b0',[x+side*.94,y-.23,z+.42],[.26,.16,.09]);
+  }
+  m.add(G.round,'#805784',[x,y-.48,z+.45],[.45,.28,.06]);
+  m.add(G.round,'#ffdc8e',[x,y-.32,z+.51],[.47,.24,.06],[],true);
+  // Twin ribbon towers frame the complete inversion without entering its plane.
+  const xs=section.frames.map(f=>f.position.x-section.origin.x);
+  for(const [side,tx]of [[-1,Math.min(...xs)-3.5],[1,Math.max(...xs)+3.5]]){
+    const tz=section.shift/2;
+    m.add(G.pole,'#a178ad',[tx,4,tz],[.38,8,.38]);
+    m.add(G.pole,'#e9bc87',[tx,.4,tz],[1,.8,1]);
+    for(let j=0;j<5;j++)m.add(G.pole,BULBS[j%4],[tx,1.3+j*1.4,tz],[.43,.4,.43]);
+    m.add(G.cone,'#db8dbe',[tx,8.4,tz],[1.05,1.7,1.05]);
+    star(m,tx,9.8,tz,.85,'#ffe0a0');
+    m.add(G.box,BULBS[side===-1?1:2],[tx+side*.7,7,tz],[1.2,.65,.07],[0,0,side*.15]);
+  }
 }
 
 export function star(m: WorldModel, x: number, y: number, z: number, size: number, color: string) {
@@ -82,19 +124,22 @@ export function carouselRotation(section: MiniSection, distance: number) {
   const p=section.sample(T.MathUtils.clamp(distance,first,last)).position;
   return Math.atan2(p.x-section.origin.x-x,p.z-section.origin.z-z);
 }
-export function carouselClimb(m: WorldModel, section: MiniSection) {
-  const {x,z,radius}=carouselCenter(section);
-  m.add(G.pole,'#ac88a0',[x,1,z],[radius+1,2,radius+1]);
-  m.add(G.pole,'#dfc098',[x,1.9,z],[radius+1.1,.25,radius+1.1]);
-  m.add(G.pole,'#b2a6d2',[x,5.1,z],[.32,6.4,.32]);
-  // Alternating triangular canopy panels, rather than a single solid cone.
-  for(let i=0;i<12;i++){
-    const a=i*Math.PI/6,b=(i+1)*Math.PI/6,r=radius+1;
-    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute([0,10,0,Math.sin(a)*r,7,Math.cos(a)*r,Math.sin(b)*r,7,Math.cos(b)*r],3));g.computeVertexNormals();
-    m.add(g,i%2?'#dab392':'#ac6ca3',[x,0,z]);g.dispose();
-    m.add(G.round,BULBS[i%4],[x+Math.sin(a)*r,7,z+Math.cos(a)*r],[.23,.23,.23],[],true,i*.6);
+/** The helix drifts laterally, so its nominal radius is not its inner clearance. */
+export function carouselRideRadius(section:MiniSection) {
+  const {x,z}=carouselCenter(section);
+  let nearest=Infinity;
+  for(let i=Math.round(section.resolution*.1);i<=Math.round(section.resolution*.78);i++){
+    const p=section.frames[i].position;
+    nearest=Math.min(nearest,Math.hypot(p.x-section.origin.x-x,p.z-section.origin.z-z));
   }
-  star(m,x,11,z,1.1,'#ffe29c');
+  return Math.max(.6,nearest-1.8);
+}
+export function carouselClimb(m: WorldModel, section: MiniSection) {
+  const {x,z}=carouselCenter(section),radius=carouselRideRadius(section);
+  m.add(G.pole,'#ac88a0',[x,.8,z],[radius,1.6,radius]);
+  m.add(G.pole,'#dfc098',[x,1.55,z],[radius,.25,radius]);
+  // The three storeys, animals and roof belong to one bounded moving assembly.
+  // Its footprint leaves 1.8m between every rail centre and every spinning part.
   for(let i=0;i<70;i++){
     const f=section.sample(section.start+section.length*i/69),p=f.position.clone().addScaledVector(f.right,1.25).addScaledVector(f.up,-.25);
     m.add(G.round,BULBS[Math.floor(i/5)%4],[p.x-section.origin.x,p.y,p.z-section.origin.z],[.17,.17,.17],[],true,i*.3);
