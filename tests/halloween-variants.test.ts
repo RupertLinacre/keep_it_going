@@ -89,3 +89,48 @@ test('moonflower petals unfold radially around each crown',()=>{
  }
  v.dispose();material.dispose();lights.dispose();
 });
+
+test('washer doors open before launch and stay clear while ghosts dry',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkinhop',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'c',material,lights)!;
+ const doors=v.group.getObjectByName('laundry-door-hinges') as T.InstancedMesh,matrix=new T.Matrix4();
+ const hit=s.start+s.distances[Math.round(s.resolution/6)];
+ v.update(0,hit-50,false);doors.getMatrixAt(0,matrix);const closed=new T.Vector3(1,0,0).transformDirection(matrix),hinge=new T.Vector3().setFromMatrixPosition(matrix);
+ v.update(1,hit-.1,false);doors.getMatrixAt(0,matrix);const open=new T.Vector3(1,0,0).transformDirection(matrix);
+ assert.ok(closed.dot(open)<0,'Door has already opened past 90 degrees before the ghost leaves');
+ assert.ok(new T.Vector3().setFromMatrixPosition(matrix).distanceTo(hinge)<1e-6,'Hinge stays bolted to the washer');
+ v.update(1.1,hit+.1,false);v.update(5,hit+60,false);doors.getMatrixAt(0,matrix);assert.ok(open.dot(new T.Vector3(1,0,0).transformDirection(matrix))>.999);
+ v.dispose();material.dispose();lights.dispose();
+});
+
+test('marionette strings remain attached to moving wrists and feet',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkintunnel',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'c',material,lights)!;
+ const strings=v.group.getObjectByName('puppet-control-strings') as T.InstancedMesh,arms=v.group.getObjectByName('puppet-arms') as T.InstancedMesh,legs=v.group.getObjectByName('puppet-legs') as T.InstancedMesh;
+ const matrix=new T.Matrix4(),limbMatrix=new T.Matrix4();
+ for(let time=0;time<3;time+=.13){
+  v.update(time,s.start+s.length/2+(time-1)*15,false);
+  for(let puppet=0;puppet<3;puppet++)for(let side=0;side<2;side++)for(let limb=0;limb<2;limb++){
+   strings.getMatrixAt(puppet*4+side*2+limb,matrix);(limb?legs:arms).getMatrixAt(puppet*2+side,limbMatrix);
+   const tip=new T.Vector3(0,.5,0).applyMatrix4(matrix),joint=new T.Vector3(0,limb?-.84:-.87,0).applyMatrix4(limbMatrix);
+   assert.ok(tip.distanceTo(joint)<1e-5,'String endpoint moves with its limb instead of hanging in space');
+  }
+ }
+ v.dispose();material.dispose();lights.dispose();
+});
+
+test('dancing marionette boots land on top of their platforms without clipping',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkintunnel',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'c',material,lights)!;
+ const legs=v.group.getObjectByName('puppet-legs') as T.InstancedMesh,matrix=new T.Matrix4(),point=new T.Vector3();
+ for(let t=0;t<6;t+=.08){
+  v.update(t,s.start+s.length/2,false);
+  for(let i=0;i<3;i++)for(let j=0;j<2;j++){
+   legs.getMatrixAt(i*2+j,matrix);
+   for(const x of [-.19,.19])for(const y of [-1.05,-.83])for(const z of [-.14,.46]){
+    point.set(x,y,z).applyMatrix4(matrix);assert.ok(point.y>=(i===1?6.31:1.11)-1e-5,'The entire shoe clears its supporting platform');
+   }
+  }
+ }
+ v.dispose();material.dispose();lights.dispose();
+});

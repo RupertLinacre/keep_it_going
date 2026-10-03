@@ -46,6 +46,9 @@ export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacem
         m.add(G.round,'#e6c787',[x+cheek*.6,top-.27,dz+1.45],[.37,.16,.6]);
       }
       m.add(G.box,'#c195d2',[x,top+1.18,dz-1],[.45,.25,.13]);
+      // Cross-braced bandstand legs and a gold star medallion finish the podium.
+      for(const brace of [-1,1])m.beam('#c8a18f',new T.Vector3(x+brace*1.5,top-.45,dz),new T.Vector3(x,Math.max(.2,top-3),dz),.12);
+      m.add(G.cone,'#f2d899',[x,top+.42,dz+1.29],[.16,.26,.055]);
       // A broad fan-shaped shell behind each drum reads as a tiny bandstand.
       for(let j=0;j<5;j++){const a=(j-2)*.33;m.add(G.box,j%2?'#e9b077':'#bea2d4',[x+Math.sin(a)*1.8,top+2.25+Math.cos(a)*.25,dz-1.6],[.58,2.1,.18],[0,0,-a]);}
 
@@ -72,6 +75,8 @@ export function pumpkinPortalFrame(m:WorldModel,section:MiniSection){
     for(let j=0;j<9;j++)m.add(G.pole,j%2?'#c4e69b':'#f0b8d2',place(side*(5.7+j*.045),j*.8-.1,0).toArray(),[.72,.83,.72],[rotation.x,rotation.y,rotation.z]);
     m.add(G.cone,'#a387c2',place(side*6.1,7.7,0).toArray(),[1.25,2.1,1.25],[rotation.x,rotation.y,rotation.z]);
     m.add(G.round,'#d6ff96',place(side*6.1,8.85,0).toArray(),[.3,.3,.3],[],true,side+2);
+    m.beam('#e2c18a',place(side*6.1,8.75,0),place(side*6.1,10.9,0),.08);
+    m.add(G.round,'#dfbbd5',place(side*6.1,11,0).toArray(),[.18,.18,.18]);
     // Biscuit turrets and candy-cane sentries form a proper sweet-shop castle.
     m.add(G.box,'#cfaa84',place(side*7,-.5,0).toArray(),[3.8,.8,4],[rotation.x,rotation.y,rotation.z]);
     m.add(G.box,'#e9c88f',place(side*7.2,2.8,-.4).toArray(),[2.2,6,2.7],[rotation.x,rotation.y,rotation.z]);
@@ -163,6 +168,15 @@ export function witchHat(m:WorldModel,section:MiniSection,place:PumpkinPlacement
     m.add(G.box,'#a87f9a',[px+Math.sin(a)*.32,y,pz+Math.cos(a)*.32],[.1,1.85,.07],[0,a,0]);
     m.add(G.box,'#a87f9a',[px+Math.sin(a)*.32,y+.1,pz+Math.cos(a)*.32],[1.13,.1,.07],[0,a,0]);
     m.add(G.cone,'#cbafd3',[px,y+1.7,pz],[1.1,1.3,.72],[0,a,0]);
+    // Miniature dormer balconies give the flying kittens a real school to orbit.
+    const outward=new T.Vector3(Math.sin(a),0,Math.cos(a)),right=new T.Vector3(Math.cos(a),0,-Math.sin(a));
+    const balcony=new T.Vector3(px,y-1.25,pz).addScaledVector(outward,.45);
+    m.add(G.box,'#d9b990',balcony.toArray(),[1.9,.2,1.05],[0,a,0]);
+    for(const side of [-1,1]){
+      const post=balcony.clone().addScaledVector(right,side*.82).addScaledVector(outward,.4);post.y+=.4;
+      m.add(G.pole,'#bb97ae',post.toArray(),[.06,.8,.06]);
+    }
+    const rail=balcony.clone().addScaledVector(outward,.4);rail.y+=.75;m.add(G.box,'#e9cfa4',rail.toArray(),[1.78,.09,.09],[0,a,0]);
   }
   m.add(G.round,'#ffe1a2',[x,11,z+(radius-2)*.65],[.8,.95,.09],[],true);
   m.add(G.round,'#a387b3',[x+.35,11.2,z+(radius-2)*.65+.06],[.65,.85,.09]);

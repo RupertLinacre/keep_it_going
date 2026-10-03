@@ -188,3 +188,36 @@ test('launchpads, jellyfish, arcade props and the enlarged fairy stay outside th
   }
   material.dispose();lights.dispose();
 });
+
+test('rocket gantries release before lift-off and close after the rocket lands',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('lanternrun'),ride=createCarnivalVariant(s,'b',material,lights)!,stop=at(s,.09);
+  ride.update(0,stop-30,false);const resting=instance(ride,'launch-gantry-arms').clone();
+  ride.update(1,stop-1,false);const released=instance(ride,'launch-gantry-arms').clone();
+  assert.ok(Math.abs(released.elements[1])>.6,'The arm swings out of the rocket envelope before ignition');
+  assert.equal(size(instance(ride,'rocket-flames')),0);
+  ride.update(1.1,stop+1,false);ride.update(3,stop+40,false);
+  assert.ok(Math.abs(instance(ride,'launch-gantry-arms').elements[1])>.6);
+  ride.update(8,stop+160,false);assert.deepEqual(instance(ride,'launch-gantry-arms').elements,resting.elements);
+  ride.dispose();material.dispose();lights.dispose();
+});
+
+test('the pinball physically touches each reacting bumper at its trigger',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('midwayloop'),ride=createCarnivalVariant(s,'b',material,lights)!;
+  for(const [i,t]of [.22,.5,.78].entries()){
+    ride.update(i+1,at(s,t),false);
+    const ball=new Vector3().setFromMatrixPosition(instance(ride,'pinball-ball')),cap=new Vector3().setFromMatrixPosition(instance(ride,'pinball-kitten-bumpers',i));
+    assert.ok(ball.distanceTo(cap)>2.15&&ball.distanceTo(cap)<2.55,'The ball meets the rim of the cat bumper instead of passing elsewhere on the board');
+  }
+  ride.dispose();material.dispose();lights.dispose();
+});
+
+test('teapot droplets originate at its rotating spout and stop after the greeting',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('carouselhelix'),ride=createCarnivalVariant(s,'b',material,lights)!;
+  ride.update(10,at(s,.7),false);
+  const pot=ride.group.getObjectByName('pouring-teapot')!,scale=carouselRideRadius(s)/3.15,lip=new Vector3(2.55*scale,1.15*scale,0).applyMatrix4(pot.matrix);
+  const droplet=new Vector3().setFromMatrixPosition(instance(ride,'teapot-steam-and-pour',10));
+  assert.ok(lip.distanceTo(droplet)<1e-5,'The pour moves with the spout rather than floating beside a tilting pot');
+  assert.ok(size(instance(ride,'teapot-steam-and-pour',10))>.2);
+  ride.update(20,s.end+200,false);assert.ok(size(instance(ride,'teapot-steam-and-pour',10))<.001);
+  ride.dispose();material.dispose();lights.dispose();
+});

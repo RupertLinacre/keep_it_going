@@ -17,7 +17,13 @@ test('trampoline mat meets the sheep feet and percussion mallets strike the keys
  const sheepSection=section('sheepbank',74,8,1),circus=createMeadowVariant(sheepSection,'b',material,lights)!;
  circus.update(0,sheepSection.start-1,false);circus.update(1,at(sheepSection,.18),false);
  const mats=circus.group.getObjectByName('trampoline-mats') as T.InstancedMesh,sheep=circus.group.getObjectByName('trampoline-sheep') as T.InstancedMesh;
- assert.ok(Math.abs(location(pose(sheep,0)).y-location(pose(mats,0)).y-.065)<1e-5,'Feet touch the depressed mat at launch');
+ const depressedCenter=new T.Vector3(0,-1,0).applyMatrix4(pose(mats,0));
+ assert.ok(Math.abs(location(pose(sheep,0)).y-depressedCenter.y)<1e-5,'Feet touch the depressed mat at launch');
+ const edge=new T.Vector3(2.76,0,0).applyMatrix4(pose(mats,0));
+ circus.update(1.42,at(sheepSection,.18),false);
+ const nextEdge=new T.Vector3(2.76,0,0).applyMatrix4(pose(mats,0));
+ assert.ok(edge.distanceTo(nextEdge)<1e-5,'The rim stays fixed while its centre springs');
+ assert.ok(location(pose(sheep,0)).y>edge.y+3,'The first bounce makes a safe, high somersault');
  circus.dispose();
  const pondSection=section('pondbridge',66,4,1),frogs=createMeadowVariant(pondSection,'b',material,lights)!;
  frogs.update(0,pondSection.start-1,false);frogs.update(Math.PI/18,at(pondSection,.76),false);
@@ -98,6 +104,8 @@ test('all six meadow alternatives stay within fixed render budgets and dispose o
   });
   assert.ok(calls<=7,`${kind} ${option}: ${calls} calls`);assert.ok(triangles<=40000,`${kind} ${option}: ${triangles} triangles`);
   const storage=pools.map(p=>p.instanceMatrix.array),counts=pools.map(p=>p.count);
+  animation.update(0,s.start-12,false);
+  pools.forEach(p=>assert.ok(Array.from(p.instanceMatrix.array).every(Number.isFinite),'Before the first trigger every prop must have a finite pose'));
   for(let i=0;i<90;i++)animation.update(i/30,s.start-12+i*1.2,false);
   pools.forEach((p,i)=>{assert.equal(p.instanceMatrix.array,storage[i]);assert.equal(p.count,counts[i]);assert.ok(Array.from(p.instanceMatrix.array).every(Number.isFinite));});
   geometries.forEach(g=>g.addEventListener('dispose',()=>disposed++));animation.dispose();
@@ -135,4 +143,20 @@ test('the six scenes are distinct mechanisms, with route-responsive instance tra
  }
  const plain=new MiniSection(0,'hill',0,new T.Vector3(0,4,0),50,8,0,1);
  assert.equal(createMeadowVariant(plain,'b',material,lights),undefined);material.dispose();lights.dispose();
+});
+
+
+test('quacking duck beaks stay hinged while opening away from the fixed upper beak',()=>{
+ const material=new T.MeshStandardMaterial(),lights=new FairgroundLights(),s=section('pondbridge',66,4,1),bath=createMeadowVariant(s,'c',material,lights)!;
+ const ducks=bath.group.getObjectByName('bath-ducks') as T.InstancedMesh,jaws=bath.group.getObjectByName('duck-quacking-jaws') as T.InstancedMesh;
+ for(const time of [0,.17,.43,1.6,4.3]){
+  bath.update(time,s.start+s.length*.5,false);
+  for(let i=0;i<4;i++){
+   const body=pose(ducks,i),jaw=pose(jaws,i),expected=new T.Vector3(.95,1.34,0).applyMatrix4(body);
+   assert.ok(expected.distanceTo(location(jaw))<1e-5);
+   const relative=body.clone().invert().multiply(jaw),tip=new T.Vector3(.9,0,.05).applyMatrix4(relative);
+   assert.ok(tip.y<=1.34001,'The lower beak opens downwards, not through the upper beak');
+  }
+ }
+ bath.dispose();material.dispose();lights.dispose();
 });

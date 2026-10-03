@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { MiniSection, type MiniKind } from '../src/games/mini-track';
-import { createMountainPieceAnimation, mountainGreeting } from '../src/games/mountain-piece-animation';
+import { createMountainPieceAnimation, mountainGreeting, goatGreetingHop } from '../src/games/mountain-piece-animation';
 import { FairgroundLights } from '../src/games/world-lighting';
 import { mountainGondolaPosition } from '../src/games/mountain-gondolas';
 
@@ -17,7 +17,7 @@ test('mountain animation batches are bounded, replayable and release only owned 
     const s = section(kind), material = new MeshStandardMaterial(), lights = new FairgroundLights();
     let materialDisposals = 0; material.addEventListener('dispose', () => materialDisposals++); lights.addEventListener('dispose', () => materialDisposals++);
     const animation = createMountainPieceAnimation(s, material, lights)!;
-    assert.ok(meshes(animation).length <= 3);
+    assert.ok(meshes(animation).length <= 4);
     meshes(animation).forEach(m => {
       assert.ok(m.geometry.getAttribute('color'), 'Shared vertex-colour materials need explicit colours on every geometry');
       if (m.material === lights) assert.ok(m.geometry.getAttribute('lightPhase'));
@@ -80,4 +80,20 @@ test('gondolas keep moving between trains while retaining exact train coupling',
   const center = s.start + s.length / 2;
   const c = mountainGondolaPosition(s, center, .25, 10), d = mountainGondolaPosition(s, center + .01, .25, 10);
   assert.ok(Math.abs(c.distanceTo(d) - .01) < 1e-6);
+});
+
+
+test('goat greeting is a continuous crouch, high hop and smaller landing skip', () => {
+  const stop = 40;
+  assert.deepEqual(goatGreetingHop(stop - 8, stop), { height: 0, squash: 0, tilt: 0 });
+  assert.deepEqual(goatGreetingHop(stop + 14, stop), { height: 0, squash: 0, tilt: 0 });
+  let previous = goatGreetingHop(stop - 8, stop), tallest = 0;
+  for (let i = 1; i <= 220; i++) {
+    const next = goatGreetingHop(stop - 8 + i / 10, stop);
+    assert.ok(Math.abs(next.height - previous.height) < .08);
+    assert.ok(next.height >= -1e-10 && next.squash >= 0 && next.squash <= .16);
+    tallest = Math.max(tallest, next.height); previous = next;
+  }
+  assert.ok(tallest > 1.1);
+  assert.ok(goatGreetingHop(stop + 11, stop).height < .37);
 });

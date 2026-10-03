@@ -76,7 +76,7 @@ function rebuild(keepTime=false){
  updateChoices();fit();history.replaceState(null,'',`?piece=${piece.kind}&option=${option}&compare=${reference}${params.has('km')?'&km='+params.get('km'):''}`);
  elapsed=Math.min(previousTime,duration);replayTo(elapsed);
 }
-function showMode(next:typeof mode){mode=next;stage.dataset.mode=mode;app.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));fit();}
+function showMode(next:typeof mode){mode=next;stage.dataset.mode=mode;app.querySelectorAll<HTMLButtonElement>('button[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));fit();}
 function draw(){
  const width=stage.clientWidth,height=stage.clientHeight;
  const section=scenes[0].section,d=section.start-12+elapsed*24;
@@ -108,7 +108,7 @@ export function reviewAt(time:number){
 export function reviewSelect(kind:MiniKind,design:DesignOption=option,compare:ReviewVersion=reference){const next=PIECE_REVIEW.findIndex(p=>p.kind===kind);if(next>=0){index=next;option=design;reference=compare;rebuild();draw();}return reviewState();}
 export function reviewOption(design:DesignOption,compare:ReviewVersion=reference){option=design;reference=compare;rebuild(true);draw();return reviewState();}
 app.querySelectorAll<HTMLButtonElement>('[data-piece]').forEach(b=>b.onclick=()=>{index=PIECE_REVIEW.findIndex(p=>p.kind===b.dataset.piece);rebuild();$('.comparison').scrollIntoView({behavior:'smooth',block:'start'});});
-app.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(b=>b.onclick=()=>showMode(b.dataset.mode as typeof mode));
+app.querySelectorAll<HTMLButtonElement>('button[data-mode]').forEach(b=>b.onclick=()=>showMode(b.dataset.mode as typeof mode));
 function choose(choice:string){const kind=PIECE_REVIEW[index].kind;if(choice)choices[kind]=choice;else delete choices[kind];try{localStorage.setItem(storageKey,JSON.stringify(choices));}catch{}updateChoices();}
 app.querySelectorAll<HTMLButtonElement>('[data-option]').forEach(b=>b.onclick=()=>reviewOption(b.dataset.option as DesignOption));
 $<HTMLSelectElement>('#reference').onchange=e=>{reference=(e.target as HTMLSelectElement).value as ReviewVersion;rebuild(true);};

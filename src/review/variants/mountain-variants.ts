@@ -178,12 +178,29 @@ function yodel(s: MiniSection, b: VariantBuilder) {
       if (key % 3 !== 0) m.add(G.box, '#607f83', [p.x - 4.11 + key * .48, p.y + 1.16, p.z + 8.61], [.22, .16, .45]);
     }
     m.beam('#c49d63', new T.Vector3(p.x - 3, p.y + 1.4, p.z + 7.5), new T.Vector3(p.x + .4, p.y + .7, p.z + 7.5), .22);
+    // A velvet-jacketed marmot plays the keys instead of an unattended organ.
+    m.add(G.round, '#bf986f', [p.x - 2.45, p.y + 1.55, p.z + 7.78], [.82, 1.04, .6]);
+    m.add(G.round, palette[i], [p.x - 2.45, p.y + 1.47, p.z + 8.17], [.59, .76, .19]);
+    m.add(G.round, '#c4a27c', [p.x - 2.45, p.y + 2.7, p.z + 7.95], [.76, .74, .62]);
+    for (const side of [-1, 1]) {
+      m.add(G.round, '#b98e69', [p.x - 2.45 + side * .59, p.y + 3.16, p.z + 7.93], [.3, .34, .17]);
+      m.add(G.round, '#f1d8aa', [p.x - 2.45 + side * .25, p.y + 2.48, p.z + 8.49], [.26, .25, .2]);
+      m.add(G.round, '#526875', [p.x - 2.45 + side * .26, p.y + 2.86, p.z + 8.47], [.1, .13, .07]);
+      m.add(G.round, '#856c59', [p.x - 2.45 + side * .48, p.y + .7, p.z + 8.22], [.35, .27, .43]);
+    }
+    m.add(G.round, '#755f56', [p.x - 2.45, p.y + 2.62, p.z + 8.68], [.17, .13, .1]);
+    m.add(G.cone, '#6e9992', [p.x - 2.45, p.y + 3.55, p.z + 7.95], [.72, .65, .66]);
+    m.add(G.box, '#e8ca8b', [p.x - 2.45, p.y + 3.3, p.z + 8.43], [.82, .14, .4]);
   }
   b.batch(m);
   const horns = b.pool(hornModel(), stops.length), notes = b.pool(noteModel(), stops.length * 4);
   const bellowsModel = new WorldModel();
   for (let i = 0; i < 9; i++) bellowsModel.add(G.box, i % 2 ? '#8ebfb5' : '#e4cfa0', [(i - 4) * .2, 0, 0], [.13, 1.5 + i % 2 * .2, 1.5]);
   const bellows = b.pool(bellowsModel, stops.length);
+  const paw = new WorldModel();
+  paw.add(G.round, '#b99069', [0, -.34, .12], [.2, .46, .22], [-.32, 0, 0]);
+  paw.add(G.round, '#e0bd8f', [0, -.7, .35], [.24, .18, .3]);
+  const paws = b.pool(paw, stops.length * 2); paws[0].name = 'yodel-playing-paws';
   const bellowsPose = new T.Object3D();
   b.animate((time, distance, reduced) => {
     for (const [i, { p, at: stop }] of stops.entries()) {
@@ -192,6 +209,10 @@ function yodel(s: MiniSection, b: VariantBuilder) {
       bellowsPose.position.set(p.x - 2.1 + pump * .15, p.y + 1.8, p.z + 7.5);
       bellowsPose.scale.set(1 + pump * .38, 1, 1); bellowsPose.updateMatrix();
       for (const mesh of bellows) mesh.setMatrixAt(i, bellowsPose.matrix);
+      for (let hand = 0; hand < 2; hand++) {
+        const press = reduced ? 0 : hello * (.5 + .5 * Math.sin(time * 8 + i * 1.7 + hand * Math.PI));
+        b.place(paws, i * 2 + hand, p.x - 2.45 + (hand ? .64 : -.64), p.y + 2.02, p.z + 8.36, 1, -.1 + press * .25, 0, (hand ? -1 : 1) * .14);
+      }
       for (let j = 0; j < 4; j++) {
         const phase = reduced ? j / 4 : (time * .45 + j / 4) % 1;
         b.place(notes, i * 4 + j, p.x + 1.7 + Math.sin(phase * 4 + i) * 1.1, p.y + 4.5 + phase * 6, p.z + 8.7, .22 + (reduced ? 0 : hello * (1 - phase) * .65), 0, -.25, Math.sin(phase * 5) * .2);
@@ -245,9 +266,19 @@ function snowball(s: MiniSection, b: VariantBuilder) {
     for (const hand of [-1, 1]) spinner.beam('#dff1e8', new T.Vector3(Math.cos(a) * 2, Math.sin(a) * 2, 0), new T.Vector3(Math.cos(a) * 2.8 + Math.sin(a) * hand * .7, Math.sin(a) * 2.8 - Math.cos(a) * hand * .7, 0), .14);
   }
   const wheel = b.pool(spinner, 1);
+  const gate = new WorldModel();
+  gate.add(G.pole, '#c5aa82', [0, 0, 0], [.18, 4.8, .18], [Math.PI / 2, 0, 0]);
+  for (let i = 0; i < 5; i++) gate.add(G.box, i % 2 ? '#df9d99' : '#f4e7bd', [0, -1.16, (i - 2) * .76], [.21, 2.1, .66]);
+  gate.add(G.box, '#dfbd85', [0, -2.2, 0], [.28, .25, 4.1]);
+  const launchGate = b.pool(gate, 1); launchGate[0].name = 'snowball-starting-gate';
   b.animate((time, distance, reduced) => {
     const clock = reduced ? 0 : time, push = reduced ? 0 : T.MathUtils.clamp(distance - at(s, .25), 0, s.length * .5) * .009;
     b.place(wheel, 0, lift.x - 2.5, lift.y + 1.4, lift.z + 2.6, .8, 0, 0, -clock * .7 - push * 4);
+    // A candy-striped starting gate lifts for each actual snowball. It is
+    // driven by the same circuit phase, so a ball never passes through a bar.
+    const nextBall = ((clock * .08 + push) % .125 + .125) % .125;
+    const gateOpen = reduced ? 0 : Math.max(0, 1 - Math.abs(nextBall - .016) / .065);
+    b.place(launchGate, 0, start.x + .9, start.y + 3.15, start.z, 1, 0, 0, -gateOpen * 1.5);
     for (let i = 0; i < 8; i++) {
       const u = (clock * .08 + push + i / 8) % 1, { p } = circuit(u, path, start, end, backZ);
       b.place(balls, i, p.x, p.y + 1, p.z, .75 + i % 3 * .1, 0, 0, -u * 42);
@@ -407,9 +438,19 @@ function dragon(s: MiniSection, b: VariantBuilder) {
     head.add(G.round, '#f6efcb', [side * 1.85, .18, 1.75], [.82, .82, .35]);
     head.add(G.round, '#536c80', [side * 1.85, .12, 2.05], [.22, .35, .12]);
     head.add(G.round, '#718e9b', [side * .85, -.37, 2.72], [.25, .16, .1]);
-    head.add(G.cone, '#e2d7ad', [side * 2.65, 2, -.2], [.45, 2.5, .5], [0, 0, side * -.28]);
+    // Three tapered facets curl the horns back over the skull.
+    head.add(G.cone, '#d4c69d', [side * 2.7, 1.55, -.2], [.53, 1.8, .54], [-.2, 0, side * -.22]);
+    head.add(G.cone, '#e8dbb1', [side * 2.96, 2.54, -.64], [.34, 1.4, .35], [-.65, 0, side * -.15]);
+    head.add(G.cone, '#f1e6c4', [side * 3.07, 3.05, -1.2], [.19, .9, .22], [-1.1, 0, 0]);
+    head.add(G.round, '#d0a8ba', [side * 2.56, -.39, 1.75], [.48, .26, .14]);
   }
-  const face = b.pool(head, 1, local), breath = new WorldModel(); breath.add(G.rock, '#c8ede0', [0, 0, 0], [.6, .85, .6], [], true);
+  const face = b.pool(head, 1, local); face[0].name = 'dragon-blinking-face';
+  const eyeGeometry = face[0].geometry, eyePosition = eyeGeometry.getAttribute('position') as T.BufferAttribute;
+  const eyeColor = eyeGeometry.getAttribute('color'), eyeRest = new Float32Array(eyePosition.array), eyelids: number[] = [];
+  const eyeTints = ['#f6efcb', '#536c80'].map(c => new T.Color(c));
+  for (let i = 0; i < eyePosition.count; i++) if (eyeTints.some(c => Math.abs(eyeColor.getX(i) - c.r) < .001 && Math.abs(eyeColor.getY(i) - c.g) < .001 && Math.abs(eyeColor.getZ(i) - c.b) < .001)) eyelids.push(i);
+  eyePosition.setUsage(T.DynamicDrawUsage);
+  const breath = new WorldModel(); breath.add(G.rock, '#c8ede0', [0, 0, 0], [.6, .85, .6], [], true);
   const gems = b.pool(breath, 10, local), stop = at(s, .5) - 12;
   b.animate((time, distance, reduced) => {
     cover.visible = !b.group.userData.cutaway;
@@ -423,10 +464,14 @@ function dragon(s: MiniSection, b: VariantBuilder) {
       vertex.setXYZ(i, x, y + (Math.abs(x) - 9) * stretch, z);
     }
     vertex.needsUpdate = true;
+    const sleepy = reduced ? 1 : .25 + hello * .75;
+    const blink = reduced ? 1 : 1 - Math.exp(-Math.pow(((t + .4) % 4.8 - 2.4) / .11, 2)) * .93;
+    for (const i of eyelids) eyePosition.setY(i, .15 + (eyeRest[i * 3 + 1] - .15) * sleepy * blink);
+    eyePosition.needsUpdate = true;
     b.place(face, 0, 0, 7.2 + (reduced ? 0 : Math.sin(t * 1.2) * .12 + hello * .25), 14.6, 1.3, reduced ? 0 : -hello * .09, 0, 0);
     for (let i = 0; i < 10; i++) {
       const u = (t * .24 + i / 10) % 1;
-      b.place(gems, i, (i % 2 ? -1 : 1) * (1.1 + u * 2.7), 6.7 + u * 4, 18 + u * 7, reduced ? .15 : (.12 + hello * .38) * (1 - u), u * 2, u * 3, 0);
+      b.place(gems, i, (i % 2 ? -1 : 1) * (1.1 + u * 2.7) + Math.sin(u * TAU * 1.4) * u * .9, 6.7 + u * 4 + Math.cos(u * TAU) * u * .5, 18 + u * 7, reduced ? .15 : (.12 + hello * .38) * (1 - u), u * 2, u * 3, 0);
     }
   });
 }
@@ -456,23 +501,28 @@ function mine(s: MiniSection, b: VariantBuilder) {
     m.add(G.box, i % 2 ? '#82aaa5' : '#aac4b5', [11 - u * 3, 14 - u * 9.2, -u * 8.3], [2.05, .16, .85], [-.83, 0, 0]);
   }
   m.add(G.box, '#d9bf8b', [8, 4.9, -8.6], [3.8, .4, 2.5]);
+  // Fresh gems sit in the loading hopper at the bottom of the elevator.
+  for (const side of [-1, 1]) m.add(G.box, '#d7b77f', [11 + side * 1.45, .95, 0], [.2, 1.1, 3.6]);
+  for (let i = 0; i < 7; i++) m.add(G.rock, palette[(i + 1) % palette.length], [10.1 + i % 3 * .78, .96 + i % 2 * .23, -.9 + Math.floor(i / 3) * .8], [.36, .42, .35]);
   for (const z of [-10.8, -9.2]) {
     m.add(G.round, '#f6e5b2', [10.23, 2.65, z], [.12, .55, .55]);
     m.add(G.round, '#52687b', [10.35, 2.65, z], [.08, .22, .22]);
   }
+  // A fixed sorting screw shares the building batch, leaving one instance
+  // pool for ore that genuinely tips out, slides down the chute and disappears.
+  m.add(G.cone, '#b2c9be', [11.4, 1.45, -10], [1.1, 2.8, 1.1], [0, 0, -Math.PI / 2]);
+  m.add(G.pole, '#8fa2a0', [10.6, 1.45, -10], [1.4, .6, 1.4], [0, 0, Math.PI / 2]);
   b.batch(m, machinery);
   const bucket = new WorldModel();
-  bucket.add(G.box, '#77a7a5', [0, -.1, 0], [1.6, 1.1, 1.8]);
-  bucket.add(G.box, '#e1c48d', [0, .55, 0], [1.9, .15, 2]);
-  for (let i = 0; i < 3; i++) bucket.add(G.rock, palette[i + 1], [0, .75 + i % 2 * .2, (i - 1) * .48], [.48, .6, .43]);
-  const buckets = b.pool(bucket, 8, machinery), rotor = new WorldModel();
-  rotor.add(G.pole, '#8fa2a0', [0, 0, 0], [1.4, .6, 1.4], [0, 0, Math.PI / 2]);
-  for (let i = 0; i < 8; i++) {
-    const a = i / 8 * TAU;
-    rotor.add(G.box, '#e1b86e', [0, Math.sin(a) * 1.55, Math.cos(a) * 1.55], [1, .55, .55], [a, 0, 0]);
+  bucket.add(G.box, '#77a7a5', [0, -.55, 0], [1.6, .16, 1.8]);
+  for (const side of [-1, 1]) {
+    bucket.add(G.box, '#77a7a5', [side * .74, -.06, 0], [.14, 1.05, 1.8]);
+    bucket.add(G.box, '#91bdb2', [0, -.06, side * .82], [1.6, 1.05, .14]);
   }
-  rotor.add(G.cone, '#b2c9be', [.8, 0, 0], [1.1, 2.8, 1.1], [0, 0, -Math.PI / 2]);
-  const drill = b.pool(rotor, 1, machinery);
+  bucket.add(G.box, '#e1c48d', [0, .55, 0], [1.9, .15, 2]);
+  const buckets = b.pool(bucket, 8, machinery), ore = new WorldModel();
+  for (let i = 0; i < 3; i++) ore.add(G.rock, palette[i + 1], [(i - 1) * .3, i % 2 * .22, (i - 1) * .35], [.43, .55, .38]);
+  const payloads = b.pool(ore, 8, machinery); payloads[0].name = 'mine-ore-payloads'; buckets[0].name = 'mine-empty-buckets';
   b.animate((time, distance, reduced) => {
     cover.visible = !b.group.userData.cutaway;
     const clock = reduced ? 0 : time, push = reduced ? 0 : T.MathUtils.clamp(distance - (at(s, .5) - 14), 0, 28) * .06;
@@ -480,8 +530,14 @@ function mine(s: MiniSection, b: VariantBuilder) {
       const a = clock * .28 + push + i / 8 * TAU;
       const tip = reduced ? 0 : Math.max(0, Math.sin(a) - .78) / .22;
       b.place(buckets, i, 11, 8 + Math.sin(a) * 7, Math.cos(a) * 4, 1, -tip * .7, 0, 0);
+      const phase = ((a % TAU) + TAU) % TAU;
+      if (phase < Math.PI / 2 || phase > Math.PI * 1.5) b.place(payloads, i, 11, 8.65 + Math.sin(a) * 7, Math.cos(a) * 4, .88 * (phase > Math.PI * 1.5 ? Math.min(1, (phase - Math.PI * 1.5) / .24) : 1), -tip * .4, 0, 0);
+      else if (phase < Math.PI / 2 + 1.25) {
+        const u = (phase - Math.PI / 2) / 1.25;
+        b.place(payloads, i, 11 - u * 3, 15.65 - u * 10.35, -u * 8.3, .88 * (1 - Math.max(0, u - .88) / .12), u * 6, i + u * 3, u * 3);
+      } else b.place(payloads, i, 11, 0, 0, 0);
     }
-    b.place(drill, 0, 10.6, 1.45, -10, 1, clock * 1.2 + push * 2, 0, 0);
+
   });
 }
 function viaduct(s: MiniSection, m: WorldModel, icy: boolean) {
@@ -529,7 +585,12 @@ function weather(s: MiniSection, b: VariantBuilder) {
     m.beam('#d7bb89', new T.Vector3(tx, 2.5, z), new T.Vector3(x + side * 3.2, 2.5, z), .34);
     m.beam('#9fbdad', new T.Vector3(tx, 5, z - 1), new T.Vector3(tx, 10.6, z - 1), .26);
     m.beam('#9fbdad', new T.Vector3(tx, 10.6, z - 1), new T.Vector3(x, 10.6, z - 1), .26);
-    for (let i = 0; i < 4; i++) m.add(G.box, palette[i], [tx - .55 + i * .36, 2.6, z + 2.24], [.22, .7 + i * .5, .1]);
+    m.add(G.round, '#e9e1b8', [tx, 3.5, z + 2.39], [1.28, 1.28, .15]);
+    m.add(G.ring, '#cba77a', [tx, 3.5, z + 2.52], [1.35, 1.35, 1.35]);
+    for (let i = 0; i < 7; i++) {
+      const a = .25 + i / 6 * (Math.PI - .5);
+      m.add(G.box, palette[Math.min(4, i)], [tx + Math.cos(a) * .97, 3.5 + Math.sin(a) * .97, z + 2.56], [.12, .24, .05], [0, 0, a - Math.PI / 2]);
+    }
   }
   m.add(G.box, '#c6d6c5', [x, 10.8, z], [12, .4, .5]);
   m.add(G.round, '#e9db98', [x, 11, z + .2], [.6, .6, .5]);
@@ -544,6 +605,10 @@ function weather(s: MiniSection, b: VariantBuilder) {
     const a = i / 12 * TAU;
     sun.add(G.cone, palette[i % 5], [Math.cos(a) * 3.4, Math.sin(a) * 3.4, 0], [.65, 2, .27], [0, 0, a - Math.PI / 2]);
   }
+  const needle = new WorldModel();
+  needle.add(G.box, '#647d89', [.42, 0, 0], [.98, .16, .08]);
+  needle.add(G.round, '#dcad6e', [0, 0, .04], [.22, .22, .1]);
+  const gauges = b.pool(needle, 2);
   const turbine = b.pool(sun, 1), puff = new WorldModel(); cloud(puff, 0, 0, 0, 1.2, true);
   const clouds = b.pool(puff, 2), droplet = new WorldModel(); droplet.add(G.rock, '#bee9e6', [0, 0, 0], [.2, .48, .2], [], true);
   const rain = b.pool(droplet, 24), spark = new WorldModel(); spark.add(G.rock, '#f2e6a5', [0, 0, 0], [.2, .2, .2], [], true);
@@ -552,6 +617,10 @@ function weather(s: MiniSection, b: VariantBuilder) {
     const clock = reduced ? 0 : time, hello = arrival(distance, at(s, .5), 24);
     const push = reduced ? 0 : T.MathUtils.clamp(distance - s.start, 0, s.length) * .025;
     b.place(turbine, 0, x, 11, z + .5, 1, 0, 0, clock * .28 + push);
+    for (let side = 0; side < 2; side++) {
+      const pressure = reduced ? .2 : .2 + hello * .62 + Math.sin(clock * 2 + side) * .05;
+      b.place(gauges, side, x + (side ? 7 : -7), 3.5, z + 2.67, 1, 0, 0, Math.PI * (.87 - pressure * .72));
+    }
     for (let i = 0; i < 2; i++) b.place(clouds, i, x + (i ? 7 : -7), 15 + (reduced ? 0 : Math.sin(clock * .7 + i * 2) * .5 + hello), z, 1, 0, 0, 0);
     for (let i = 0; i < 24; i++) {
       const u = (clock * .32 + i / 24) % 1;
@@ -573,7 +642,7 @@ function penguinModel() {
     m.add(G.round, '#f5efd7', [side * .22, 1.82, .4], [.14, .18, .08]);
     m.add(G.round, '#405464', [side * .22, 1.82, .47], [.065, .085, .035]);
     m.add(G.round, '#e2b96e', [side * .3, .08, .2], [.27, .11, .42]);
-    m.add(G.round, '#526e83', [side * .72, 1, 0], [.19, .62, .23], [0, 0, side * -.5]);
+
   }
   m.add(G.box, '#dca0a0', [0, 1.3, 0], [1.05, .19, .9]);
   return m;
@@ -611,7 +680,14 @@ function penguins(s: MiniSection, b: VariantBuilder) {
   for (const side of [-1, 1]) m.add(G.rock, '#a8d4df', [start.x - 1.2, start.y + 1.3, start.z + side * 3], [2.7, 3, 1.4]);
   m.add(G.rock, '#e4f0e6', [start.x - 1.2, start.y + 4.15, start.z], [2.8, 1.15, 4.1]);
   b.batch(m);
-  const riders = b.pool(penguinModel(), 7), floe = new WorldModel();
+  const riders = b.pool(penguinModel(), 7), floe = new WorldModel(); riders[0].name = 'penguin-riders';
+  const wing = new WorldModel(); wing.add(G.round, '#526e83', [0, -.36, 0], [.17, .52, .25]);
+  const wings = b.pool(wing, 14); wings[0].name = 'penguin-flippers';
+  const spray = new WorldModel();
+  spray.add(G.rock, '#cdeae5', [0, 0, 0], [.22, .32, .22], [], true);
+  const splashes = b.pool(spray, 14);
+  const wingPose = new T.Object3D(), wingMatrix = new T.Matrix4();
+
   const riderPose = new T.Object3D(); riderPose.rotation.order = 'YXZ';
   floe.add(G.rock, '#e8f3e8', [0, 0, 0], [2, .4, 1.6]);
   const floes = b.pool(floe, 4);
@@ -620,10 +696,19 @@ function penguins(s: MiniSection, b: VariantBuilder) {
     for (let i = 0; i < 7; i++) {
       const u = (clock * .075 + push + i / 7) % 1;
       const { p, yaw, down } = circuit(u, slide, start, end, c.z + 18);
+      const heading = down ? Math.atan2(34, 6 * Math.PI * Math.cos(u / .6 * TAU)) : yaw;
       // Belly-down sliding is a distinct pose from the upright ride uphill.
       riderPose.position.set(p.x, p.y + (down ? .85 : .3), p.z); riderPose.scale.setScalar(1.3);
-      riderPose.rotation.set(down ? Math.PI / 2 - .17 : 0, yaw, down ? .08 * Math.sin(clock * 5 + i) : 0);
+      riderPose.rotation.set(down ? Math.PI / 2 - .17 : 0, heading, down ? .08 * Math.sin(clock * 5 + i) : 0);
       riderPose.updateMatrix(); for (const mesh of riders) mesh.setMatrixAt(i, riderPose.matrix);
+      for (let side = 0; side < 2; side++) {
+        wingPose.position.set(side ? .65 : -.65, 1.22, 0);
+        wingPose.rotation.set(0, 0, (side ? 1 : -1) * (.45 + (reduced ? 0 : (.5 + .5 * Math.sin(clock * (down ? 8 : 3) + i)) * (down ? .8 : .35))));
+        wingPose.updateMatrix(); wingMatrix.multiplyMatrices(riderPose.matrix, wingPose.matrix);
+        for (const mesh of wings) mesh.setMatrixAt(i * 2 + side, wingMatrix);
+        const sliding = down ? Math.sin(Math.min(1, u / .6) * Math.PI) : 0;
+        b.place(splashes, i * 2 + side, p.x - .8 - side * .4, p.y + .25 + side * .2, p.z + (side ? -1 : 1) * 1.1, reduced ? 0 : sliding * (.65 + .3 * Math.sin(clock * 9 + i)), 0, clock + i, 0);
+      }
     }
     for (let i = 0; i < 4; i++) b.place(floes, i, c.x + 15 + Math.sin(i * 2.4) * 5.5, .4 + Math.sin(clock * .8 + i) * (reduced ? 0 : .14), c.z + 12 + Math.cos(i * 2.4) * 4, 1, 0, i, 0);
   });

@@ -100,6 +100,12 @@ export function ravineBridge(m: WorldModel, section: MiniSection) {
     m.beam('#927958', new T.Vector3(p.x, .2, p.z), p.clone().add(new T.Vector3(0, -.25, 0)), .16);
     m.add(G.box, '#d4bc8d', [p.x, p.y - .22, p.z], [.22, .18, 1.4]);
   }
+  // A mossy island and a tiny arched duck house give the circling mill-pond
+  // ducks a home. These stay below the bridge and outside the wheel/flume.
+  m.add(G.rock, '#9bb3a0', [fx + .6, .3, fz + 1.8], [1.25, .45, .9]);
+  m.add(G.box, '#d7b782', [fx + .6, .93, fz + 1.8], [1.25, 1.1, 1.1]);
+  m.add(G.round, '#607d7c', [fx + .6, .74, fz + 2.36], [.36, .43, .035]);
+  for (const side of [-1, 1]) m.add(G.box, '#709c8f', [fx + .6 + side * .36, 1.6, fz + 1.8], [.94, .14, 1.5], [0, 0, -side * .48]);
   // A softly coloured low arch hangs in the spray, behind the high railway.
   for (const [band, color] of ['#e8a39b', '#ecd49f', '#b4d4aa', '#a2d8d8', '#bac7e0'].entries()) {
     const vertices: number[] = [], radius = 6.6 - band * .32;

@@ -137,6 +137,14 @@ export function lilyBridge(m: WorldModel, section: MiniSection) {
     for(const side of [-1,1])m.beam('#b89462',new T.Vector3(wheel.x+side*1.7,.38,wheel.z+dz),new T.Vector3(wheel.x,2.6,wheel.z+dz),.11);
   }
   m.add(G.pole,'#e7c888',[wheel.x,wheel.y,wheel.z],[.15,2,.15],[Math.PI/2,0,0]);
+  // A striped toy-boathouse and launch slip tie the duck regatta together.
+  const dockX=section.span*.27,dockZ=z+11.1;
+  for(const side of [-1,1]){
+    m.add(G.pole,'#b99666',[dockX+side*2.3,1.95,dockZ+.8],[.12,3.8,.12]);
+    m.add(G.box,'#88b6ad',[dockX+side*1.2,3.96,dockZ],[2.9,.16,3.2],[0,0,-side*.32]);
+  }
+  for(let i=0;i<6;i++)m.add(pennant,millColors[i%4],[dockX-2.05+i*.82,3.24-Math.sin(i/5*Math.PI)*.24,dockZ+1.3],[.7,.7,.7]);
+  m.add(G.ring,'#edb39b',[dockX,2.15,dockZ+.9],[.46,.46,.46]);
   // Broad lily stepping stones and a duck-sized dock are easy to read at speed.
   for(let i=0;i<5;i++)m.add(G.round,'#d9d4ad',[section.span*.25+i*.8,.23,z+11.2-i*.22],[.62,.18,.5]);
   m.add(G.box,'#d4ad7c',[section.span*.27,.55,z+11.1],[5.5,.18,2.1]);
@@ -194,6 +202,13 @@ export function meadowWindmill(m: WorldModel, section: MiniSection) {
     m.beam('#d4b889',new T.Vector3(x-3,1.22,conveyorZ+side*.6),new T.Vector3(x+3,1.22,conveyorZ+side*.6),.05);
   }
   m.beam('#a68962',new T.Vector3(x,2.99,rotorZ-1.52),new T.Vector3(x,1.15,conveyorZ),.075);
+  // The two packing heads run on visible guides above the front/back belt.
+  for(const side of [-1,1]){
+    const pz=conveyorZ+side*.47;
+    for(const dx of [-.75,.75])m.add(G.pole,'#b69b74',[x+dx,1.66,pz],[.065,3.22,.065]);
+    m.add(G.box,'#d7ba88',[x,3.26,pz],[1.65,.17,.8]);
+    m.add(G.round,'#83aea5',[x,3.5,pz],[.3,.24,.25]);
+  }
   // Flour sacks and grain sheaves give the animated lower gears a purpose.
   for(const side of [-1,1]) {
     const sx=x+side*4.2,sz=z+1.25;

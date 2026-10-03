@@ -24,7 +24,9 @@ function flowerModel() {
     m.add(G.rock,'#655953',[side*.13,1.87,.23],[.047,.063,.024]);
     m.add(G.rock,'#e39b78',[side*.23,1.72,.208],[.07,.047,.023]);
   }
-  m.add(G.rock,'#fff2c6',[0,1.66,.233],[.09,.045,.018]);return m;
+  m.add(G.rock,'#fff2c6',[0,1.66,.233],[.09,.045,.018]);
+  // Rounded leaf shoes and little petal freckles help the face read at speed.
+  for(const side of [-1,1]){m.add(G.rock,'#9bb879',[side*.13,.06,.1],[.21,.1,.15]);m.add(G.rock,'#c78f72',[side*.18,1.74,.235],[.02,.018,.016]);}return m;
 }
 function flowerArmModel() {
   const m=new WorldModel();
@@ -68,8 +70,19 @@ function boatModel() {
   m.add(G.round,'#ffe1a0',[-.48,.8,0],[.21,.23,.2]);
   m.add(G.round,'#dda974',[-.24,.77,0],[.17,.06,.12]);
   m.add(G.pole,'#efedce',[-.48,1,0],[.24,.1,.24]);
+  m.add(G.ring,'#eaa68b',[-.15,.24,.405],[.21,.21,.21]);
+  for(const z of [-.3,.3])m.beam('#edcc97',new T.Vector3(-.85,.36,z),new T.Vector3(.7,.36,z),.025);
   m.add(G.box,'#79aead',[-.41,.97,.16],[.2,.055,.13]);
   for(const side of [-1,1])m.add(G.rock,'#605e59',[-.39,.85,side*.16],[.04,.052,.035]);return m;
+}
+function paddleModel() {
+  const m=new WorldModel();m.add(G.ring,'#d9ae7b',[0,0,0],[.32,.32,.32]);
+  for(let i=0;i<6;i++){const a=i*TAU/6;m.add(G.box,i%2?'#88b9b0':'#edc88a',[Math.sin(a)*.29,Math.cos(a)*.29,0],[.23,.11,.28],[0,0,-a]);}
+  m.add(G.round,'#f2ddaa',[0,0,.2],[.1,.1,.08]);return m;
+}
+function packingPressModel() {
+  const m=new WorldModel();m.add(G.box,'#aebea6',[0,.28,0],[.84,.56,.6]);m.add(G.box,'#d7bd88',[0,0,0],[1.05,.09,.77]);
+  m.add(G.pole,'#a98a66',[0,.74,0],[.08,.65,.08]);m.add(G.round,'#f0d599',[0,.43,.33],[.18,.18,.08]);return m;
 }
 function rippleModel() {
   const m=new WorldModel(),ring=new T.TorusGeometry(1,.032,3,20);
@@ -98,7 +111,7 @@ function flourBagModel() {
   m.add(G.pole,'#f5d997',[0,.46,.32],[.105,.025,.105],[Math.PI/2,0,0]);return m;
 }
 
-/** Every section owns at most three fixed instanced draws; shared materials
+/** Every section owns at most four fixed instanced draws; shared materials
  * remain owned by AdventureScene. Update uses only cached section-local sites. */
 export function createMeadowPieceAnimation(section:MiniSection,material:T.Material,lights:FairgroundLights):PieceAnimation|undefined {
   if(!['sheepbank','pondbridge','windmillloop'].includes(section.kind))return undefined;
@@ -123,12 +136,15 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
     });
     update=(time,distance,reduced)=>{
       for(let i=0;i<sites.length;i++) {
-        const p=sites[i],greet=meadowArrival(distance,p.at,20),s=1.2+(i%3)*.18;
-        const tilt=reduced?0:Math.sin(time*3.2+i*.65)*(.025+greet*.13);
-        put(flowers,i,p.x,p.y,p.z,0,0,tilt,s);
+        const p=sites[i],greet=meadowArrival(distance,p.at,20),s=1.4+(i%3)*.18;
+        const bow=reduced?0:greet*Math.sin(time*4+i*.5)*.1;
+        const tilt=reduced?0:Math.sin(time*3.2+i*.65)*(.025+greet*.13)+bow;
+        const stretch=reduced?1:1+greet*.12*(.5+.5*Math.sin(time*4+i*.5));
+        put(flowers,i,p.x,p.y,p.z,0,0,tilt,s,s/Math.sqrt(stretch),s*stretch,s);
+
         for(let j=0;j<2;j++) {
           const side=j?1:-1,wave=reduced?.12:.12+greet*(.5+.35*Math.sin(time*5+i+j));
-          put(arms,i*2+j,p.x-Math.sin(tilt)*.8*s,p.y+Math.cos(tilt)*.8*s,p.z+.03,0,j?0:Math.PI,side*tilt+wave,s);
+          put(arms,i*2+j,p.x-Math.sin(tilt)*.8*s*stretch,p.y+Math.cos(tilt)*.8*s*stretch,p.z+.03,0,j?0:Math.PI,side*tilt+wave,s);
         }
       }
       for(let i=0;i<8;i++) {
@@ -137,7 +153,8 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
       }
     };
   } else if(section.kind==='pondbridge') {
-    const wheel=batch(waterwheelModel(),1),boats=batch(boatModel(),3),ripples=batch(rippleModel(),9);
+    const wheel=batch(waterwheelModel(),1),boats=batch(boatModel(),3),ripples=batch(rippleModel(),9),paddles=batch(paddleModel(),6);
+    paddles.name="boat-paddles";
     wheel.name="pond-waterwheel";boats.name="captain-boats";ripples.name="boat-wakes";
     const w=pondWaterwheel(section),z=section.hand*4;
     const mid=section.start+section.length*.5;
@@ -150,7 +167,12 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
         const radius=1.1+greeting*.55,bx=p.x+Math.cos(a)*radius,bz=p.z+Math.sin(a)*.7;
         // The hull's bow is +X; yaw follows the ellipse tangent, not its phase.
         const heading=Math.atan2(-.7*Math.cos(a),-radius*Math.sin(a));
-        put(boats,i,bx,.37+(reduced?0:Math.sin(time*1.5+i)*.035),bz,0,heading,reduced?0:Math.sin(time*1.5+i)*.025,1.3);
+        const bob=reduced?0:Math.sin(time*1.5+i)*.035,roll=reduced?0:Math.sin(time*1.5+i)*.025;
+        put(boats,i,bx,.37+bob,bz,0,heading,roll,1.65);
+        for(let j=0;j<2;j++){
+          const side=j?1:-1,lx=(-.28*Math.cos(roll)-.13*Math.sin(roll))*1.65,ly=(-.28*Math.sin(roll)+.13*Math.cos(roll))*1.65,lz=side*.54*1.65;
+          put(paddles,i*2+j,bx+lx*Math.cos(heading)+lz*Math.sin(heading),.37+bob+ly,bz-lx*Math.sin(heading)+lz*Math.cos(heading),0,heading,roll+(reduced?0:-time*2.5-travel*.6),1.65);
+        }
         for(let j=0;j<3;j++) {
           const progress=reduced?(j+1)/4:((time*.34+j/3+i*.14)%1),size=.45+progress*.95;
           put(ripples,i*3+j,bx-Math.cos(heading)*(1.4+progress*1.3),.275+j*.003,bz+Math.sin(heading)*(1.4+progress*1.3),0,heading,0,1,size,Math.max(.04,(1-progress)*.25),size*.68);
@@ -158,7 +180,8 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
       }
     };
   } else {
-    const gears=batch(gearModel(),3),pinwheels=batch(pinwheelModel(),5),bags=batch(flourBagModel(),6);
+    const gears=batch(gearModel(),3),pinwheels=batch(pinwheelModel(),5),bags=batch(flourBagModel(),6),presses=batch(packingPressModel(),2);
+    presses.name="flour-packing-presses";
     gears.name="meshing-gears";bags.name="flour-conveyor";
     const x=section.width*.5,rotorZ=Math.min(0,section.shift)-2.8,size=section.amplitude*.22,z=rotorZ-3.4-.65-size*.045;
     // Decorative gear teeth all sit below the existing rotor's swept volume.
@@ -174,6 +197,11 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
       for(let i=0;i<6;i++) {
         const a=(reduced?0:angle*.55)+i*TAU/6;
         put(bags,i,x+Math.sin(a)*3.15,1.24,rotorZ-.5+Math.cos(a)*.47,0,-a,0,.88);
+      }
+      for(let j=0;j<2;j++){
+        // Presses meet only bags centred beneath them, with a quick soft tap.
+        const phase=(reduced?0:angle*.55)*6,hit=Math.pow(Math.max(0,Math.cos(phase)),18);
+        put(presses,j,x,2.45-hit*.33,rotorZ-.5+(j?-1:1)*.47,0,0,0,.85);
       }
     };
   }

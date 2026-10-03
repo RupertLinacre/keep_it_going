@@ -66,6 +66,10 @@ export class PieceReviewScene {
   this.attraction.render(this.track,this.section.start-12,0,0,0);
   this.scene.updateMatrixWorld(true);
   this.attractionBounds.setFromObject(this.attraction.group);
+  // Some attractions have a deliberate launch above their resting silhouette.
+  // Reserve that space once, so the camera does not crop or chase the rocket.
+  let headroom=0;this.attraction.group.traverse(o=>{headroom=Math.max(headroom,Number(o.userData.reviewHeadroom)||0);});
+  this.attractionBounds.max.y+=headroom;
   this.bounds.setFromObject(this.staticGroup).union(this.attractionBounds);
   const center=this.bounds.getCenter(new T.Vector3()),size=this.bounds.getSize(new T.Vector3());
   this.ground=new T.Mesh(new T.BoxGeometry(size.x+16,.65,size.z+16),material(world.ground));this.ground.position.set(center.x,-.4,center.z);this.staticGroup.add(this.ground);

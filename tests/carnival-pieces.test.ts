@@ -81,7 +81,7 @@ test('carousel geometry is bounded inside its drifting spiral for every generate
 
 test('carnival effects have fixed draw-call and instance budgets, shared materials, and release their geometry',()=>{
   const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
-  const cases=[['carouselhelix',3,12,carouselClimb],['lanternrun',2,14,lanternParade],['midwayloop',1,12,marqueeLoop]] as const;
+  const cases=[['carouselhelix',4,60,carouselClimb],['lanternrun',3,28,lanternParade],['midwayloop',2,24,marqueeLoop]] as const;
   for(const [kind,drawCalls,instances,decorate]of cases) {
     const s=new MiniSection(1,kind,0,new Vector3(0,4,0),kind==='midwayloop'?12:62,kind==='midwayloop'?14:24,0,1,2);
     const animation=createCarnivalPieceAnimation(s,material,lights)!;
@@ -138,6 +138,25 @@ test('original carnival characters greet the train while preserving their restin
     else assert.ok(new Vector3().setFromMatrixScale(matrix).x>new Vector3().setFromMatrixScale(resting).x,'Lanterns and cheer stars grow as the train passes');
     if(kind==='lanternrun')assert.ok(matrix.elements[13]-resting.elements[13]>.65,'The lantern rises above its rainbow arch');
     ride.dispose();
+  }
+  material.dispose();lights.dispose();
+});
+
+test('galloping legs and butterfly wings stay joined to their moving parent bodies',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),body=new Matrix4(),limb=new Matrix4();
+  for(const kind of ['carouselhelix','lanternrun']as const) {
+    const s=new MiniSection(1,kind,100,new Vector3(80,4,2),62,24,0,1,2),ride=createCarnivalPieceAnimation(s,material,lights)!;
+    const bodies=ride.group.getObjectByName(kind==='carouselhelix'?'greeting-unicorns':'lantern-creatures') as InstancedMesh;
+    const limbs=ride.group.getObjectByName(kind==='carouselhelix'?'galloping-unicorn-legs':'lantern-butterfly-wings') as InstancedMesh;
+    let firstRotation:number|undefined,changed=false;
+    for(let frame=0;frame<60;frame++) {
+      ride.update(frame/15,s.start+frame*.9,false);bodies.getMatrixAt(0,body);limbs.getMatrixAt(0,limb);limb.premultiply(body.invert());
+      const expected=kind==='carouselhelix'?[.52,-.22,-.23]:[.54,0,-.28],actual=new Vector3().setFromMatrixPosition(limb);
+      assert.ok(actual.distanceTo(new Vector3(...expected))<1e-5,'Articulated parts must stay at their shoulders/hips throughout the bounce');
+      const rotation=kind==='carouselhelix'?limb.elements[1]:limb.elements[2];
+      if(firstRotation===undefined)firstRotation=rotation;else if(Math.abs(firstRotation-rotation)>.01)changed=true;
+    }
+    assert.ok(changed,'The limb articulates independently, rather than simply bobbing with its body');ride.dispose();
   }
   material.dispose();lights.dispose();
 });

@@ -12,13 +12,13 @@ test('Halloween interactions use fixed buffers, replay cleanly and release their
   const section=createMiniSection(kind,0,new T.Vector3(0,4,0),0,seededRandom(71));
   const effect=createHalloweenPieceAnimation(section,solid,lights)!;
   const meshes:T.InstancedMesh[]=[];effect.group.traverse(o=>{if(o instanceof T.InstancedMesh)meshes.push(o);});
-  assert.equal(meshes.length,2);const arrays=meshes.map(m=>m.instanceMatrix.array);
+  assert.equal(meshes.length,3);const arrays=meshes.map(m=>m.instanceMatrix.array);
   const replay=()=>{for(let i=0;i<360;i++)effect.update(i/30,section.start-12+i*.8,false);};
   replay();const state=meshes.map(m=>Array.from(m.instanceMatrix.array));
   replay();assert.deepEqual(meshes.map(m=>Array.from(m.instanceMatrix.array)),state);
   meshes.forEach((mesh,i)=>{assert.equal(mesh.instanceMatrix.array,arrays[i]);assert.ok(mesh.count<=mesh.instanceMatrix.count);assert.ok(Array.from(mesh.instanceMatrix.array).every(Number.isFinite));});
   effect.update(1,section.start,false);effect.update(2,section.end,true);const still=meshes.map(m=>Array.from(m.instanceMatrix.array));effect.update(50,section.end,true);assert.deepEqual(meshes.map(m=>Array.from(m.instanceMatrix.array)),still);
-  let disposed=0;meshes.forEach(m=>m.geometry.addEventListener('dispose',()=>disposed++));effect.dispose();assert.equal(disposed,2);
+  let disposed=0;meshes.forEach(m=>m.geometry.addEventListener('dispose',()=>disposed++));effect.dispose();assert.equal(disposed,3);
  }
  solid.dispose();lights.dispose();
 });
@@ -78,4 +78,19 @@ test('orbiting broom geometry clears the banked carriage envelope in either-hand
   effect.dispose();
  }
  solid.dispose();lights.dispose();
+});
+
+test('spellbook pages stay attached to broom riders with positive instance transforms',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const section=createMiniSection('witchhat',0,new T.Vector3(0,4,0),0,seededRandom(71)),effect=createHalloweenPieceAnimation(section,material,lights)!;
+ const rider=effect.group.children[0] as T.InstancedMesh,pages=effect.group.getObjectByName('halloween-character-details') as T.InstancedMesh;
+ const matrix=new T.Matrix4(),book=new T.Matrix4();
+ for(let time=0;time<8;time+=.23){
+  effect.update(time,section.start+time*24,false);assert.equal(pages.count,6);
+  for(let i=0;i<3;i++){
+   rider.getMatrixAt(i,matrix);const spine=new T.Vector3(.71,.14,0).applyMatrix4(matrix);
+   for(let page=0;page<2;page++){pages.getMatrixAt(i*2+page,book);assert.ok(book.determinant()>0,'Instancing does not support reflected scales');assert.ok(new T.Vector3().setFromMatrixPosition(book).distanceTo(spine)<1e-5);}
+  }
+ }
+ effect.dispose();material.dispose();lights.dispose();
 });

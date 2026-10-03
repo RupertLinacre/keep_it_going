@@ -15,7 +15,8 @@ test('meadow interactions stay in fixed batches and do not drift during pause or
   for(const [kind,width,height]of pieces)for(const hand of [-1,1]) {
     const section=new MiniSection(4,kind,90,new T.Vector3(40,4,-7),width,height,kind==='windmillloop'?hand*2.2:0,hand);
     const animation=createMeadowPieceAnimation(section,material,lights)!;
-    assert.ok(animation.group.children.length<=3,'At most three added draw calls');
+    // Paddles and packing presses each need one independently moving batch.
+    assert.ok(animation.group.children.length<=(kind==='sheepbank'?3:4),'Meadow animation stays within its per-piece fixed draw budget');
     const counts=animation.group.children.map(c=>(c as T.InstancedMesh).count),mid=section.start+section.length/2;
     animation.update(5,mid,false);const initial=matrices(animation.group);
     animation.update(5,mid,false);assert.deepEqual(matrices(animation.group),initial,'Paused inputs freeze every instance');

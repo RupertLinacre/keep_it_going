@@ -31,8 +31,6 @@ function lanternMascot() {
   m.add(G.box, '#efd098', [0,-1.63,0], [.84,.1,.67]);
   // Butterfly wings and ribbon tails give the whole lantern a cheerful silhouette.
   for(const side of [-1,1]) {
-    m.add(G.round,'#f0b2d3',[side*1.04,.15,-.25],[.65,.82,.16],[0,0,-side*.45],true);
-    m.add(G.rock,'#b4e4dc',[side*1.03,-.55,-.22],[.45,.47,.15],[0,0,side*.35],true);
     m.add(G.cone,'#e9b5d9',[side*.27,-2.18,0],[.16,.64,.055],[0,0,Math.PI-side*.12]);
     m.add(G.rock,'#fff0c8',[side*.22,-1.42,.22],[.15,.18,.14]);
   }
@@ -53,10 +51,6 @@ function unicorn() {
     m.add(G.cone, '#fff0cf', [.49,1.3,side*.16], [.16,.4,.12], [0,0,.2]);
     m.add(G.rock, '#66547c', [.86,1.04,side*.26], [.06,.085,.045]);
     m.add(G.rock, '#eea5be', [1.02,.89,side*.26], [.07,.055,.045]);
-    for (const x of [-.52,.52]) {
-      m.add(G.box, '#fff0cf', [x,-.48,side*.23], [.15,.65,.16], [0,0,x*.2]);
-      m.add(G.box, '#e9bd7d', [x,-.81,side*.23], [.22,.14,.22]);
-    }
   }
   for (let i=0;i<4;i++) m.add(G.rock, COLORS[(i+1)%4], [.32-i*.06,.85-i*.23,0], [.22,.24,.3]);
   for (let i=0;i<3;i++) m.add(G.rock, COLORS[(i+1)%4], [-.77-i*.15,.12-i*.15,0], [.27,.22,.23], [0,0,-.4]);
@@ -162,6 +156,10 @@ class CarnivalPieceAnimation implements PieceAnimation {
       rotor.name='carousel-rotor';rotor.position.set(center.x,0,center.z);this.group.add(rotor);
       batch(spinningPalace(radius,floors,ceiling),rotor);
       const animals=pool(unicorn(),12,rotor),animalRadius=radius*.6;
+      const leg=new WorldModel();leg.add(G.box,'#fff0cf',[0,-.3,0],[.15,.6,.16]);
+      leg.add(G.box,'#e9bd7d',[0,-.65,0],[.23,.16,.23]);
+      const legs=pool(leg,48,rotor),local=new T.Object3D(),bodyMatrix=new T.Matrix4();
+      for(const mesh of legs)mesh.name='galloping-unicorn-legs';
       for(const mesh of animals)mesh.name='greeting-unicorns';
       const motion=new CarouselMotion(section),size=Math.min(1.13,radius*.34);
       const greetings=[.2,.42,.65].map(t=>section.start+section.distances[Math.round(section.resolution*t)]);
@@ -172,6 +170,15 @@ class CarnivalPieceAnimation implements PieceAnimation {
           const greeting=reduced?0:Math.exp(-gap*gap),bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.28+greeting*.32;
           this.dummy.position.set(Math.sin(a)*animalRadius,floors[level]+1.65+bob,Math.cos(a)*animalRadius);
           this.dummy.rotation.set(0,a,greeting*.13);this.dummy.scale.setScalar(size);place(animals,i);
+          bodyMatrix.copy(this.dummy.matrix);
+          // Feet swing about their own hips: a cantering wave, not a rigid toy bob.
+          for(let foot=0;foot<4;foot++) {
+            const front=foot<2,side=foot%2?1:-1;
+            local.position.set(front?.52:-.52,-.22,side*.23);local.scale.setScalar(1);
+            local.rotation.set(0,0,reduced?0:Math.sin(rotor.rotation.y*4+a+(front?0:Math.PI)+side*.7)*.27+greeting*(front?.4:-.18));
+            local.updateMatrix();this.dummy.matrix.multiplyMatrices(bodyMatrix,local.matrix);
+            for(const mesh of legs)mesh.setMatrixAt(i*4+foot,this.dummy.matrix);
+          }
         }
       };
     } else if(section.kind==='lanternrun') {
@@ -179,12 +186,27 @@ class CarnivalPieceAnimation implements PieceAnimation {
         const distance=lanternDistance(section,i),f=section.sample(distance);
         return {distance,position:f.position.clone().sub(new T.Vector3(section.origin.x,0,section.origin.z))};
       });
+      for(const mesh of meshes)mesh.name='lantern-creatures';
+      const wing=new WorldModel();
+      wing.add(G.round,'#f0b2d3',[.58,.14,0],[.7,.87,.13],[0,0,-.36]);
+      wing.add(G.rock,'#b4e4dc',[.51,-.54,.03],[.52,.5,.14],[0,0,.26]);
+      wing.beam('#f9d89b',new T.Vector3(0,0,.15),new T.Vector3(1.02,.57,.15),.035);
+      wing.beam('#f9d89b',new T.Vector3(0,0,.15),new T.Vector3(.9,-.61,.15),.035);
+      const wings=pool(wing,14),local=new T.Object3D(),bodyMatrix=new T.Matrix4();
+      for(const mesh of wings)mesh.name='lantern-butterfly-wings';
       this.tick=(time,distance,reduced)=>{
         for(let i=0;i<7;i++) {
           const stop=stops[i],arrival=Math.exp(-(((distance-stop.distance)/10)**2)),bob=reduced?0:Math.sin(time*1.5+i)*.16+arrival*.85;
           this.dummy.position.copy(stop.position);this.dummy.position.y+=10+bob;
           this.dummy.rotation.set(reduced?0:-arrival*.13,Math.sin(i*.8)*.35,reduced?0:Math.sin(time*1.8+i)*(.045+arrival*.12));
           const size=.98+(reduced?0:arrival*.09);this.dummy.scale.set(size,size*(reduced?1:1+arrival*.08),size);place(meshes,i);
+          bodyMatrix.copy(this.dummy.matrix);
+          for(let side=0;side<2;side++){
+            local.position.set(side===0?.54:-.54,0,-.28);local.scale.setScalar(1);
+            const flap=reduced?0:Math.sin(time*(2.2+arrival*4)+i)*(.15+arrival*.5);
+            local.rotation.set(0,(side===0?0:Math.PI)+(side===0?1:-1)*flap,0);local.updateMatrix();
+            this.dummy.matrix.multiplyMatrices(bodyMatrix,local.matrix);for(const mesh of wings)mesh.setMatrixAt(i*2+side,this.dummy.matrix);
+          }
         }
       };
     } else {
@@ -195,16 +217,24 @@ class CarnivalPieceAnimation implements PieceAnimation {
         const stop=section.start+section.length*(.08+i*.168),f=section.sample(stop);
         return {stop,p:f.position.clone().addScaledVector(f.up,-3.1).addScaledVector(f.right,2.2).sub(new T.Vector3(section.origin.x,0,section.origin.z))};
       });
+      const ray=new WorldModel();ray.add(G.cone,'#ffd58c',[0,0,0],[.43,1.18,.26],[],true);
+      const rays=pool(ray,12);for(const mesh of rays)mesh.name='sunshine-fan-rays';
       this.tick=(time,distance,reduced)=>{
         const progress=T.MathUtils.clamp((distance-section.start)/section.length,0,1);
         const cheer=Math.sin(progress*Math.PI),spin=reduced?0:time*.25+progress*Math.PI;
         for(let i=0;i<6;i++) {
-          const a=i*Math.PI/3+spin,r=3.45+cheer*.12;
+          const a=i*Math.PI/3+spin,r=4.05+cheer*.12;
           this.dummy.position.set(x+Math.sin(a)*r,y+Math.cos(a)*r,z+.15);
           this.dummy.rotation.set(0,0,-a);this.dummy.scale.setScalar(.7+cheer*.25);place(meshes,i);
           const marker=cheers[i],gap=(distance-marker.stop)/8,pulse=Math.exp(-gap*gap);
           this.dummy.position.copy(marker.p);this.dummy.rotation.set(0,0,reduced?0:pulse*Math.PI);
           this.dummy.scale.setScalar(.9+(reduced?0:pulse*.85));place(meshes,i+6);
+        }
+        const apex=section.start+section.distances[Math.round(section.resolution*.5)],near=Math.exp(-(((distance-apex)/13)**2));
+        for(let i=0;i<12;i++) {
+          const a=i*Math.PI/6+(reduced?0:time*.15+near*.32),r=2.48+(reduced?0:near*.4);
+          this.dummy.position.set(x+Math.sin(a)*r,y+Math.cos(a)*r,z);this.dummy.rotation.set(0,0,-a);
+          this.dummy.scale.setScalar(1+(reduced?0:near*.2));place(rays,i);
         }
       };
     }
@@ -221,7 +251,7 @@ class CarnivalPieceAnimation implements PieceAnimation {
   }
 }
 
-/** Three draw calls for the carousel, two for lanterns, one for marquee stars. */
+/** Fixed instance pools keep articulated carnival rides independent of train size. */
 export function createCarnivalPieceAnimation(section:MiniSection,material:T.Material,lights:FairgroundLights):PieceAnimation|undefined {
   return ['carouselhelix','lanternrun','midwayloop'].includes(section.kind)?new CarnivalPieceAnimation(section,material,lights):undefined;
 }

@@ -82,10 +82,15 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
   for(let i=0;i<8;i++){const a=i*Math.PI/4;star(scenery,moon.x+Math.sin(a)*4,moon.y+Math.cos(a)*3.3,moon.z,.36,CANDY[i%4]);}
   b.batch(scenery);
   const rockets=b.pool(rocketModel(),5),spark=new WorldModel();star(spark,0,0,0,.28,GOLD);
-  const exhaust=b.pool(spark,35),pulses=new CrossingPulses(stops.map(stop=>stop.distance));
+  const exhaust=b.pool(spark,50),pulses=new CrossingPulses(stops.map(stop=>stop.distance));
   const flame=new WorldModel();flame.add(G.cone,'#ffce84',[0,-.5,0],[.53,1.85,.53],[0,0,Math.PI],true);
   flame.add(G.cone,'#a4e3e8',[0,-.16,.02],[.32,1.2,.32],[0,0,Math.PI],true);const flames=b.pool(flame,5);
-  const lamp=new WorldModel();lamp.add(G.round,CREAM,[0,0,0],[.28,.28,.16],[],true);const countdown=b.pool(lamp,15);
+  // The countdown and exhaust share one tiny luminous star pool.
+  const countdown=exhaust,arm=new WorldModel();
+  arm.add(G.box,'#b0c9d8',[1.1,0,0],[2.2,.22,.22]);
+  arm.add(G.box,GOLD,[2.17,0,0],[.25,.55,.7]);
+  arm.add(G.pole,'#e7c6a3',[0,0,0],[.27,.35,.27],[Math.PI/2,0,0]);
+  const clamps=b.pool(arm,10);for(const mesh of clamps)mesh.name='launch-gantry-arms';
   for(const mesh of flames)mesh.name='rocket-flames';
   for(const mesh of countdown)mesh.name='launch-countdown';
   const lampColors=['#f3a5c5','#ffe29b','#a3e4cd'].map(color=>new T.Color(color));
@@ -99,13 +104,16 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
       b.place(rockets,i,p.x,3.5+lift,p.z,1.12,0,.2*Math.sin(i),bank);
       b.place(flames,i,p.x,1.44+lift,p.z,active&&lift>.3?.85+.12*Math.sin(time*14+i):0);
       const gap=stops[i].distance-distance;
+      // Gantries release before ignition, remain clear in flight, and close on landing.
+      const release=reduced?0:Math.max(1-smooth((gap-1)/9),active?1:0)*(active?1-smooth((age-5.5)/.5):gap>0?1:0);
+      for(let side=0;side<2;side++)b.place(clamps,i*2+side,p.x+stops[i].side*2.5,3.2,p.z+(side?1:-1)*.8,1,0,stops[i].side>0?Math.PI:0,release*.95,'YXZ');
       for(let j=0;j<3;j++) {
         const lit=j===0?gap>12&&gap<30:j===1?gap>2&&gap<=12:gap<=2&&(reduced||age<2.5);
         b.place(countdown,i*3+j,p.x+stops[i].side*2.5,1.3+j*1.2,p.z+.42,lit?1.15:.28);
       }
       for(let j=0;j<7;j++) {
         const progress=active?(age*1.6+j/7)%1:0;
-        b.place(exhaust,i*7+j,p.x+Math.sin(j*2.4+(active?age:0))*progress*.9,1.55+lift-progress*2.1,p.z+Math.cos(j*2.4)*progress*.9,
+        b.place(exhaust,15+i*7+j,p.x+Math.sin(j*2.4+(active?age:0))*progress*.9,1.55+lift-progress*2.1,p.z+Math.cos(j*2.4)*progress*.9,
           active&&lift>.6?(1-progress)*1.25:0,0,0,j+(reduced?0:time));
       }
     }
@@ -122,12 +130,7 @@ function jellyModel() {
   for(let j=0;j<8;j++) {
     const a=j*Math.PI/4,x=Math.sin(a)*1.42,z=Math.cos(a)*1.42;
     m.add(G.round,CANDY[j%4],[x,-.04,z],[.3,.24,.3],[],true);
-    let previous=v(x,-.15,z);
-    for(let k=1;k<=5;k++) {
-      const p=v(x+Math.sin(k*1.1+j)*.2,-k*.52,z+Math.cos(k*.8+j)*.2);
-      m.beam(CANDY[j%4],previous,p,.055,true);previous=p;
-    }
-    m.add(G.rock,GOLD,previous.toArray(),[.14,.19,.14],[],true);
+
   }
   return m;
 }
@@ -160,9 +163,8 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
   }
   b.batch(scenery);
   const jellies=b.pool(jellyModel(),7),bubble=new WorldModel();
-  bubble.add(G.ring,'#bcf5ee',[0,0,0],[.45,.45,.45],[],true);
-  bubble.add(G.rock,CREAM,[-.22,.26,.01],[.065,.1,.04],[],true);
-  const bubbles=b.pool(bubble,28);
+  bubble.add(G.rock,'#c4f1e9',[0,0,0],[.24,.31,.24],[],true);
+  const bubbles=b.pool(bubble,308);for(const mesh of bubbles)mesh.name='jellyfish-pearl-fringe';
   const shell=new WorldModel();shell.add(G.round,'#e9bfd8',[0,.68,0],[.93,.77,.17]);
   for(let j=0;j<5;j++)shell.beam('#f4d7bd',v(0,0,.14),v((j-2)*.31,1.23-Math.abs(j-2)*.09,.14),.04);
   const lids=b.pool(shell,10),fish=new WorldModel();
@@ -174,13 +176,20 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
   b.animate((time,distance,reduced)=>{
     for(let i=0;i<7;i++) {
       const stop=stops[i],near=arrival(distance,stop.distance,12),bob=reduced?0:Math.sin(time*1.25+i)*.22+near*.65;
-      b.place(jellies,i,stop.p.x,stop.p.y+bob,stop.p.z,1+(reduced?0:near*.08),0,.2*Math.sin(i),reduced?0:Math.sin(time+i)*.04);
+      const size=1+(reduced?0:near*.08);
+      b.place(jellies,i,stop.p.x,stop.p.y+bob,stop.p.z,size);
+      for(let strand=0;strand<8;strand++)for(let pearl=0;pearl<5;pearl++) {
+        const a=strand*Math.PI/4,t=(pearl+1)/5;
+        const curl=reduced?0:Math.sin(time*2.2+i+strand*.7-t*1.8)*(.12+near*.48)*t;
+        const radius=1.42+curl,drop=.24+(pearl+.5)*.48;
+        b.place(bubbles,28+i*40+strand*5+pearl,stop.p.x+Math.sin(a)*radius*size,stop.p.y+bob-drop*size,stop.p.z+Math.cos(a)*radius*size,.86*size,0,a,0);
+      }
       const swim=(reduced?0:time*.6+near*.8)+i*.8;
       b.place(fishPool,i,stop.p.x+Math.sin(swim)*2.9,stop.p.y+1.35+Math.cos(swim)*.3,stop.p.z+Math.cos(swim)*2.9,.78,0,swim);
       for(let j=0;j<4;j++) {
         const rise=reduced?j*.45:(time*.55+j*.75+i*.21)%3;
         b.place(bubbles,i*4+j,stop.p.x+Math.sin(j*1.7+i)*2.25,stop.p.y+.5+rise,stop.p.z+Math.cos(j*1.7)*1.9,
-          .48+near*.45+(j%2)*.22,0,reduced?0:Math.sin(time*.4+j)*.4);
+          1.3+near*.7+(j%2)*.3,0,reduced?0:Math.sin(time*.4+j)*.4);
       }
     }
     for(let i=0;i<clams.length;i++){
@@ -230,8 +239,12 @@ function pinballParade(s:MiniSection,b:VariantBuilder) {
   for(let j=0;j<8;j++)m.add(G.box,CANDY[j%4],[cx+(j-3.5)*(width+4)/8,1,back+3.48],[(width+4)/10,.6,.05]);
   b.batch(m);
   const bumper=new WorldModel();bumper.add(G.round,'#f1a5cb',[0,0,0],[1.6,1.6,.55],[],true);face(bumper,0,0,.54,1);
-  for(const side of [-1,1])bumper.add(G.cone,'#ffc2dd',[side*.88,1.42,0],[.4,.83,.3],[0,0,-side*.22],true);
-  const caps=b.pool(bumper,3),flipper=new WorldModel();
+  for(const side of [-1,1]){
+    bumper.add(G.cone,'#ffc2dd',[side*.88,1.42,0],[.4,.83,.3],[0,0,-side*.22],true);
+    bumper.add(G.rock,'#ffd1b3',[side*1.38,-.84,.18],[.38,.47,.3]);
+    for(let j=0;j<3;j++)bumper.beam('#f8dbb8',v(side*.68,-.14+j*.12,.59),v(side*1.2,-.26+j*.24,.58),.035);
+  }
+  const caps=b.pool(bumper,3),flipper=new WorldModel();for(const mesh of caps)mesh.name='pinball-kitten-bumpers';
   flipper.add(G.box,'#f6ca87',[1.5,0,0],[3,.75,.55]);flipper.add(G.round,'#ffddb0',[3,0,0],[.5,.4,.3]);
   flipper.add(G.pole,'#99d3ce',[0,0,0],[.55,.7,.55],[Math.PI/2,0,0]);
   const flips=b.pool(flipper,2),ball=new WorldModel();ball.add(G.round,'#d1e5e6',[0,0,0],[.82,.82,.82]);
@@ -240,18 +253,19 @@ function pinballParade(s:MiniSection,b:VariantBuilder) {
   const digits=b.pool(segment,45),patterns=[0b0111111,0b0000110,0b1011011,0b1001111,0b1100110,0b1101101,0b1111101,0b0000111,0b1111111,0b1101111];
   for(const mesh of digits)mesh.name='pinball-display-and-rays';
   const segmentLayout=[[0,.94,1],[.49,.47,0],[.49,-.47,0],[0,-.94,1],[-.49,-.47,0],[-.49,.47,0],[0,0,1]];
-  const cached=s.frames.map(f=>v(f.position.x-s.origin.x,f.position.y,f.position.z-s.origin.z-4.25));
+  const ballRoute=[v(cx-width*.27,3.3,back+1.65),bumpers[0].clone().add(v(-2.2,.6,.85)),bumpers[1].clone().add(v(2.2,.6,.85)),bumpers[2].clone().add(v(0,-2.3,.85)),v(cx+width*.27,3.3,back+1.65)];
+  const ballStops=[s.start,at(s,.22),at(s,.5),at(s,.78),s.end];
+  for(const mesh of balls)mesh.name='pinball-ball';
   const impacts=new CrossingPulses([.22,.5,.78].map(t=>at(s,t)));
   b.animate((time,distance,reduced)=>{
     impacts.update(time,distance);
-    const progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1),route=progress*s.length;
-    let i=0,end=s.resolution;
-    while(end-i>1){const middle=(i+end)>>1;if(s.distances[middle]<=route)i=middle;else end=middle;}
-    const blend=(route-s.distances[i])/(s.distances[i+1]-s.distances[i]);
-    const p=cached[i],q=cached[i+1];b.place(balls,0,p.x+(q.x-p.x)*blend,p.y+(q.y-p.y)*blend,p.z+(q.z-p.z)*blend);
+    const progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1);
+    let i=0;while(i<3&&distance>ballStops[i+1])i++;
+    const blend=T.MathUtils.clamp((distance-ballStops[i])/(ballStops[i+1]-ballStops[i]),0,1),p=ballRoute[i],q=ballRoute[i+1];
+    b.place(balls,0,p.x+(q.x-p.x)*blend,p.y+(q.y-p.y)*blend,p.z+(q.z-p.z)*blend);
     for(let j=0;j<3;j++) {
       const age=impacts.age(j,time),pop=!reduced&&age>=0&&age<1.5?Math.exp(-age*3.2)*Math.abs(Math.sin(age*13)):0,p=bumpers[j];
-      b.place(caps,j,p.x,p.y,p.z+.42,1+pop*.2);
+      b.place(caps,j,p.x,p.y,p.z+.42+pop*.35,1+pop*.18);
       for(let ray=0;ray<8;ray++) {
         const a=ray*Math.PI/4,r=2.35+pop*.7;
         b.place(digits,21+j*8+ray,p.x+Math.sin(a)*r,p.y+Math.cos(a)*r,p.z+.48,pop*.9,0,0,-a);
@@ -329,7 +343,12 @@ function windupWonderland(s:MiniSection,b:VariantBuilder) {
   const fairy=b.pool(fairyAutomaton(),1),notes=b.pool(musicNote(),16),key=new WorldModel();
   key.add(G.box,'#ecc797',[0,0,0],[2.6,.28,.25]);
   for(const side of [-1,1])key.add(G.ring,'#ecc797',[side*.58,.55,0],[.55,.6,.55]);
-  const keys=b.pool(key,1);
+  key.add(G.pole,'#caa37d',[-3.55,0,0],[.48,6.5,.48],[0,0,Math.PI/2]);
+  for(let j=0;j<16;j++){
+    const x=-.5-j*.4,a=j*Math.PI*.63;
+    key.add(G.box,GOLD,[x,Math.sin(a)*.5,Math.cos(a)*.5],[.1,.17,.17]);
+  }
+  const keys=b.pool(key,1);for(const mesh of keys)mesh.name='music-box-winding-drum';
   const piano=new WorldModel();piano.add(G.box,CREAM,[0,0,0],[.72,.16,1.25]);piano.add(G.box,INK,[.24,.14,-.33],[.25,.16,.55]);
   const keyboard=b.pool(piano,20),keyStops=Array.from({length:20},(_,i)=>s.start+s.length*(i+.5)/20);
   for(const mesh of keyboard)mesh.name='piano-keyboard';
@@ -337,7 +356,7 @@ function windupWonderland(s:MiniSection,b:VariantBuilder) {
     const on=arrival(distance,(s.start+s.end)/2,s.length*.55),progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1);
     const beat=reduced?0:Math.sin(progress*Math.PI*16)*on;
     b.place(fairy,0,cx,fairyY+Math.max(0,beat)*.16,back+1,1.9,0,reduced?0:progress*Math.PI*4,beat*.035);
-    b.place(keys,0,right+6.8,3.6,back+5,1,reduced?0:progress*Math.PI*8,Math.PI/2,0);
+    b.place(keys,0,right+3.8,3.1,back+1.6,1,reduced?0:progress*Math.PI*8,0,0);
     for(let j=0;j<16;j++) {
       const a=j*Math.PI*2/16,rx=width*.5+2.6,ry=(top-s.origin.y)*.5+2.8;
       const play=reduced?0:arrival(distance,s.start+s.length*(j+.5)/16,8),bounce=reduced?0:Math.sin(time*1.8+j)*.16+play*1.15;
@@ -364,6 +383,7 @@ function teacupModel() {
     m.add(G.rock,'#eaa6c6',[side*.23,1.36,.13],[.06,.3,.035],[0,0,-side*.13]);
   }
   face(m,0,.81,.41,.57);
+  for(const side of [-1,1])m.add(G.rock,CREAM,[side*.39,.46,.55],[.17,.12,.19]);
   for(let j=0;j<6;j++){const a=j*Math.PI/3;m.add(G.rock,CANDY[j%4],[Math.sin(a)*.76,.06,Math.cos(a)*.76],[.11,.18,.07],[0,a,0]);}
   return m;
 }
@@ -420,7 +440,9 @@ function teaParty(s:MiniSection,b:VariantBuilder) {
   b.batch(m,rotor);
   const pouringPot=new T.Group(),pot=new WorldModel();pouringPot.name='pouring-teapot';pouringPot.position.y=potY;rotor.add(pouringPot);teapot(pot,0,r);b.batch(pot,pouringPot);
   const cups=b.pool(teacupModel(),12,rotor),steam=new WorldModel();
-  steam.add(G.rock,'#d9e7dd',[0,0,0],[.3,.42,.3],[],true);const steamPool=b.pool(steam,10,rotor),motion=new CarouselMotion(s);
+  steam.add(G.rock,'#d9e7dd',[0,0,0],[.3,.42,.3],[],true);const steamPool=b.pool(steam,22,rotor),motion=new CarouselMotion(s);
+  for(const mesh of steamPool){mesh.name='teapot-steam-and-pour';for(let i=0;i<22;i++)mesh.setColorAt(i,new T.Color(i<10?'#ffffff':'#e6b676'));}
+  const teaLip=new T.Vector3(),potSize=r/3.15;
   for(const mesh of cups)mesh.name='toasting-teacups';
   const greetings=[.2,.42,.65].map(t=>at(s,t));
   b.animate((time,distance,reduced)=>{
@@ -430,6 +452,12 @@ function teaParty(s:MiniSection,b:VariantBuilder) {
       const level=Math.floor(i/4),a=(i%4)*Math.PI/2,spin=reduced?0:rotor.rotation.y*.7,toast=reduced?0:arrival(distance,greetings[level]+i%4,11);
       b.place(cups,i,Math.sin(a)*r*.61,floors[level]+.81+(reduced?0:Math.sin(rotor.rotation.y*2+a)*.1)+toast*.4,Math.cos(a)*r*.61,
         Math.min(.94,r*.27),0,a+spin,toast*.08*Math.sin(a));
+    }
+    pouringPot.updateMatrix();teaLip.set(2.55*potSize,1.15*potSize,0).applyMatrix4(pouringPot.matrix);
+    const pour=reduced?0:arrival(distance,at(s,.7),16);
+    for(let i=0;i<12;i++){
+      const t=reduced?i/12:(time*1.1+i/12)%1,spread=t*.35;
+      b.place(steamPool,10+i,teaLip.x+spread,teaLip.y-t*2.6,teaLip.z,.24*pour*(1-t*.4));
     }
     for(let i=0;i<10;i++) {
       const rise=reduced?i*.26:(time*.65+i*.28)%2.8;
@@ -463,9 +491,7 @@ function planetParade(s:MiniSection,b:VariantBuilder) {
     m.add(G.pole,'#d2d5e4',[0,y+.03,0],[r*.89,.13,r*.89]);
     m.add(G.ring,'#accfe0',[0,y,0],[r*.91,r*.91,r*.91],[Math.PI/2,0,0]);
     m.add(G.ring,CANDY[level],[0,y+.32,0],[r*.77,r*.77,r*.77],[Math.PI/2,0,0],true);
-    m.add(G.round,CANDY[(level+1)%4],[0,y+3.45,0],[r*.43,r*.43,r*.43]);
-    face(m,0,y+3.5,r*.425,.85);
-    m.add(G.ring,GOLD,[0,y+3.45,0],[r*.57,r*.57,r*.57],[Math.PI*.56,0,.1*level]);
+    // The three smiling ringed worlds turn independently inside the rotating ride.
     m.add(G.ring,'#accddd',[0,y+step-1,0],[r*.89,r*.89,r*.89],[Math.PI/2,0,0]);
     for(let j=0;j<8;j++) {
       const a=j*Math.PI/4;
@@ -482,19 +508,34 @@ function planetParade(s:MiniSection,b:VariantBuilder) {
   for(const dy of [-.7,.7])m.add(G.ring,'#eabb95',[0,crown+dy,0],[r*.52,r*.52,r*.52],[Math.PI/2,0,0]);
   m.add(G.ring,'#cfb7e9',[0,crown,0],[r*.91,r*.91,r*.91],[Math.PI*.35,0,.2],true);
   star(m,0,crown+r*.58+1,0,.65,GOLD);b.batch(m,rotor);
+  const planet=new WorldModel();planet.add(G.round,'#d8c4eb',[0,0,0]);
+  planet.add(G.ring,GOLD,[0,0,0],[1.325,1.325,1.325],[Math.PI*.56,0,.13]);
+  face(planet,0,.06,.96,.55);
+  for(const [dx,dy]of [[-.62,.34],[.62,-.4]])planet.add(G.rock,'#afcce2',[dx,dy,.67],[.14,.18,.04]);
+  const planets=b.pool(planet,3,rotor);for(const mesh of planets)mesh.name='smiling-orbiting-planets';
   const ufos=b.pool(saucerModel(),12,rotor),comet=new WorldModel();
-  comet.add(G.cone,CREAM,[0,0,0],[.16,.42,.08],[0,0,-Math.PI/2],true);const comets=b.pool(comet,24,rotor),motion=new CarouselMotion(s);
+  comet.add(G.cone,CREAM,[0,0,0],[.16,.42,.08],[0,0,-Math.PI/2],true);const comets=b.pool(comet,36,rotor),motion=new CarouselMotion(s);
+  for(const mesh of comets)mesh.name='planetary-comet-trails';
   for(const mesh of ufos)mesh.name='greeting-saucers';
   const greetings=[.2,.42,.65].map(t=>at(s,t));
   b.animate((time,distance,reduced)=>{
     rotor.rotation.y=motion.update(time,distance,reduced);
+    for(let level=0;level<3;level++){
+      const cheer=reduced?0:arrival(distance,greetings[level],12);
+      b.place(planets,level,0,floors[level]+3.45,0,r*.43,0,reduced?0:time*.35+level*.7,cheer*.2);
+    }
     for(let i=0;i<12;i++) {
       const level=Math.floor(i/4),a=(i%4)*Math.PI/2,bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14+arrival(distance,greetings[level]+i%4,12)*.8;
       b.place(ufos,i,Math.sin(a)*r*.64,floors[level]+.85+bob,Math.cos(a)*r*.64,Math.min(1.06,r*.3),0,a,bob*.05);
     }
     for(let i=0;i<24;i++) {
       const level=Math.floor(i/8),a=(i%8)*.14+(reduced?0:time*.65)+level*1.8;
-      b.place(comets,i,Math.sin(a)*r*.87,floors[level]+step-1,Math.cos(a)*r*.87,1-(i%8)*.055,0,a);
+      const cheer=reduced?0:arrival(distance,greetings[level],12);
+      b.place(comets,i,Math.sin(a)*r*.87,floors[level]+step-1,Math.cos(a)*r*.87,(1-(i%8)*.055)*(1+cheer*.75),0,a);
+    }
+    for(let i=0;i<12;i++){
+      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,launch=reduced?0:arrival(distance,greetings[level]+i%4,12),bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14;
+      b.place(comets,24+i,Math.sin(a)*r*.64,floors[level]+.25+bob+launch*.8,Math.cos(a)*r*.64,launch*1.15,0,0,-Math.PI/2);
     }
   });
 }

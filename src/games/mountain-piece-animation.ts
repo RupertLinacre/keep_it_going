@@ -7,6 +7,18 @@ import { gorgeLookout, GORGE_GOAT_STOPS } from './mountain-landforms';
 import { MOUNTAIN_CABLE_STATIONS, tunnelCableTravel } from './mountain-gondolas';
 import { ravineWaterfall } from './world-mountains';
 
+/** One little crouch followed by a high hop and a smaller landing skip. The
+ * choreography follows train distance so pausing or replaying never teleports it. */
+export function goatGreetingHop(distance: number, stop: number) {
+  const u = (distance - stop + 8) / 22;
+  if (u <= 0 || u >= 1) return { height: 0, squash: 0, tilt: 0 };
+  if (u < .15) return { height: 0, squash: Math.sin(u / .15 * Math.PI) * .16, tilt: -.06 * Math.sin(u / .15 * Math.PI) };
+  const hop = (u - .15) / .85, primary = hop < .65;
+  const phase = primary ? hop / .65 : (hop - .65) / .35;
+  const arc = Math.sin(phase * Math.PI);
+  return { height: arc * (primary ? 1.15 : .36), squash: 0, tilt: Math.sin(phase * Math.PI * 2) * (primary ? .18 : .07) };
+}
+
 /** Smooth, bounded greetings work with replay scrubbing and independent riders. */
 export function mountainGreeting(distance: number, stop: number) {
   const gap = (distance - stop) / 11;
@@ -35,6 +47,11 @@ function goatGeometry(material: T.Material, head = false) {
     m.add(G.pole, '#e6ddc7', [x, .25, side * .23], [.09, .45, .09]);
     m.add(G.box, '#7e7768', [x + .03, .065, side * .23], [.2, .13, .18]);
   }
+  // A tiny mountaineer's pack and a scarf make each goat read as a hiker.
+  m.add(G.round, '#d09b6e', [-.2, 1.03, -.18], [.39, .34, .37]);
+  m.add(G.box, '#b7845c', [-.2, 1.03, .18], [.52, .3, .08]);
+  m.add(G.box, '#ead49c', [-.18, 1.05, .24], [.13, .16, .06]);
+  m.add(G.box, '#75ada9', [.22, .88, .41], [.18, .53, .085], [0, 0, -.25]);
   m.add(G.round, '#e3d6b8', [-.69, .7, 0], [.22, .11, .11], [0, 0, -.6]);
   m.add(G.box, '#70aaa6', [.4, .71, 0], [.19, .18, .65]);
   m.add(G.round, '#e6bc64', [.44, .59, .32], [.13, .13, .1]);
@@ -61,7 +78,7 @@ function wheelGeometry(material: T.Material, radius: number, water = false) {
   return baked(m, material);
 }
 
-/** At most three fixed instance batches per mountain piece. Shared scenery
+/** At most four fixed instance batches per mountain piece. Shared scenery
  * materials remain owned by AdventureScene; only these geometries are owned. */
 export function createMountainPieceAnimation(section: MiniSection, material: T.Material, lights: FairgroundLights): PieceAnimation | undefined {
   if (!['mountainpass', 'tunnel', 'ravinebridge'].includes(section.kind)) return undefined;
@@ -100,8 +117,9 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
     update = (time, distance, reduced) => {
       for (let i = 0; i < stops.length; i++) {
         const { p, at } = stops[i], hello = mountainGreeting(distance, at);
-        const bounce = reduced ? 0 : hello * Math.max(0, Math.sin(time * 4.8 + i * .7));
-        put(goats, i, p.x, p.y + .15 + bounce * .72, p.z, 1.4, 0, i % 2 ? Math.PI + .3 : -.3, bounce * .12);
+        const hop = reduced ? { height: 0, squash: 0, tilt: 0 } : goatGreetingHop(distance, at);
+        put(goats, i, p.x, p.y + .15 + hop.height, p.z, 1.4, 0, i % 2 ? Math.PI + .3 : -.3, hop.tilt);
+        dummy.scale.set(1.4 * (1 + hop.squash * .35), 1.4 * (1 - hop.squash), 1.4); dummy.updateMatrix(); goats.setMatrixAt(i, dummy.matrix);
         neck.rotation.set(0, reduced ? 0 : (i % 2 ? 1 : -1) * hello * .5, reduced ? 0 : hello * Math.sin(time * 3.2 + i) * .22);
         neck.updateMatrix(); headMatrix.multiplyMatrices(dummy.matrix, neck.matrix); heads.setMatrixAt(i, headMatrix);
         for (let j = 0; j < 3; j++) {
@@ -113,7 +131,7 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
       goats.instanceMatrix.needsUpdate = true; heads.instanceMatrix.needsUpdate = true; sparks.instanceMatrix.needsUpdate = true;
     };
   } else if (section.kind === 'tunnel') {
-    const pulley = instances(wheelGeometry(material, 1.25), 2);
+    const pulley = instances(wheelGeometry(material, 1.25), 4);
     const glints = instances(diamond(), 12, lights);
     const bellModel = new WorldModel();
     bellModel.add(G.pole, '#e3ba72', [0, -.45, 0], [.55, .8, .55]);
@@ -126,6 +144,7 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
     // Cache build-time heights. The owner applies later track-lift changes once.
     const world = (p: T.Vector3) => p.applyQuaternion(orientation).add(center);
     const stations = MOUNTAIN_CABLE_STATIONS.map(p => world(new T.Vector3(...p)));
+    const signalWheels = [-1, 1].map(sign => world(new T.Vector3(4.7, 3.65, sign * 14.99)));
     const bellStops = [-1, 1].map(sign => ({ p: world(new T.Vector3(4.7, 6.9, sign * 14.6)), at: section.start + section.length / 2 + sign * 14 }));
     const crystals = Array.from({ length: 12 }, (_, i) => world(new T.Vector3(i % 2 ? -2.36 : 2.36, .55 + i % 3 * .15, -12 + i * 2.15)));
     for (let i = 0; i < glints.count; i++) glints.setColorAt(i, new T.Color(i % 2 ? '#bce9e2' : '#ead7a7'));
@@ -138,6 +157,13 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
         local.setFromAxisAngle(T.Object3D.DEFAULT_UP, -travel / 1.3);
         dummy.quaternion.copy(orientation).multiply(local).multiply(base);
         dummy.updateMatrix(); pulley.setMatrixAt(i, dummy.matrix);
+      }
+      // The cable also drives two visible clockwork signal wheels beside the
+      // portals. Their mounting brackets share the tower's static batch.
+      for (let i = 0; i < signalWheels.length; i++) {
+        dummy.position.copy(signalWheels[i]); dummy.scale.setScalar(.58);
+        local.setFromAxisAngle(bellAxis, travel * (i ? -1 : 1) * .8);
+        dummy.quaternion.copy(orientation).multiply(local); dummy.updateMatrix(); pulley.setMatrixAt(i + 2, dummy.matrix);
       }
       for (let i = 0; i < crystals.length; i++) {
         const p = crystals[i], at = section.start + section.length / 2 - 12 + i * 2.15;
@@ -154,6 +180,17 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
   } else {
     const wheel = instances(wheelGeometry(material, 2.15, true), 1);
     const drops = instances(diamond(), 24, lights), glints = instances(diamond(), 10, lights);
+    const duck = new WorldModel();
+    duck.add(G.round, '#ebcf80', [0, .34, 0], [.64, .43, .44]);
+    duck.add(G.round, '#f4df99', [.4, .91, 0], [.34, .38, .32]);
+    duck.add(G.round, '#e0a261', [.77, .85, 0], [.3, .105, .2]);
+    duck.add(G.cone, '#e8c175', [-.58, .51, 0], [.22, .58, .22], [0, 0, -.9]);
+    for (const side of [-1, 1]) {
+      duck.add(G.round, '#806d5d', [.52, 1.02, side * .25], [.045, .065, .03]);
+      duck.add(G.round, '#e0b46b', [-.08, .4, side * .35], [.36, .19, .08], [0, 0, .2]);
+    }
+    // The mill pond is its own little duck ride, powered by the turning wheel.
+    const ducks = instances(baked(duck, material), 3);
     const { x, z, height } = ravineWaterfall(section), middle = section.start + section.length / 2;
     for (let i = 0; i < drops.count; i++) drops.setColorAt(i, new T.Color(i % 2 ? '#d1efeb' : '#a4dce5'));
     for (let i = 0; i < glints.count; i++) glints.setColorAt(i, new T.Color(['#efb6a6', '#eee0b3', '#c5e1b9', '#b7dfeb', '#d0c9ed'][i % 5]));
@@ -177,6 +214,12 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
         put(glints, i, x + Math.cos(a) * radius, 1.7 + Math.sin(a) * radius, z + 2.85,
           reduced ? .065 : .06 + hello * (.09 + .055 * Math.sin(clock * 4 + i)), 0, 0, clock * .7 + i);
       }
+      for (let i = 0; i < ducks.count; i++) {
+        const angle = i * Math.PI * 2 / 3 + clock * .26 + push * .3;
+        put(ducks, i, x + .6 + Math.cos(angle) * 3.25, .34 + (reduced ? 0 : Math.sin(clock * 3.1 + i) * (.08 + hello * .16)), z + 1.8 + Math.sin(angle) * 2,
+          1.12, 0, Math.atan2(Math.cos(angle) * 2, -Math.sin(angle) * 3.25) * -1, reduced ? 0 : Math.sin(clock * 2.3 + i) * hello * .12);
+      }
+      ducks.instanceMatrix.needsUpdate = true;
       wheel.instanceMatrix.needsUpdate = true; drops.instanceMatrix.needsUpdate = true; glints.instanceMatrix.needsUpdate = true;
     };
   }

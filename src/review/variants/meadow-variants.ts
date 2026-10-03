@@ -33,7 +33,7 @@ function roof(m:WorldModel,x:number,y:number,z:number,r:number,height:number){
   m.add(g,i%2?'#fff0c8':palette[Math.floor(i/3)],[0,0,0]);g.dispose();
  }
 }
-function sheep(){
+function sheep(costume:'circus'|'scarf'|undefined=undefined){
  const m=new WorldModel();
  m.add(G.round,'#fff2d6',[0,1,0],[1,.65,.67]);
  for(const x of [-.55,.55])for(const z of [-.36,.36])m.add(G.pole,'#777278',[x,.32,z],[.1,.64,.1]);
@@ -43,7 +43,20 @@ function sheep(){
   m.add(G.rock,'#938392',[.86,1.46,z],[.26,.12,.26]);
   m.add(G.round,'#fff9e7',[1.04,1.24,z],[.12,.13,.065]);m.add(G.rock,'#534a56',[1.1,1.24,z*1.13],[.05,.06,.03]);
  }
- m.add(G.round,'#efb8b5',[1.23,1.06,0],[.08,.16,.23]);return m;
+ m.add(G.round,'#efb8b5',[1.23,1.06,0],[.08,.16,.23]);
+ if(costume==='circus'){
+  // A tiny ringmaster costume gives the tumbling performer a readable front.
+  m.add(G.pole,'#8ebcb6',[.82,1.6,0],[.45,.1,.45]);m.add(G.pole,'#bba6cd',[.82,1.86,0],[.27,.46,.27]);
+  m.add(G.pole,'#f3d78f',[.82,1.72,0],[.28,.1,.28]);
+  for(const side of [-1,1])m.add(G.rock,'#e8a092',[1.2,.81,side*.2],[.12,.17,.23],[side*.4,0,0]);
+  m.add(G.round,'#ebcf84',[1.23,.81,0],[.13,.13,.12]);
+ }else if(costume==='scarf'){
+  m.add(G.round,'#d9a4b9',[.65,.83,0],[.43,.18,.7]);
+  m.add(G.box,'#d9a4b9',[.63,.53,.58],[.44,.68,.1],[0,0,.18]);
+  for(let i=0;i<3;i++)m.add(G.box,i%2?'#e8c77e':'#a5c7bd',[.63,.32+i*.17,.647],[.4,.07,.045]);
+  for(let i=0;i<4;i++)m.add(G.pole,'#edd4a3',[.46+i*.1,.13,.64],[.027,.22,.027]);
+ }
+ return m;
 }
 function star(){
  const m=new WorldModel(),v:number[]=[];
@@ -120,15 +133,26 @@ function circus(s:MiniSection,material:T.Material,lights:FairgroundLights){
  for(const side of [-1,1])m.add(G.rock,'#d6a8bf',[tentX+side*2.15,1.18,tentZ+4.7],[.7,1.3,.28],[0,0,side*.2]);
  m.add(G.pole,'#a8997b',[tentX,7.45,tentZ],[.075,1.2,.075]);
  m.add(G.box,'#e9a18b',[tentX+.62,7.8,tentZ],[1.25,.7,.06]);
- const mat=new WorldModel();mat.add(G.pole,'#bbabcb',[0,0,0],[2.76,.13,2.76]);mat.add(G.ring,'#e5cca2',[0,.07,0],[2.7,2.7,2.7],[Math.PI/2,0,0]);
- const mats=v.pool(mat,3),lambs=v.pool(sheep(),3),stars=v.pool(star(),6),pulses=new CrossingPulses(sites.map(p=>p.at));mats[0].name="trampoline-mats";lambs[0].name="trampoline-sheep";v.batch(m);
+ const mat=new WorldModel(),matVertices:number[]=[];
+ // A shallow radial mesh stretches from a fixed rim to the sheep's feet.
+ for(let j=0;j<24;j++)for(let ring=0;ring<3;ring++){
+  const a=j*TAU/24,b=(j+1)*TAU/24,r0=ring/3,r1=(ring+1)/3;
+  const q=(r:number,t:number)=>[Math.sin(t)*2.76*r,-(1-r*r),Math.cos(t)*2.76*r];
+  matVertices.push(...q(r0,a),...q(r1,a),...q(r1,b),...q(r0,a),...q(r1,b),...q(r0,b));
+ }
+ const bedGeometry=new T.BufferGeometry();bedGeometry.setAttribute('position',new T.Float32BufferAttribute(matVertices,3));bedGeometry.computeVertexNormals();mat.add(bedGeometry,'#bbaacb',[0,0,0]);bedGeometry.dispose();
+ const mats=v.pool(mat,3),lambs=v.pool(sheep('circus'),3),stars=v.pool(star(),6),pulses=new CrossingPulses(sites.map(p=>p.at));mats[0].name="trampoline-mats";lambs[0].name="trampoline-sheep";v.batch(m);
+ const matPose=new T.Object3D();
  v.animate((time,distance,reduced)=>{
   pulses.update(time,distance);
   sites.forEach((p,i)=>{
    const age=pulses.age(i,time),active=!reduced&&age>=0&&age<5,cycle=active?Math.abs(Math.sin(age*3.6)):0,bounce=active?cycle*Math.exp(-age*.5)*4.2:0;
    const compression=active?.17*Math.exp(-age*.5)*Math.pow(1-cycle,4):.05;
-   v.place(mats,i,p.x,p.y+.21-compression,p.z,1,0,0,0);
-   v.place(lambs,i,p.x+Math.sin(reduced?0:time*2+i)*bounce*.12,p.y+.275-compression+bounce,p.z+.28,1.08,0,0,reduced?0:Math.sin(age>0?age*3.6:0)*bounce*.045);
+   matPose.position.set(p.x,p.y+.275,p.z);matPose.rotation.set(0,0,0);matPose.scale.set(1,compression,1);matPose.updateMatrix();for(const mesh of mats)mesh.setMatrixAt(i,matPose.matrix);
+   // One crisp somersault on the first rebound; subsequent bounces settle.
+   const flip=!reduced&&age>0&&age<Math.PI/3.6?TAU*smooth(age/(Math.PI/3.6)):0;
+   const lean=flip||(reduced?0:Math.sin(age>0?age*3.6:0)*bounce*.045),size=1.08;
+   v.place(lambs,i,p.x+Math.sin(reduced?0:time*2+i)*bounce*.12+Math.sin(lean)*size,p.y+.275-compression+bounce+size*(1-Math.cos(lean)),p.z+.28,size,0,0,lean);
    for(let j=0;j<2;j++)v.place(stars,i*2+j,p.x+(j?1:-1)*3.15,p.y+7.15,p.z-.25,.63,0,reduced?0:time*.5+bounce*.3,(j?1:-1)*.15);
   });
  });return finish(v,s);
@@ -169,8 +193,12 @@ function knitting(s:MiniSection,material:T.Material,lights:FairgroundLights){
  for(const side of [-1,1])roller.add(G.pole,'#d1b184',[side*3.8,0,0],[1.38,.23,1.38],[0,0,Math.PI/2]);
  for(let j=0;j<12;j++){const a=j*TAU/12;roller.add(G.box,palette[j%3],[0,Math.sin(a)*1.17,Math.cos(a)*1.17],[7.25,.13,.23],[a,0,0]);}
  const shuttle=new WorldModel();shuttle.add(G.round,'#cba273',[0,0,0],[1.3,.25,.35]);shuttle.add(G.round,'#eac5d4',[0,.17,0],[.65,.23,.26]);shuttle.add(G.pole,'#9a9e91',[0,.23,0],[.075,1.95,.075],[0,0,Math.PI/2]);
- const reels=v.pool(reel(),2),cloth=v.pool(patch,21),needles=v.pool(needle,2),lambs=v.pool(sheep(),2),rollers=v.pool(roller,1),shuttles=v.pool(shuttle,1);v.batch(m);
- const stop=at(s,.51);
+ const reels=v.pool(reel(),2),cloth=v.pool(patch,21),needles=v.pool(needle,2),lambs=v.pool(sheep('scarf'),2),rollers=v.pool(roller,1),shuttles=v.pool(shuttle,1);
+ reels[0].name="scarf-spools";cloth[0].name="woven-scarf";shuttles[0].name="loom-shuttle";
+ // Threads visibly feed the working warp; scarf fringes finish the output.
+ for(const side of [-1,1])for(let i=0;i<3;i++)m.beam(palette[i],new T.Vector3(x+side*9.6,5.5,z+1+i*.14),new T.Vector3(x+side*(2.3+i*.75),10.45,z+.14),.035);
+ for(let i=0;i<14;i++)m.add(G.pole,palette[i%3],[x+(i-6.5)*.43,.3,rollZ+1.45],[.055,.5,.055],[Math.PI/2,0,0]);
+ v.batch(m);const stop=at(s,.51);
  v.animate((time,distance,reduced)=>{
   const travel=clamp(distance-s.start,0,s.length+30),turn=reduced?0:time*.14+travel*.09,greet=arrival(distance,stop,30);
   for(const side of [-1,1])v.place(reels,side<0?0:1,x+side*9.6,3.25,z+1,1,0,0,side*turn);
@@ -181,7 +209,7 @@ function knitting(s:MiniSection,material:T.Material,lights:FairgroundLights){
    v.place(cloth,i,x+(i%3-1)*2.08,y,z+.26,1);
   }
   for(let i=0;i<2;i++)v.place(needles,i,x+(i?1:-1)*4.25,2.3,z+.65,1,0,0,(i?1:-1)*(.12+(reduced?0:Math.sin(time*5)*(.035+greet*.12))));
-  for(let i=0;i<2;i++)v.place(lambs,i,s.span*(i?.82:.18),.3+(reduced?0:Math.abs(Math.sin(time*3+i))*greet*.45),center.z+8.4,1.4,0,i?Math.PI:0,0);
+  for(let i=0;i<2;i++)v.place(lambs,i,s.span*(i?.82:.18),.3+(reduced?0:Math.abs(Math.sin(time*3+i))*greet*.45),center.z+8.4,1.4,0,i?Math.PI:0,reduced?0:(i?1:-1)*Math.sin(time*3+i)*greet*.08);
  });return finish(v,s);
 }
 
@@ -229,12 +257,17 @@ function orchestra(s:MiniSection,material:T.Material,lights:FairgroundLights){
  for(let i=0;i<8;i++)m.add(G.box,palette[i%4],[drummer.x+(i-3.5)*.43,1.43,drummer.z+1.85],[.36,.15,1.45-i*.09]);
  for(const side of [-1,1])m.add(G.box,'#c4a57b',[drummer.x+side*1.55,.71,drummer.z+1.85],[.16,1.12,.9]);
  const baton=new WorldModel();baton.add(G.pole,'#dcc9a0',[0,.68,0],[.055,1.35,.055]);baton.add(G.round,'#fff1c3',[0,1.4,0],[.13,.13,.13]);
+ const cheek=new WorldModel();cheek.add(G.round,'#d9e6a1',[0,0,0],[.76,.4,.39]);cheek.add(G.round,'#729869',[0,.26,.3],[.38,.055,.03]);
+ const throats=v.pool(cheek,3);throats[0].name="frog-throats";
  const frogs=v.pool(frog(),3),batons=v.pool(baton,3),notes=v.pool(musicNote(),12),pulses=new CrossingPulses([.23,.5,.76].map(t=>at(s,t)));batons[0].name="frog-batons";v.batch(m);
  v.animate((time,distance,reduced)=>{
   pulses.update(time,distance);
   sites.forEach((p,i)=>{
    const age=pulses.age(i,time),song=!reduced&&age>=0&&age<4?Math.exp(-age*.5):0,bob=reduced?0:Math.abs(Math.sin(time*5+i))*song*.28;
-   v.place(frogs,i,p.x,p.y+bob,p.z,p.size,0,0,reduced?0:Math.sin(time*4+i)*song*.04);
+   const lean=reduced?0:Math.sin(time*4+i)*song*.04;
+   v.place(frogs,i,p.x,p.y+bob,p.z,p.size,0,0,lean);
+   const puff=reduced?0:song*(.25+.75*Math.max(0,Math.sin(time*6+i)));
+   v.place(throats,i,p.x-Math.sin(lean)*1.57*p.size,p.y+bob+Math.cos(lean)*1.57*p.size,p.z+.84*p.size,p.size*(.42+puff*.7),0,0,lean);
    if(i===1)v.place(batons,0,p.x-1.15*p.size,p.y+1.3*p.size+bob,p.z+.95,1.2,0,0,-.4+(reduced?0:Math.sin(time*7)*song*.8));
    if(i===2)for(let j=0;j<2;j++) {
     const strike=reduced?0:Math.max(0,Math.sin(time*9+j*Math.PI))*song;
@@ -264,7 +297,7 @@ function bathtub(m:WorldModel,s:MiniSection,z:number){
 }
 function bathDuck(){
  const m=new WorldModel();m.add(G.round,'#f2d483',[0,.65,0],[1.24,.7,.84]);m.add(G.round,'#ffe09b',[.7,1.56,0],[.64,.66,.61]);
- m.add(G.round,'#e7b36f',[1.3,1.4,.05],[.62,.16,.4]);m.add(G.rock,'#ffe5a8',[-1.05,.85,0],[.42,.35,.48],[0,0,-.4]);
+ m.add(G.round,'#e7b36f',[1.3,1.44,.05],[.62,.105,.4]);m.add(G.rock,'#ffe5a8',[-1.05,.85,0],[.42,.35,.48],[0,0,-.4]);
  for(const side of [-1,1]){m.add(G.round,'#fff5d8',[.95,1.74,side*.47],[.15,.19,.1]);m.add(G.rock,'#626056',[1.02,1.75,side*.53],[.065,.095,.06]);}
  return m;
 }
@@ -279,6 +312,8 @@ function bath(s:MiniSection,material:T.Material,lights:FairgroundLights){
  const foam=new WorldModel();foam.add(G.round,'#dfecda',[0,0,0],[1,1,1]);foam.add(G.rock,'#fff8df',[-.31,.39,.79],[.24,.16,.07]);
  const drop=new WorldModel();drop.add(G.round,'#a8d8d1',[0,0,0],[.22,.5,.22]);
  const wing=new WorldModel();wing.add(G.round,'#e6bc6d',[0,-.22,0],[.77,.4,.15]);wing.add(G.rock,'#f9d992',[-.25,-.33,.07],[.3,.17,.08]);
+ const jaw=new WorldModel();jaw.add(G.round,'#d8a267',[.34,0,.05],[.56,.075,.36]);jaw.add(G.round,'#ecb19f',[.45,.066,.05],[.28,.025,.23]);
+ const jaws=v.pool(jaw,4);jaws[0].name="duck-quacking-jaws";
  const wings=v.pool(wing,8),ducks=v.pool(bathDuck(),4),bubbles=v.pool(foam,18),drops=v.pool(drop,9),knobs=v.pool(knob,2);wings[0].name="bath-wings";ducks[0].name="bath-ducks";v.batch(m);
  const sites=[{x:s.span*.23,z:z+6.8,size:1.2},{x:s.span*.45,z:z-6.6,size:1.4},{x:s.span*.69,z:z+6.7,size:1.65},{x:s.span*.77,z:z-5.3,size:.85}],stop=at(s,.5);
  v.animate((time,distance,reduced)=>{
@@ -286,6 +321,9 @@ function bath(s:MiniSection,material:T.Material,lights:FairgroundLights){
   for(let i=0;i<4;i++){
    const p=sites[i],px=p.x+(reduced?0:Math.sin(turn+i)*.8),py=2.02+(reduced?0:Math.sin(time*2+i)*(.05+greet*.13)),yaw=(i%2?Math.PI:0)+(reduced?0:Math.sin(turn+i)*.2),roll=reduced?0:Math.sin(time*2.5+i)*greet*.06;
    v.place(ducks,i,px,py,p.z,p.size,0,yaw,roll);
+   const chirp=reduced?0:greet*Math.pow(Math.max(0,Math.sin(time*8+i*1.6)),3)*.4;
+   const jawX=(.95*Math.cos(roll)-1.34*Math.sin(roll))*p.size,jawY=(.95*Math.sin(roll)+1.34*Math.cos(roll))*p.size;
+   v.place(jaws,i,px+jawX*Math.cos(yaw),py+jawY,p.z-jawX*Math.sin(yaw),p.size,0,yaw,roll-chirp,'YXZ');
    for(let j=0;j<2;j++){
     const side=j?1:-1,lx=(-.12*Math.cos(roll)-Math.sin(roll))*p.size,ly=(-.12*Math.sin(roll)+Math.cos(roll))*p.size,lz=side*.68*p.size,flap=reduced?0:(.2+.6*greet)*(.5+.5*Math.sin(time*7+i));
     placeWing(v,wings,i*2+j,px+lx*Math.cos(yaw)+lz*Math.sin(yaw),py+ly,p.z-lx*Math.sin(yaw)+lz*Math.cos(yaw),p.size,yaw,roll,-side*flap);
@@ -303,7 +341,9 @@ function bath(s:MiniSection,material:T.Material,lights:FairgroundLights){
 function cuckooBird(){
  const m=new WorldModel();m.add(G.round,'#91bfba',[0,.53,0],[.62,.72,.55]);m.add(G.round,'#f2d48a',[0,.49,.38],[.4,.5,.22]);m.add(G.round,'#b8d7b7',[0,1.16,.13],[.58,.54,.53]);
  for(const side of [-1,1]){m.add(G.round,'#f9ebc7',[side*.23,1.27,.56],[.17,.2,.085]);m.add(G.rock,'#5f6464',[side*.23,1.27,.63],[.075,.11,.035]);}
- m.add(G.cone,'#e9af78',[0,1.02,.91],[.25,.66,.2],[Math.PI/2,0,0]);m.add(G.rock,'#d4b1ca',[0,1.65,.08],[.22,.4,.17],[0,0,.25]);return m;
+ m.add(G.cone,'#e9af78',[0,1.02,.91],[.25,.66,.2],[Math.PI/2,0,0]);m.add(G.rock,'#d4b1ca',[0,1.65,.08],[.22,.4,.17],[0,0,.25]);
+ for(const side of [-1,1]){m.add(G.round,'#e4b97f',[side*.22,-.04,.43],[.14,.06,.25]);m.add(G.rock,'#e7b8b3',[side*.38,1.08,.55],[.13,.08,.035]);}
+ for(let i=0;i<3;i++)m.add(G.rock,palette[i],[0,.32-i*.1,-.5-i*.22],[.23,.13,.34],[.15,0,0]);return m;
 }
 function cuckoo(s:MiniSection,material:T.Material,lights:FairgroundLights){
  const v=new VariantBuilder(material,lights),m=new WorldModel(),x=s.width*.5,z=Math.min(0,s.shift)-7.4,cy=s.origin.y+s.amplitude,base=Math.max(13,cy+3);
@@ -324,6 +364,12 @@ function cuckoo(s:MiniSection,material:T.Material,lights:FairgroundLights){
   m.add(G.pole,'#b69772',[x+side*3.15,3.5,z+1.85],[.035,6,.035]);m.add(G.cone,'#d5b985',[x+side*3.15,.85,z+1.85],[.42,1.4,.42],[Math.PI,0,0]);
  }
  m.add(G.box,'#efd5a4',[x,doorY+1.85,z+1.9],[2.5,.2,.3]);
+ // Carved gable, visible hanging chains and a proper cuckoo landing shelf.
+ for(let i=0;i<7;i++)m.add(G.rock,palette[i%4],[x+(i-3)*1.06,base+.38-Math.abs(i-3)*.05,z+2.05],[.29,.37,.11]);
+ for(const side of [-1,1]){
+  m.add(G.box,'#e6ca99',[x+side*1.3,doorY-.17,z+2.42],[.16,.44,1.4]);
+  for(let i=0;i<8;i++)m.add(G.ring,'#d5b984',[x+side*3.15,1.75+i*.58,z+1.87],[.13,.2,.13],[0,i%2?Math.PI/2:0,0]);
+ }
  const hand=new WorldModel();hand.add(G.box,'#8fa9a3',[0,1.25,0],[.18,2.5,.13]);hand.add(G.rock,'#cb9bab',[0,2.55,0],[.36,.47,.16]);hand.add(G.round,'#c7a278',[0,0,.1],[.24,.24,.1]);
  const pendulum=new WorldModel();pendulum.add(G.pole,'#e3bd79',[0,-2.5,0],[.08,5,.08]);pendulum.add(G.pole,'#e8ca89',[0,-5,0],[.93,.27,.93],[Math.PI/2,0,0]);pendulum.add(G.round,'#f5dfaa',[0,-5,.18],[.45,.45,.12]);
  const door=new WorldModel();door.add(G.box,'#dfafaa',[.47,0,0],[.94,1.78,.15]);for(const y of [-.42,.42])door.add(G.box,'#efcfac',[.47,y,.1],[.8,.055,.055]);door.add(G.round,'#f5dfa5',[.78,-.05,.14],[.08,.08,.04]);
@@ -334,7 +380,7 @@ function cuckoo(s:MiniSection,material:T.Material,lights:FairgroundLights){
   const travel=clamp(distance-s.start,0,s.length+30),turn=reduced?0:time*.16+travel*.09;
   v.place(hands,0,x,cy,z+2.35,1,0,0,-Math.PI/3-turn);v.place(hands,1,x,cy,z+2.47,.7,0,0,Math.PI/3-Math.PI/36-turn/12);
   v.place(pendulums,0,x,Math.max(6,doorY-.35),z+2.2,1,0,0,reduced?0:Math.sin(time*2.1)*(.22+arrival(distance,at(s,.5),35)*.28));
-  const emerge=active?smooth((age-.38)/.42)*(1-smooth((age-2.7)/.4)):0,birdY=doorY-.26+(reduced?0:Math.sin(time*8)*emerge*.04),birdZ=z+.6+emerge*2.3;
+  const emerge=active?smooth((age-.38)/.42)*(1-smooth((age-2.7)/.4)):0,birdY=doorY-.26+(active?Math.max(0,Math.sin((age-.7)*8))*emerge*.22:0),birdZ=z+.6+emerge*2.3;
   v.place(birds,0,x,birdY,birdZ,.93);
   for(let j=0;j<2;j++){const side=j?1:-1;v.place(wings,j,x+side*.52*.93,birdY+.82*.93,birdZ,.93,0,0,side*(.22+(reduced?0:Math.sin(time*12)*emerge*.65)));}
   v.place(doors,0,x-1.01,doorY+.73,z+1.95,1,0,-open*1.55);v.place(doors,1,x+1.01,doorY+.73,z+1.95,1,0,Math.PI+open*1.55);
@@ -347,7 +393,9 @@ function bee(){
  for(const x of [-.37,0,.36])m.add(G.pole,'#8e7c65',[x,0,0],[.435,.14,.435],[0,0,Math.PI/2]);
  m.add(G.round,'#f2d489',[.69,.07,0],[.38,.4,.38]);
  for(const z of [-.26,.26]){m.add(G.round,'#fff3cf',[.89,.21,z],[.12,.15,.075]);m.add(G.rock,'#5e6058',[.95,.23,z*1.13],[.05,.07,.035]);}
- m.add(G.cone,'#9b8264',[-.89,0,0],[.15,.4,.15],[0,0,-Math.PI/2]);return m;
+ m.add(G.cone,'#9b8264',[-.89,0,0],[.15,.4,.15],[0,0,-Math.PI/2]);
+ for(const side of [-1,1]){m.beam('#8e7c65',new T.Vector3(.73,.32,side*.16),new T.Vector3(.93,.67,side*.28),.035);m.add(G.round,'#d6a6bf',[.93,.67,side*.28],[.09,.09,.09]);}
+ m.add(G.box,'#bba9cc',[-.29,-.32,.35],[.51,.43,.14]);m.add(G.box,'#f2e0b5',[-.29,-.29,.434],[.3,.15,.03]);return m;
 }
 function honeyFactory(s:MiniSection,material:T.Material,lights:FairgroundLights){
  const v=new VariantBuilder(material,lights),m=new WorldModel(),x=s.width*.5,cy=s.origin.y+s.amplitude,z=Math.min(0,s.shift)-7.2;
@@ -379,9 +427,9 @@ function honeyFactory(s:MiniSection,material:T.Material,lights:FairgroundLights)
  const stop=at(s,.5);
  v.animate((time,distance,reduced)=>{
   const greet=arrival(distance,stop,s.length*.5),travel=clamp(distance-s.start,0,s.length+30),turn=reduced?0:time*.15+travel*.028;
-  v.place(flowers,0,x,cy,z-.22,1,0,0,turn*.6);
+  v.place(flowers,0,x,cy,z-.22,1+(reduced?0:greet*.045*Math.sin(time*3)),0,0,turn*.6);
   for(let i=0;i<5;i++){
-   const a=i*TAU/5+turn,r=5.5+(reduced?0:Math.sin(time*.9+i)*.2);
+   const a=i*TAU/5+turn,r=5.5+(reduced?0:Math.sin(time*.9+i)*(.2+greet*.65));
    const bx=x+Math.sin(a)*r,by=cy+Math.cos(a)*r,bz=z+1.05;v.place(bees,i,bx,by,bz,.85,0,0,-a);
    for(let j=0;j<2;j++){
     const side=j?1:-1,flap=reduced?.25:.25+.6*Math.sin(time*18+i);

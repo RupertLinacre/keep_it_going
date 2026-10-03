@@ -183,6 +183,12 @@ export function mountainTunnel(material: T.Material, luminous: T.Material) {
     for (const x of [3.85, 5.55]) solid.add(G.box, '#a88c64', [x, 3.6, z + Math.sign(z) * .6], [.23, 7, .28]);
     solid.add(G.box, '#d5bd8d', [4.7, 7.35, z + Math.sign(z) * .6], [2.3, .3, .5]);
     for (const side of [-1, 1]) solid.add(G.box, '#66988e', [4.7 + side * .57, 7.7, z + Math.sign(z) * .6], [1.5, .19, 1.8], [0, 0, -side * .45]);
+    // Alpine clockwork tower: a stone foot, open timber cross-braces and
+    // a connected belt frame make the moving brass signal wheel purposeful.
+    solid.add(G.rock, '#a5b5af', [4.7, -.2, z + Math.sign(z) * .6], [1.6, .65, 1.3]);
+    for (const side of [-1, 1]) solid.beam('#c4a273', new T.Vector3(4.7 + side * .75, 1, z + Math.sign(z) * .6), new T.Vector3(4.7 - side * .75, 5.7, z + Math.sign(z) * .6), .11);
+    solid.add(G.round, '#587e83', [4.7, 3.65, z + Math.sign(z) * .72], [1, 1, .14]);
+    solid.add(G.ring, '#d9c094', [4.7, 3.65, z + Math.sign(z) * .9], [.98, .98, .98]);
     solid.add(G.box, '#576c78', [0, 5.25, z + Math.sign(z) * .06], [3, .72, .12]);
     for (const x of [-1.1, 0, 1.1]) solid.add(G.rock, '#a0e6df', [x, 5.25, z + Math.sign(z) * .16], [.18, .23, .1], [], true);
   }

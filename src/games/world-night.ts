@@ -98,10 +98,7 @@ export function marqueeLoop(m: WorldModel, section: MiniSection) {
   const top = section.frames[Math.round(section.resolution / 2)].position;
   const x = top.x - section.origin.x, y = top.y + 5.8, z = top.z - section.origin.z;
   // A big smiling sun is a landmark above the loop, outside the train envelope.
-  for(let i=0;i<12;i++){
-    const a=i*Math.PI/6;
-    m.add(G.cone,i%2?'#f6bd89':'#efd28a',[x+Math.sin(a)*2.48,y+Math.cos(a)*2.48,z],[.43,1.18,.26],[0,0,-a]);
-  }
+  // The rays belong to the small reactive animation pool and fan out at the apex.
   m.add(G.round,'#ffdc8e',[x,y,z],[1.94,1.94,.46],[],true);
   for(const side of [-1,1]){
     m.add(G.round,'#62527f',[x+side*.65,y+.29,z+.43],[.15,.25,.1]);

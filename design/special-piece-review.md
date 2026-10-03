@@ -206,3 +206,61 @@ piece/version with warmed primitive templates) measured 0.1–4.6 ms for the
 refined designs, including nearby scenery. This isolates geometry/actor setup;
 it excludes GPU upload and shader compilation and is not a cold-start FPS
 claim. Its local results are `output/playwright/polish2-build-cost.json`.
+
+## Third refinement pass
+
+All 36 designs have received another individual pass. The emphasis is on
+readable action and connected mechanisms: anticipation, contact, release and
+settling, rather than adding more particle effects. The three alternatives for
+each ride still have distinct identities.
+
+| Ride | A refinement | B refinement | C refinement |
+| --- | --- | --- | --- |
+| Sheep Shuffle | Larger flowers stretch, bow and wave from their leaf shoes | Anchored trampoline rims with elastic centres and sheep somersaults | Visible yarn feed, scarf tassels and scarf-wearing sheep |
+| Lily Pad Bridge | Larger duck-captain boats, working paddle wheels and a covered jetty | Frog throats puff during their musical performances | Hinged lower beaks quack as duck wings flap |
+| Windmill Loop | Conveyor packing presses tap passing flour bags | Feathered cuckoo hops from a landing shelf; carved roof and chains | Courier bees carry satchels past a gently pulsing sunflower |
+| Mountain Pass | Backpacked goats crouch, hop and land with a smaller skip | Dressed marmot organists tap the keys | Starting gate releases in time with actual snowballs |
+| Glowstone Tunnel | Braced bell towers with cable-driven clockwork signals | Dragon wakes, blinks and breathes crystal puffs; curled horns and rosy cheeks | Open buckets unload gems into a chute, return empty and refill at a ground hopper |
+| Waterfall Viaduct | Waterwheel-driven duck pond with an island duck house | Working pressure gauges connected to the weather tanks | Penguins follow the S-bend, flap their flippers and leave icy spray |
+| Lantern Parade | Independently hinged butterfly wings respond to the passing train | Gantry arms release before ignition and close after landing | Animated pearl tentacles; lighter geometry replaces expensive rings |
+| Marquee Loop | Sun rays rotate and spread at the apex | Pinball actually contacts each whiskered cat bumper | Visible pinned winding cylinder turns with the music-box key |
+| Carousel Climb | Twelve unicorns have articulated galloping legs | Tea pours from the correctly transformed spout; rabbits rest their paws on cups | Independently rotating smiling planets, comet trails and brighter saucer exhaust |
+| Pumpkin Hops | Musical notes bounce above the striking drums | Visible side bellows pump pressure before corks pop | Washer doors open before ghosts launch and hang up to dry |
+| Pumpkin Portal | Pennants cheer above the candy castle | Eyes follow the approaching train | Supported stages, connected marionette strings and grounded dancing boots |
+| Witch's Hat | Spectacled kittens read fluttering spellbooks near dormer balconies | Charge-up shake, launch collar and a higher cork-rocket arc | Blooms linger while moths swoop in to visit them |
+
+Two visual reviews cover all nine designs in each world, with additional
+close inspection of contact and hinge timing. Cross-review found and corrected
+puppet boot/platform intersections. Tests now exercise paddle and jaw hinges,
+unicorn hips, rocket gantry timing, pinball contacts, teapot spout alignment,
+washer-door timing, marionette strings and boots, and spellbook attachment.
+The gallery reserves headroom for the potion rocket once, keeping a stable
+camera throughout its launch. Physics, track geometry and saved selections are
+unchanged. The immutable original reference remains available.
+
+The added movement stays in fixed instance pools. All B/C attractions still
+use at most seven draw batches; Jellyfish Dreamway drops from 35,128 to 25,048
+triangles despite its new moving tentacles. There are no new shadow passes or
+realtime lights. Halloween's original animations also reuse scratch vectors
+rather than allocating them for every sparkle on every frame.
+
+Final validation: **277 tests pass**, production build passes. Mobile review at
+390px has no horizontal overflow. Three complete tours retain identical GPU
+geometry/texture counts, saved-choice behaviour passes and no browser errors
+were reported. The older Meadow budget assertion was updated specifically to
+allow the fourth fixed batch for working paddles and packing presses; the
+flower scene remains capped at three.
+
+The third-round 48-case 4K run (same warmup, framebuffer cap and synthetic
+opponent described above) measured:
+
+| Design | Frame median | Frame p95 range | CPU submission p95 range | Frames above 25 ms |
+| --- | --- | --- | --- | --- |
+| A | 16.7 ms | 17.8–18.3 ms | 3.8–4.8 ms | 0 |
+| B | 16.7 ms | 17.8–18.4 ms | 4.1–4.6 ms | 0 |
+| C | 16.7 ms | 17.7–18.4 ms | 4.0–4.5 ms | 0 |
+
+Raw local measurements: `output/playwright/round3-performance.json` (ignored,
+not a shipped asset). These warmed local samples support no sustained frame
+rate regression; they do not promise 60 fps on every device. No merge or deploy
+is part of this refinement pass.

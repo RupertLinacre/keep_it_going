@@ -51,3 +51,17 @@ test('mill gears share a tooth pitch, counter-rotate, and flour stays on the con
  }
  dispose();
 });
+
+
+test('boat paddle wheels stay attached to their hulls throughout steering and rocking',()=>{
+ const {section:s,animation:a,dispose}=setup('pondbridge');
+ const boats=a.group.getObjectByName('captain-boats') as T.InstancedMesh,paddles=a.group.getObjectByName('boat-paddles') as T.InstancedMesh;
+ for(const time of [0,.5,3,11,21]){
+  a.update(time,s.start+s.length*.5,false);
+  for(let i=0;i<3;i++)for(let j=0;j<2;j++){
+   const expected=new T.Vector3(-.28,.13,(j?1:-1)*.54).applyMatrix4(pose(boats,i));
+   assert.ok(expected.distanceTo(origin(pose(paddles,i*2+j)))<1e-5);
+  }
+ }
+ dispose();
+});

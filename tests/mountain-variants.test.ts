@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { InstancedMesh, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from 'three';
+import { Color, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from 'three';
 import { MiniSection, type MiniKind } from '../src/games/mini-track';
 import { FairgroundLights } from '../src/games/world-lighting';
 import { createMountainVariant } from '../src/review/variants/mountain-variants';
@@ -89,4 +89,66 @@ test('mountain and ice landscapes leave the full raised train envelope open', ()
     }
     design.dispose(); material.dispose(); lights.dispose();
   }
+});
+
+
+test('mining ore actually leaves its open bucket and reloads at the bottom without a position jump', () => {
+  const s = section('tunnel'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'c', material, lights)!;
+  const payload = design.group.getObjectByName('mine-ore-payloads') as InstancedMesh;
+  const buckets = design.group.getObjectByName('mine-empty-buckets') as InstancedMesh;
+  const matrix = new Matrix4();
+  const sample = (phase: number, mesh = payload) => {
+    design.update(phase / .28, s.start - 100, false); mesh.getMatrixAt(0, matrix);
+    return { p: new Vector3().setFromMatrixPosition(matrix), scale: new Vector3().setFromMatrixScale(matrix).length() };
+  };
+  const before = sample(Math.PI / 2 - 1e-5), after = sample(Math.PI / 2 + 1e-5);
+  assert.ok(before.p.distanceTo(after.p) < .001, 'Ore does not teleport at the tipping point');
+  const pouring = sample(Math.PI / 2 + .6), bucket = sample(Math.PI / 2 + .6, buckets);
+  assert.ok(pouring.p.distanceTo(bucket.p) > 3, 'Gems travel down the separate sorting chute');
+  assert.equal(sample(Math.PI + .2).scale, 0, 'Empty return side has no cargo floating above it');
+  assert.ok(sample(Math.PI * 1.5 + .01).scale < .1, 'Load begins in the ground-level hopper');
+  assert.ok(sample(Math.PI * 1.5 + .3).scale > 1, 'New load is full before climbing away');
+  design.dispose(); material.dispose(); lights.dispose();
+});
+
+test('dragon eyelids wake for the train, blink without reallocating and replay exactly', () => {
+  const s = section('tunnel'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'b', material, lights)!;
+  const face = design.group.getObjectByName('dragon-blinking-face') as InstancedMesh;
+  const position = face.geometry.getAttribute('position'), colors = face.geometry.getAttribute('color'), tint = new Color('#f6efcb');
+  const indices = Array.from({ length: position.count }, (_, i) => i).filter(i => Math.abs(colors.getX(i) - tint.r) < .001 && Math.abs(colors.getY(i) - tint.g) < .001 && Math.abs(colors.getZ(i) - tint.b) < .001);
+  const range = () => Math.max(...indices.map(i => position.getY(i))) - Math.min(...indices.map(i => position.getY(i)));
+  const distance = s.start + s.length * .5 - 12, buffer = position.array;
+  design.update(1, s.start - 100, false); const sleepy = range();
+  design.update(1, distance, false); const awake = range(); assert.ok(awake > sleepy * 3);
+  const awakePose = Array.from(buffer); design.update(2, distance, false); assert.ok(range() < awake * .1, 'Brief eyelid close');
+  design.update(1, distance, false); assert.equal(position.array, buffer); assert.deepEqual(Array.from(buffer), awakePose);
+  design.update(0, s.start, true); const still = Array.from(buffer); design.update(8, s.end, true); assert.deepEqual(Array.from(buffer), still);
+  design.dispose(); material.dispose(); lights.dispose();
+});
+
+test('penguin flippers remain attached to their shoulders during belly slides and turns', () => {
+  const s = section('ravinebridge'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'c', material, lights)!;
+  const bodies = design.group.getObjectByName('penguin-riders') as InstancedMesh, wings = design.group.getObjectByName('penguin-flippers') as InstancedMesh;
+  const body = new Matrix4(), wing = new Matrix4();
+  for (const time of [0, 2, 4, 8]) {
+    design.update(time, s.start + s.length * .5, false);
+    for (let i = 0; i < 7; i++) for (let side = 0; side < 2; side++) {
+      bodies.getMatrixAt(i, body); wings.getMatrixAt(i * 2 + side, wing);
+      const shoulder = new Vector3().setFromMatrixPosition(wing.premultiply(body.invert()));
+      assert.ok(shoulder.distanceTo(new Vector3(side ? .65 : -.65, 1.22, 0)) < 1e-4);
+    }
+  }
+  design.dispose(); material.dispose(); lights.dispose();
+});
+
+test('marmot paws press down onto the keyboard instead of waving above it', () => {
+  const s = section('mountainpass'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'b', material, lights)!;
+  const paws = design.group.getObjectByName('yodel-playing-paws') as InstancedMesh, matrix = new Matrix4();
+  const i = Math.round(s.resolution * .22), platform = s.frames[i].position.clone(); platform.x -= s.origin.x; platform.z -= s.origin.z;
+  const position = (time: number) => { design.update(time, s.start + s.distances[i], false); paws.getMatrixAt(0, matrix); return new Vector3(0, -.7, .35).applyMatrix4(matrix); };
+  const pressed = position(Math.PI / 16), raised = position(Math.PI * 3 / 16);
+  assert.ok(pressed.y < raised.y - .07);
+  assert.ok(Math.abs(pressed.y - .18 - (platform.y + 1.095)) < .03, 'Paw underside touches the white key top');
+  assert.ok(pressed.z > platform.z + 8.475 && pressed.z < platform.z + 9.325);
+  design.dispose(); material.dispose(); lights.dispose();
 });
