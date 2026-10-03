@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Quaternion, Vector3 } from 'three';
 import { Mini } from '../src/games/mini.ts';
-import { MiniTrack } from '../src/games/mini-track.ts';
+import { createMiniSection, MiniTrack } from '../src/games/mini-track.ts';
+import { MiniPhysics } from "../src/games/mini-physics.ts";
 import { HeightTrack } from '../src/games/height-track.ts';
 import { RACE_POWER_KINDS, powerPhysics } from '../src/games/ride-powerups.ts';
 import { snapshotRide, OpponentGhost } from '../src/multiplayer/ghost.ts';
@@ -22,7 +23,7 @@ test('Remix races share generated geometry despite different simulation pace and
   }
 });
 
-test('race power bags contain all six permitted effects reproducibly, including Sky lift but excluding board tilt',()=>{
+test('race power bags contain all permitted effects reproducibly, including Sky lift but excluding board tilt',()=>{
   const sequence=(seed:number)=>{
     const g=race(seed),p=g.powerups!,out:string[]=[];
     for(const forbidden of ['tilt'] as const){p.activate(forbidden,g.physics,g.carriages);assert.equal(p.active,undefined);assert.equal(g.liftingAnswers,false);assert.equal(g.physics.options.worldTilt,0);}
@@ -32,7 +33,7 @@ test('race power bags contain all six permitted effects reproducibly, including 
       g.physics.distance=p.gate.distance;p.update(0,g.track,g.physics,g.carriages);
       assert.ok(RACE_POWER_KINDS.includes(p.active as typeof RACE_POWER_KINDS[number]));p.update(20,g.track,g.physics,g.carriages);
     }
-    assert.deepEqual([...new Set(out.slice(0,6))].sort(),[...RACE_POWER_KINDS].sort());return out;
+    assert.deepEqual([...new Set(out.slice(0,RACE_POWER_KINDS.length))].sort(),[...RACE_POWER_KINDS].sort());return out;
   };
   assert.deepEqual(sequence(42),sequence(42));assert.notDeepEqual(sequence(42),sequence(18));
   const solo=new Headless(host,42,{remixMode:true});solo.powerups!.activate('lift',solo.physics,solo.carriages);assert.ok(solo.liftingAnswers);assert.ok(solo.track instanceof HeightTrack);
@@ -53,17 +54,21 @@ test('network snapshots carry eight-box wagons, TNT and stable large splash IDs'
 });
 
 test('opponent prediction uses each rider’s power physics and flooded-track resistance',()=>{
-  const g=race(),track=g.track;track.ensure(track.startDistance,2000);const pool=track.sections.find(s=>s.kind==='splash')!;
+  const g=race(),track=g.track,last=track.sections.at(-1)!;
+  const pool=createMiniSection('splash',last.end,last.frames.at(-1)!.position.clone(),track.generated++,()=>.5,true,true);track.sections.push(pool);
   const distances=[track.startDistance+20,(pool.start+pool.end)/2];
   for(const distance of distances)for(const kind of RACE_POWER_KINDS){
     g.physics.distance=distance;g.physics.velocity=25;g.powerups!.activate(kind,g.physics,g.carriages);
     const s=snapshotRide(g,1);s.distance=distance;s.bodies=s.bodies.slice(0,1);s.bodies[0].rail={distance,speed:25,lift:0,liftSpeed:0,coupled:true};
-    const ghost=new OpponentGhost(track),predicted=(ghost as any).predict(s,.12) as RideState;
+    // This isolated wet fixture is supplied directly; it is not a generated course checkpoint.
+    const ghost=new OpponentGhost();ghost.track=track;
+    const predicted=(ghost as any).predict(s,.12) as RideState;
     const dt=.2*(1-Math.exp(-.12/.2)),options=powerPhysics(kind,'normal');
-    const drag=options.drag+.008*Math.min(1,track.waterDepth(distance)/.55);
-    const slope=track.slope(distance),gravity=slope>=0?options.uphillGravity:options.downhillGravity;
-    const acceleration=options.tailwind-gravity*slope-drag*625-options.rolling;
-    assert.ok(Math.abs(predicted.bodies[0].rail!.speed-(25+acceleration*dt))<.3,`${kind} prediction respects rail forces`);
+    // Compare prediction to the authoritative integrator, including the
+    // changing slope along curved rails rather than a single Euler estimate.
+    const authoritative=new MiniPhysics(track,{...options,initialDistance:distance,initialSpeed:25});
+    authoritative.update(dt);
+    assert.ok(Math.abs(predicted.bodies[0].rail!.speed-authoritative.velocity)<.15,`${kind} prediction respects rail forces`);
     assert.ok(predicted.power!.remaining<20);
   }
 });

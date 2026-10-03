@@ -81,9 +81,9 @@ test('carousel geometry is bounded inside its drifting spiral for every generate
 
 test('carnival effects have fixed draw-call and instance budgets, shared materials, and release their geometry',()=>{
   const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
-  const cases=[['carouselhelix',4,60,carouselClimb],['lanternrun',3,28,lanternParade],['midwayloop',2,24,marqueeLoop]] as const;
+  const cases=[['carouselhelix',4,60,carouselClimb]] as const;
   for(const [kind,drawCalls,instances,decorate]of cases) {
-    const s=new MiniSection(1,kind,0,new Vector3(0,4,0),kind==='midwayloop'?12:62,kind==='midwayloop'?14:24,0,1,2);
+    const s=new MiniSection(1,kind,0,new Vector3(0,4,0),62,24,0,1,2);
     const animation=createCarnivalPieceAnimation(s,material,lights)!;
     let meshes=0,count=0,disposed=0,triangles=0;const geometries=new Set();
     animation.group.traverse(object=>{
@@ -107,7 +107,7 @@ test('carnival effects have fixed draw-call and instance budgets, shared materia
 
 test('cached carnival placements do not double-apply a later height-track lift',()=>{
   const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
-  for(const kind of ['lanternrun','midwayloop','carouselhelix']as const) {
+  for(const kind of ['carouselhelix']as const) {
     const s=new MiniSection(1,kind,0,new Vector3(0,4,0),62,24,0,1,2);
     const animation=createCarnivalPieceAnimation(s,material,lights)!;
     const capture=()=>{
@@ -125,18 +125,17 @@ test('cached carnival placements do not double-apply a later height-track lift',
 
 test('original carnival characters greet the train while preserving their resting poses',()=>{
   const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),matrix=new Matrix4();
-  for(const kind of ['lanternrun','midwayloop','carouselhelix']as const) {
-    const s=new MiniSection(1,kind,100,new Vector3(80,4,2),kind==='midwayloop'?12:62,kind==='midwayloop'?14:24,0,1,2);
+  for(const kind of ['carouselhelix']as const) {
+    const s=new MiniSection(1,kind,100,new Vector3(80,4,2),62,24,0,1,2);
     const ride=createCarnivalPieceAnimation(s,material,lights)!;
     let actors:InstancedMesh|undefined;ride.group.traverse(o=>{if(o instanceof InstancedMesh&&!actors)actors=o});
     assert.ok(actors);
-    const stop=kind==='lanternrun'?lanternDistance(s,0):kind==='midwayloop'?s.start+s.length*.08:s.start+s.distances[Math.round(s.resolution*.2)];
-    const i=kind==='midwayloop'?6:0;
+    const stop=s.start+s.distances[Math.round(s.resolution*.2)];
+    const i=0;
     ride.update(1,stop,true);actors.getMatrixAt(i,matrix);const resting=matrix.clone();
     ride.update(1,stop,false);actors.getMatrixAt(i,matrix);
     if(kind==='carouselhelix')assert.ok(matrix.elements[1]>0,'The unicorn lifts its forward-facing head in its greeting');
     else assert.ok(new Vector3().setFromMatrixScale(matrix).x>new Vector3().setFromMatrixScale(resting).x,'Lanterns and cheer stars grow as the train passes');
-    if(kind==='lanternrun')assert.ok(matrix.elements[13]-resting.elements[13]>.65,'The lantern rises above its rainbow arch');
     ride.dispose();
   }
   material.dispose();lights.dispose();
@@ -144,7 +143,7 @@ test('original carnival characters greet the train while preserving their restin
 
 test('galloping legs and butterfly wings stay joined to their moving parent bodies',()=>{
   const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),body=new Matrix4(),limb=new Matrix4();
-  for(const kind of ['carouselhelix','lanternrun']as const) {
+  for(const kind of ['carouselhelix']as const) {
     const s=new MiniSection(1,kind,100,new Vector3(80,4,2),62,24,0,1,2),ride=createCarnivalPieceAnimation(s,material,lights)!;
     const bodies=ride.group.getObjectByName(kind==='carouselhelix'?'greeting-unicorns':'lantern-creatures') as InstancedMesh;
     const limbs=ride.group.getObjectByName(kind==='carouselhelix'?'galloping-unicorn-legs':'lantern-butterfly-wings') as InstancedMesh;

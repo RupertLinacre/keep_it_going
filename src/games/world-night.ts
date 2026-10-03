@@ -9,55 +9,22 @@ export function nightScenery(m:WorldModel,x:number,back:number,front:number,r:()
 
 export function lanternParade(m:WorldModel,section:MiniSection) {
   for(let i=0;i<7;i++) {
-    const f=section.sample(lanternDistance(section,i));
+    const f=section.sample(section.start+section.length*(.06+i*.146));
     const center=f.position.clone();center.x-=section.origin.x;center.z-=section.origin.z;
-    const h=center.y+5.5;
+    const h=center.y+4.2;
     for(const side of [-1,1]){
-      const p=center.clone().addScaledVector(f.right,side*4.4);
-      m.add(G.pole,'#9675b0',[p.x,h/2,p.z],[.18,h,.18]);
-      m.add(G.pole,'#e8c489',[p.x,.3,p.z],[.58,.6,.58]);
-      // Candy-striped columns and little petal lanterns give each gate a face.
-      for(let j=0;j<5;j++)m.add(G.pole,BULBS[(i+j)%4],[p.x,h*(j+.5)/5,p.z],[.23,.3,.23]);
-      for(let j=0;j<5;j++){
-        const a=j*Math.PI*2/5;
-        m.add(G.rock,BULBS[i%4],[p.x+Math.sin(a)*.5,h+.2+Math.cos(a)*.5,p.z],[.32,.38,.24],[],true,i*.7+j*.1);
-      }
-      m.add(G.round,'#fff0b1',[p.x,h+.2,p.z+.2],[.26,.26,.2],[],true,i*.7);
-      star(m,p.x,h+1.3,p.z,.48,'#ffe29c');
+      const p=center.clone().addScaledVector(f.right,side*3.6);
+      m.add(G.pole,'#ac91b5',[p.x,h/2,p.z],[.11,h,.11]);
+      m.add(G.round,BULBS[i%4],[p.x,h+.35,p.z],[.4,.62,.4],[],true,i*.7);
     }
-    // The train passes through seven colourful prosceniums. Every pendant is
-    // at least four metres above the sampled rail; the mascot floats above it.
+    // A high scalloped light garland: plenty of headroom for flying coaches.
     let previous:T.Vector3|undefined;
     for(let j=0;j<=12;j++){
-      const p=center.clone().addScaledVector(f.right,(j/12-.5)*8.8);p.y=h+.9-Math.sin(j*Math.PI/12)*.65;
+      const p=center.clone().addScaledVector(f.right,(j/12-.5)*7.2);p.y=h+2.2-Math.sin(j*Math.PI/12)*.65;
       if(previous)m.beam('#8d83ad',previous,p,.04);
-      m.add(j%2?G.rock:G.round,BULBS[(i+j)%4],p.toArray(),[.22,.22,.22],[],true,i*.8+j*.35);
-      if(j%2===0){m.add(G.cone,BULBS[(i+j)%4],[p.x,p.y-.5,p.z],[.34,.7,.08],[0,0,Math.PI]);}
+      m.add(G.round,BULBS[(i+j)%4],p.toArray(),[.18,.18,.18],[],true,i*.8+j*.35);
+      if(j%3===0){m.add(G.cone,BULBS[(i+j)%4],[p.x,p.y-.45,p.z],[.3,.65,.06],[0,0,Math.PI]);}
       previous=p;
-    }
-    // A second scallop makes a shallow theatrical arch instead of a lone wire.
-    const a=center.clone().addScaledVector(f.right,-4.4),b=center.clone().addScaledVector(f.right,4.4);
-    a.y=b.y=h-.2;m.beam('#d8b0b9',a,b,.07);
-    // Broad rainbow ribbons turn the thin garlands into recognisable gateways.
-    for(let band=0;band<3;band++) {
-      const positions:number[]=[];
-      for(let j=0;j<20;j++) {
-        const quad:number[][]=[];
-        for(const [t,edge]of [[j/20,0],[(j+1)/20,0],[(j+1)/20,1],[j/20,1]]) {
-          const p=center.clone().addScaledVector(f.right,(t-.5)*8.8);
-          p.y=h+.45+Math.sin(t*Math.PI)*1.8+band*.22+edge*.17;
-          quad.push(p.toArray());
-        }
-        positions.push(...quad[0],...quad[1],...quad[2],...quad[0],...quad[2],...quad[3]);
-        positions.push(...quad[2],...quad[1],...quad[0],...quad[3],...quad[2],...quad[0]);
-      }
-      const ribbon=new T.BufferGeometry();ribbon.setAttribute('position',new T.Float32BufferAttribute(positions,3));ribbon.computeVertexNormals();
-      m.add(ribbon,BULBS[(band+i)%4],[0,0,0]);ribbon.dispose();
-    }
-    for(const side of [-1,1]){
-      const p=center.clone().addScaledVector(f.right,side*4.4);
-      m.add(G.cone,BULBS[(i+1)%4],[p.x,1.3,p.z],[.75,1.6,.75]);
-      m.add(G.rock,'#ffe2ae',[p.x,2.2,p.z],[.3,.3,.3],[],true,i*.7);
     }
   }
 }
@@ -80,48 +47,18 @@ export function tracksideLights(m:WorldModel,section:MiniSection) {
 }
 
 export function marqueeLoop(m: WorldModel, section: MiniSection) {
-  const previous: (T.Vector3|undefined)[]=[];
-  for (let i = 0; i <= 72; i++) {
-    const f = section.sample(section.start + section.length * i / 72);
-    for(let side=0;side<2;side++){
-      const p = f.position.clone().addScaledVector(f.up, -1.55).addScaledVector(f.right,(side-.5)*3.6);
-      p.x -= section.origin.x; p.z -= section.origin.z;
-      if (previous[side]) m.beam('#886cac', previous[side]!, p, .11);
-      m.add(i%2?G.rock:G.round, BULBS[(Math.floor(i / 4)+side) % 4], p.toArray(), [.25, .25, .25], [], true, i * .25+side*.7);
-      if (i % 4 === 0) {
-        m.beam('#d8b382',p,p.clone().addScaledVector(f.up,.8),.065);
-        if(side===1)star(m,p.x,p.y,p.z+.1,.48,BULBS[Math.floor(i/4)%4]);
-      }
-      previous[side]=p;
-    }
+  let previous: number[] | undefined;
+  for (let i = 0; i <= 100; i++) {
+    const f = section.sample(section.start + section.length * i / 100);
+    const p = f.position.clone().addScaledVector(f.up, -1.05); p.x -= section.origin.x; p.z -= section.origin.z;
+    if (previous) m.beam('#646a9d', new T.Vector3(...previous), p, .14);
+    m.add(G.round, BULBS[Math.floor(i / 6) % 4], p.toArray(), [.23, .23, .23], [], true, i * .28);
+    if (i % 5 === 0) m.beam('#807aab', p, p.clone().addScaledVector(f.up, .85), .055);
+    previous = p.toArray();
   }
   const top = section.frames[Math.round(section.resolution / 2)].position;
-  const x = top.x - section.origin.x, y = top.y + 5.8, z = top.z - section.origin.z;
-  // A big smiling sun is a landmark above the loop, outside the train envelope.
-  // The rays belong to the small reactive animation pool and fan out at the apex.
-  m.add(G.round,'#ffdc8e',[x,y,z],[1.94,1.94,.46],[],true);
-  for(const side of [-1,1]){
-    m.add(G.round,'#62527f',[x+side*.65,y+.29,z+.43],[.15,.25,.1]);
-    m.add(G.round,'#f397b0',[x+side*1.12,y-.28,z+.42],[.31,.19,.09]);
-  }
-  m.add(G.round,'#805784',[x,y-.58,z+.45],[.54,.34,.06]);
-  m.add(G.round,'#ffdc8e',[x,y-.38,z+.51],[.56,.29,.06],[],true);
-  // Twin ribbon towers frame the complete inversion without entering its plane.
-  const xs=section.frames.map(f=>f.position.x-section.origin.x);
-  for(const [side,tx]of [[-1,Math.min(...xs)-3.5],[1,Math.max(...xs)+3.5]]){
-    const tz=section.shift/2;
-    m.add(G.pole,'#a178ad',[tx,4,tz],[.38,8,.38]);
-    m.add(G.pole,'#e9bc87',[tx,.4,tz],[1,.8,1]);
-    for(let j=0;j<5;j++)m.add(G.pole,BULBS[j%4],[tx,1.3+j*1.4,tz],[.43,.4,.43]);
-    m.add(G.cone,'#db8dbe',[tx,8.4,tz],[1.05,1.7,1.05]);
-    star(m,tx,9.8,tz,.85,'#ffe0a0');
-    m.add(G.box,BULBS[side===-1?1:2],[tx+side*.7,7,tz],[1.2,.65,.07],[0,0,side*.15]);
-    // A theatrical fan on each tower carries the same colours as the sun.
-    for(let j=0;j<5;j++) {
-      const a=(j-2)*.3;
-      m.add(G.cone,BULBS[j%4],[tx+Math.sin(a)*1.5,8.4+Math.cos(a)*1.4,tz-.2],[.27,1.5,.1],[0,0,-a]);
-    }
-  }
+  const x = top.x - section.origin.x, y = top.y + 3, z = top.z - section.origin.z;
+  star(m, x, y, z, 1.6, '#ffdb92');
 }
 
 export function star(m: WorldModel, x: number, y: number, z: number, size: number, color: string) {

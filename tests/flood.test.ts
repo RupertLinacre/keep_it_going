@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createMiniSection } from "../src/games/mini-track.ts";
+import { seededRandom } from "../src/games/mini-rail.ts";
 import { HeightTrack } from "../src/games/height-track.ts";
 import { MiniPhysics } from "../src/games/mini-physics.ts";
 import { MiniCarriages } from "../src/games/mini-carriages.ts";
@@ -7,9 +9,10 @@ import { POWER_KINDS, RidePowerups } from "../src/games/ride-powerups.ts";
 
 function course(seed = 42) {
   const track = new HeightTrack(seed, { generative: true });
-  track.ensure(track.startDistance, 2000);
-  const pool = track.sections.find(s => s.kind === "splash")!;
-  assert.ok(pool, "The seeded course contains a flooded track piece");
+  const previous = track.sections.at(-1)!;
+  // A real flooded piece, independent of which random challenges are drawn.
+  const pool = createMiniSection("splash", previous.end, previous.frames.at(-1)!.position.clone(), track.generated++, seededRandom(seed), true);
+  track.sections.push(pool);
   return { track, pool };
 }
 
@@ -25,7 +28,7 @@ test("flooded sections have continuous rails, dry approaches and shallow submerg
     assert.ok(pool.frames.at(-1)!.tangent.x > .9999);
     assert.ok(pool.frames[0].position.y === pool.frames.at(-1)!.position.y);
   }
-  assert.equal(POWER_KINDS.length, 7);
+  assert.equal(POWER_KINDS.length, 8);
   assert.ok(!(POWER_KINDS as string[]).includes("splash"));
 });
 

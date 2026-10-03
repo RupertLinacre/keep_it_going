@@ -22,61 +22,34 @@ pennant.setAttribute('position',new T.Float32BufferAttribute([-.42,0,0,.42,0,0,0
 pennant.computeVertexNormals();
 const millColors=['#eb9c78','#79b9b5','#ecc56c','#9eb988'];
 
-/** Terraced picnic pasture; the 5.4m shoulder matches the sheep landing zone. */
+/** Low banks follow the crests, with room for the coaches above the grass. */
 export function sheepBanks(m: WorldModel, section: MiniSection) {
-  const rows: number[][] = [], offsets=[-9,-7,-5.4,-3,0,3,5.4,7,9];
+  const rows: number[][] = [], vertices: number[] = [];
   for (let i = 0; i <= 40; i++) {
-    const p = section.frames[Math.round(section.resolution * i / 40)].position, y = Math.max(.15, p.y - 1.55);
-    rows.push(offsets.flatMap((z,j)=>[p.x-section.origin.x,[0,y*.2,y*.5,y*.85,y,y*.85,y*.5,y*.2,0][j],p.z-section.origin.z+z]));
+    const p = section.frames[Math.round(section.resolution * i / 40)].position;
+    const y = Math.max(.15, p.y - 1.55);
+    rows.push([-8, -3, 0, 3, 8].flatMap((z, j) =>
+      [p.x - section.origin.x, [0, y * .85, y, y * .85, 0][j], p.z - section.origin.z + z]));
   }
-  for(let j=0;j<offsets.length-1;j++) {
-    const vertices:number[]=[];
-    for (let i = 0; i < 40; i++) {
-      const a=rows[i].slice(j*3,j*3+3),b=rows[i+1].slice(j*3,j*3+3),c=rows[i].slice((j+1)*3,(j+2)*3),d=rows[i+1].slice((j+1)*3,(j+2)*3);
-      vertices.push(...a,...c,...b,...b,...c,...d);
-    }
-    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.computeVertexNormals();
-    m.add(g,['#81ac59','#a1c46d','#b4ce7b','#95bd65','#95bd65','#b4ce7b','#a1c46d','#81ac59'][j],[0,0,0]);g.dispose();
+  for (let i = 0; i < 40; i++) for (let j = 0; j < 4; j++) {
+    const a = rows[i].slice(j * 3, j * 3 + 3), b = rows[i + 1].slice(j * 3, j * 3 + 3);
+    const c = rows[i].slice((j + 1) * 3, (j + 2) * 3), d = rows[i + 1].slice((j + 1) * 3, (j + 2) * 3);
+    vertices.push(...a, ...c, ...b, ...b, ...c, ...d);
   }
-  // Low cream fencing stays beyond both the fleeing sheep and their flowers.
-  for(const side of [-1,1]) {
-    let last:T.Vector3|undefined;
-    for(let i=0;i<=14;i++) {
-      const p=section.sample(section.start+section.length*i/14).position;
-      const q=new T.Vector3(p.x-section.origin.x,.65,p.z-section.origin.z+side*10.1);
-      m.add(G.box,'#f3e2b4',q.toArray(),[.19,1.3,.19]);
-      m.add(G.cone,'#e7c889',[q.x,1.4,q.z],[.18,.23,.18]);
-      if(last)for(const h of [.42,.95])m.beam('#eddbac',new T.Vector3(last.x,h,last.z),new T.Vector3(q.x,h,q.z),.055);
-      if(i>0&&i<14&&i%2===0) {
-        m.add(G.round,i%4?'#edb677':'#c4d98d',[q.x,.25,q.z+side*.3],[.8,.25,.65]);
-        for(let k=0;k<3;k++)m.add(G.round,k===1?'#fff7d6':'#f3ce96',[q.x+(k-1)*.28,.53,q.z+side*.3],[.22,.18,.2]);
-      }
-      last=q;
+  const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(vertices, 3)); g.computeVertexNormals();
+  m.add(g, '#91bf67', [0, 0, 0]); g.dispose();
+  for (let i = 0; i < 9; i++) {
+    const p = section.sample(section.start + section.length * (.08 + i * .105)).position;
+    const x = p.x - section.origin.x, z = p.z - section.origin.z - 4.3;
+    m.add(G.box, '#e7bf6a', [x, .85, z], [2.4, 1.7, 1.8]);
+    for (const dx of [-.7, .7]) m.add(G.box, '#b99650', [x + dx, .85, z], [.09, 1.76, 1.86]);
+    // Daisies along the edge of the grass banks.
+    for (const side of [-1, 1]) {
+      const fy = Math.max(.2, (p.y - 1.5) * .6);
+      m.add(G.round, '#fff4d1', [x, fy + .3, z + 4.3 + side * 5], [.36, .13, .36]);
+      m.add(G.round, '#e7b749', [x, fy + .43, z + 4.3 + side * 5], [.11, .06, .11]);
     }
   }
-  // A little red shepherd's hut and a tidy hay cart give the rolling bank a home.
-  const hx=section.span*.23,hz=-13.3;
-  m.add(G.box,'#cf8875',[hx,1.55,hz],[5.2,3.1,3.4]);
-  for(const dx of [-2.35,2.35])m.add(G.box,'#f7e7c0',[hx+dx,1.65,hz+1.74],[.18,3.3,.16]);
-  for(const side of [-1,1])m.add(G.box,'#78979b',[hx+side*1.35,3.53,hz],[3.1,.22,4.1],[0,0,-side*.37]);
-  m.add(G.box,'#f7e7c0',[hx,.98,hz+1.79],[1.3,1.96,.15]);m.add(G.box,'#83b8b4',[hx,.93,hz+1.9],[1.03,1.8,.13]);
-  for(const dx of [-1.7,1.7]) {
-    m.add(G.box,'#f7e7c0',[hx+dx,1.95,hz+1.78],[.95,.95,.15]);m.add(G.box,'#78a7af',[hx+dx,1.95,hz+1.87],[.67,.65,.1]);
-  }
-  const cartX=section.span*.72,cartZ=-12.2;
-  m.add(G.box,'#a78358',[cartX,.66,cartZ],[4.8,.28,2.35]);
-  for(const dx of [-1.65,1.65])for(const dz of [-1.15,1.15])m.add(G.ring,'#79654f',[cartX+dx,.55,cartZ+dz],[.48,.48,.48]);
-  for(let i=0;i<3;i++) {
-    const x=cartX+(i-1)*1.4;m.add(G.box,'#e4bd6b',[x,1.35,cartZ],[1.28,1.1,2]);
-    for(const dx of [-.38,.38])m.add(G.box,'#ba9452',[x+dx,1.35,cartZ],[.055,1.15,2.04]);
-  }
-  // Ribbon flags are on the pasture fence, with no overhead rail obstructions.
-  for(let i=0;i<8;i++) {
-    const x=hx-4+i*1.13,y=2.45-Math.sin(i/7*Math.PI)*.45;
-    m.add(pennant,millColors[i%4],[x,y,hz+2.2]);
-    if(i<7)m.beam('#be9d70',new T.Vector3(x,y,hz+2.2),new T.Vector3(x+1.13,2.45-Math.sin((i+1)/7*Math.PI)*.45,hz+2.2),.025);
-  }
-  for(const dx of [-4.45,4.4])m.add(G.pole,'#bd9c6d',[hx+dx,1.3,hz+2.2],[.08,2.6,.08]);
 }
 
 export function pondWaterwheel(section:MiniSection) { return {x:section.span*.76,y:2.2,z:section.hand*4+8.3}; }

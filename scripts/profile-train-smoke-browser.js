@@ -23,8 +23,9 @@ async page => {
  });
  const results=[];
  const cases=[];
- for(const race of [false,true])for(const kind of ['windmillloop','tunnel','carouselhelix','pumpkinhop'])for(const smoke of [false,true])cases.push({kind,race,smoke,variant:'normal'});
- for(const kind of ['carouselhelix','pumpkinhop'])for(const variant of ['a','b','c','d','e'])cases.push({kind,race:true,smoke:true,variant});
+ const kinds=['sheepbank','pondbridge','windmillloop','honeyfactory','pancakemill','mountainpass','tunnel','ravinebridge','penguinplunge','lanternrun','midwayloop','carouselhelix','bigtopjuggle','pumpkinhop','pumpkintunnel','witchhat','silkspindle'];
+ for(const race of [false,true])for(const kind of kinds)cases.push({kind,race,smoke:true,variant:'normal'});
+ for(const kind of ['honeyfactory','penguinplunge','carouselhelix','silkspindle'])for(const variant of ['normal','confetti'])cases.push({kind,race:true,smoke:variant==='confetti',variant});
  for(const {kind,race,smoke,variant} of cases){
   const result=await page.evaluate(async({kind,race,smoke,variant})=>{
    const g=window.worldGame,s=window.smokeSections.find(s=>s.kind===kind);if(!s)throw Error('Missing '+kind);
@@ -39,11 +40,11 @@ async page => {
    const tick=()=>{g.elapsed+=1/60;g.physics.previousDistance=g.physics.distance;g.physics.distance+=28/60;g.carriages.update(1/60,g.physics.distance,28,false);window.drawGame.call(g,ctx)};
    for(let i=0;i<60;i++){g.elapsed+=1/60;g.carriages.update(1/60,g.physics.distance,0,false);window.drawGame.call(g,ctx)}
    const intervals=[],cpu=[];let last;
-   for(let i=0;i<110;i++){const t=await new Promise(requestAnimationFrame);if(last&&i>20)intervals.push(t-last);last=t;const begin=performance.now();tick();if(i>20)cpu.push(performance.now()-begin)}
+   for(let i=0;i<95;i++){const t=await new Promise(requestAnimationFrame);if(last&&i>20)intervals.push(t-last);last=t;const begin=performance.now();tick();if(i>20)cpu.push(performance.now()-begin)}
    const summary=a=>{a.sort((x,y)=>x-y);return {p50:+a[Math.floor(a.length*.5)].toFixed(2),p95:+a[Math.floor(a.length*.95)].toFixed(2),max:+a.at(-1).toFixed(2)}};
    return {kind,race,smoke,variant,frames:intervals.length,intervals:summary(intervals),cpu:summary(cpu),over25:intervals.filter(n=>n>25).length,draws:g.view.renderer.info.render.calls,triangles:g.view.renderer.info.render.triangles,buffer:{width:g.view.renderer.domElement.width,height:g.view.renderer.domElement.height}};
   },{kind,race,smoke,variant});results.push(result);
-  if(smoke&&((variant==='normal'&&!race)||(variant==='d'&&race)))await page.locator('.mini-canvas').screenshot({path:`output/playwright/smoke-game-${kind}-${variant}-${race?'two':'one'}.png`});
+  if(smoke&&((variant==='normal'&&!race)||(variant==='confetti'&&race)))await page.locator('.mini-canvas').screenshot({path:`output/playwright/smoke-game-${kind}-${variant}-${race?'two':'one'}.png`});
  }
- if(errors.length)throw Error(errors.join('\n'));return {results,errors};
+ if(errors.length)throw Error(errors.join('\n'));const report={results,errors};await page.evaluate(report=>window.selectionPerformance=report,report);return report;
 }

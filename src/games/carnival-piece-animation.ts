@@ -3,47 +3,10 @@ import type { MiniSection } from './mini-track';
 import type { PieceAnimation } from './piece-animation';
 import type { FairgroundLights } from './world-lighting';
 import { WorldModel, WORLD_SHAPES as G } from './world-models';
-import { carouselCenter, carouselRideRadius, lanternDistance, star } from './world-night';
+import { carouselCenter, carouselRideRadius, star } from './world-night';
 import { CarouselMotion } from './carousel-motion';
 
 const COLORS = ['#ffe092', '#f3a8d3', '#9ee7dc', '#c4aff5'];
-
-/** One recognisable little lantern creature, shared by all seven gates. */
-function lanternMascot() {
-  const m = new WorldModel();
-  m.add(G.round, '#ffd79a', [0,0,0], [1.02,1.1,.83], [], true, 0);
-  for (const side of [-1,1]) {
-    m.add(G.round, '#ffd79a', [side*.44,1.08,0], [.23,.72,.25], [0,0,-side*.2], true, .3);
-    m.add(G.rock, '#f7b3c9', [side*.44,1.13,.21], [.11,.45,.055], [0,0,-side*.2]);
-    for (const face of [-1,1]) {
-      m.add(G.rock, '#674f84', [side*.34,.16,face*.78], [.105,.16,.07]);
-      m.add(G.rock, '#f7a7bf', [side*.62,-.12,face*.68], [.2,.12,.06]);
-    }
-  }
-  for (const face of [-1,1]) {
-    m.add(G.rock, '#c379a3', [0,-.09,face*.84], [.12,.09,.07]);
-    m.add(G.rock, '#775a91', [0,-.32,face*.79], [.2,.13,.06]);
-    m.add(G.rock, '#ffe4b2', [0,-.26,face*.83], [.2,.1,.04], [], true);
-  }
-  m.add(G.pole, '#ddae84', [0,-1.1,0], [.42,.15,.42]);
-  for (const side of [-1,1]) m.add(G.pole, '#d4a5ab', [side*.28,-1.45,0], [.035,.58,.035]);
-  m.add(G.box, '#a58bc1', [0,-1.8,0], [.74,.38,.6]);
-  m.add(G.box, '#efd098', [0,-1.63,0], [.84,.1,.67]);
-  // Butterfly wings and ribbon tails give the whole lantern a cheerful silhouette.
-  for(const side of [-1,1]) {
-    m.add(G.cone,'#e9b5d9',[side*.27,-2.18,0],[.16,.64,.055],[0,0,Math.PI-side*.12]);
-    m.add(G.rock,'#fff0c8',[side*.22,-1.42,.22],[.15,.18,.14]);
-  }
-  m.add(G.box,'#aee0d4',[0,-1.76,.32],[.18,.35,.04]);
-  // A tiny star passenger peeps over the striped basket, so the floating bunny
-  // reads as a character carrying a friend rather than another round light.
-  for(const side of [-1,1]) {
-    m.add(G.rock,'#ffd891',[side*.2,-1.41,.28],[.13,.13,.12]);
-    m.add(G.rock,'#674f84',[side*.09,-1.42,.36],[.03,.04,.025]);
-  }
-  m.add(G.cone,'#ffd891',[0,-1.25,.24],[.23,.4,.12]);
-  return m;
-}
 
 /** Low-poly unicorn with a saddle, mane, ears, hooves and a happy face on each
  * side. Twelve riders reuse this one geometry and one material. */
@@ -196,72 +159,6 @@ class CarnivalPieceAnimation implements PieceAnimation {
           }
         }
       };
-    } else if(section.kind==='lanternrun') {
-      const meshes=pool(lanternMascot(),7),stops=Array.from({length:7},(_,i)=>{
-        const distance=lanternDistance(section,i),f=section.sample(distance);
-        return {distance,position:f.position.clone().sub(new T.Vector3(section.origin.x,0,section.origin.z))};
-      });
-      for(const mesh of meshes)mesh.name='lantern-creatures';
-      const wing=new WorldModel();
-      wing.add(G.round,'#f0b2d3',[.58,.14,0],[.7,.87,.13],[0,0,-.36]);
-      wing.add(G.rock,'#b4e4dc',[.51,-.54,.03],[.52,.5,.14],[0,0,.26]);
-      wing.beam('#f9d89b',new T.Vector3(0,0,.15),new T.Vector3(1.02,.57,.15),.035);
-      wing.beam('#f9d89b',new T.Vector3(0,0,.15),new T.Vector3(.9,-.61,.15),.035);
-      const wings=pool(wing,14),local=new T.Object3D(),bodyMatrix=new T.Matrix4();
-      for(const mesh of wings)mesh.name='lantern-butterfly-wings';
-      this.tick=(time,distance,reduced)=>{
-        for(let i=0;i<7;i++) {
-          const stop=stops[i],arrival=Math.exp(-(((distance-stop.distance)/10)**2));
-          const anticipation=reduced?0:Math.exp(-(((distance-stop.distance+13)/5)**2));
-          const rebound=reduced?0:Math.exp(-(((distance-stop.distance-15)/8)**2));
-          const bob=reduced?0:Math.sin(time*1.5+i)*.16+arrival*.98-anticipation*.3+rebound*.32;
-          this.dummy.position.copy(stop.position);this.dummy.position.y+=10+bob;
-          this.dummy.rotation.set(reduced?0:-arrival*.19+anticipation*.13,Math.sin(i*.8)*.35,reduced?0:Math.sin(time*1.8+i)*(.045+arrival*.12));
-          const size=.98+(reduced?0:arrival*.09);this.dummy.scale.set(size,size*(reduced?1:1+arrival*.12-anticipation*.12),size);place(meshes,i);
-          bodyMatrix.copy(this.dummy.matrix);
-          for(let side=0;side<2;side++){
-            local.position.set(side===0?.54:-.54,0,-.28);local.scale.setScalar(1);
-            const flap=reduced?0:Math.sin(time*(2.2+arrival*4)+i)*(.15+arrival*.5);
-            local.rotation.set(0,(side===0?0:Math.PI)+(side===0?1:-1)*flap,0);local.updateMatrix();
-            this.dummy.matrix.multiplyMatrices(bodyMatrix,local.matrix);for(const mesh of wings)mesh.setMatrixAt(i*2+side,this.dummy.matrix);
-          }
-        }
-      };
-    } else {
-      const m=new WorldModel();star(m,0,0,0,.83,'#ffe3a2');
-      // Little faces remain in the existing luminous star batch: no new draw.
-      for(const side of [-1,1])m.add(G.rock,'#6d547f',[side*.17,.08,.025],[.045,.068,.022],[],true);
-      m.add(G.rock,'#bd759a',[0,-.15,.025],[.11,.055,.022],[],true);
-      const meshes=pool(m,12),top=section.frames[Math.round(section.resolution/2)].position;
-      const x=top.x-section.origin.x,y=top.y+5.8,z=top.z-section.origin.z;
-      const cheers=Array.from({length:6},(_,i)=>{
-        const stop=section.start+section.length*(.08+i*.168),f=section.sample(stop);
-        return {stop,p:f.position.clone().addScaledVector(f.up,-3.1).addScaledVector(f.right,2.2).sub(new T.Vector3(section.origin.x,0,section.origin.z))};
-      });
-      const ray=new WorldModel();ray.add(G.cone,'#ffd58c',[0,0,0],[.43,1.18,.26],[],true);
-      const rays=pool(ray,12);for(const mesh of rays)mesh.name='sunshine-fan-rays';
-      this.tick=(time,distance,reduced)=>{
-        const progress=T.MathUtils.clamp((distance-section.start)/section.length,0,1);
-        const cheer=Math.sin(progress*Math.PI),spin=reduced?0:time*.25+progress*Math.PI;
-        for(let i=0;i<6;i++) {
-          const a=i*Math.PI/3+spin,r=4.05+cheer*.12;
-          this.dummy.position.set(x+Math.sin(a)*r,y+Math.cos(a)*r,z+.15);
-          this.dummy.rotation.set(0,0,-a);this.dummy.scale.setScalar(.7+cheer*.25);place(meshes,i);
-          const marker=cheers[i],gap=(distance-marker.stop)/8,pulse=Math.exp(-gap*gap);
-          this.dummy.position.copy(marker.p);
-          // A bowed preparation followed by a cartwheel and a little landing
-          // gives each cheer a readable beginning, middle and end.
-          const hop=reduced?0:pulse*.8,turn=reduced?0:T.MathUtils.smoothstep(distance,marker.stop-9,marker.stop+9)*Math.PI*2;
-          this.dummy.position.y+=hop;this.dummy.rotation.set(0,0,turn);
-          this.dummy.scale.setScalar(.9+(reduced?0:pulse*.85));place(meshes,i+6);
-        }
-        const apex=section.start+section.distances[Math.round(section.resolution*.5)],near=Math.exp(-(((distance-apex)/13)**2));
-        for(let i=0;i<12;i++) {
-          const a=i*Math.PI/6+(reduced?0:time*.15+near*.32),r=2.48+(reduced?0:near*.4);
-          this.dummy.position.set(x+Math.sin(a)*r,y+Math.cos(a)*r,z);this.dummy.rotation.set(0,0,-a);
-          this.dummy.scale.setScalar(1+(reduced?0:near*.2));place(rays,i);
-        }
-      };
     }
     this.update(0,section.start-12,false);
   }
@@ -278,5 +175,5 @@ class CarnivalPieceAnimation implements PieceAnimation {
 
 /** Fixed instance pools keep articulated carnival rides independent of train size. */
 export function createCarnivalPieceAnimation(section:MiniSection,material:T.Material,lights:FairgroundLights):PieceAnimation|undefined {
-  return ['carouselhelix','lanternrun','midwayloop'].includes(section.kind)?new CarnivalPieceAnimation(section,material,lights):undefined;
+  return section.kind==='carouselhelix'?new CarnivalPieceAnimation(section,material,lights):undefined;
 }

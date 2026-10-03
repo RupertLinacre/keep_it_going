@@ -62,13 +62,16 @@ test('tunnels are guaranteed near mountain and pumpkin entrances across seeds',(
 });
 
 test('late adventures unlock more elements without squeezing hills into thin needles',()=>{
- const track=new MiniTrack(42,{generative:true}),encores=new Set<string>();
+ const encores=new Set<string>();
+ for(const seed of [1,18,42,73]) {
+ const track=new MiniTrack(seed,{generative:true});
  for(let at=4200;at<25000;at+=150){
   track.ensure(at);
   for(const s of track.sections){
    encores.add(s.kind);
    if(s.kind==='verticalhill')assert.ok(s.width>10&&s.amplitude<=40);
   }
+ }
  }
  for(const kind of ['nestedloop','verticalhill','tophat'])assert.ok(encores.has(kind),kind);
 });
@@ -96,7 +99,7 @@ test('scenery prunes old tiles, bounds actors and disposes shared race geometry 
  assert.ok([...geometries.values()].every(n=>n===1),'Owned/shared geometry released exactly once');
 });
 
-test('each adventure guarantees all twelve unique signature attractions before leaving their worlds',()=>{
+test('each adventure guarantees all seventeen unique signature attractions before leaving their worlds',()=>{
  const all=WORLDS.flatMap(w=>w.pieces);
  assert.ok(WORLDS.every(w=>new Set(w.pieces).size>=3));
  assert.equal(new Set(all).size,all.length,'Each signature belongs to one world');

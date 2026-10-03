@@ -1,35 +1,21 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export type SmokeVariant = 'normal' | 'a' | 'b' | 'c' | 'd' | 'e';
-
-export const SMOKE_DESIGNS = [
-  { id: 'normal', name: 'Gentle Steam', description: 'Little warm-white puffs drift softly out of the funnel.' },
-  { id: 'a', name: 'Rainbow Express', description: 'A ribbon of plump rainbow puffs curls behind the train.' },
-  { id: 'b', name: 'Dragon Chuffs', description: 'Big mint-and-lime clouds tumble out in bouncy dragon breaths.' },
-  { id: 'c', name: 'Bubble Rings', description: 'Golden and turquoise smoke rings float up and gently tumble.' },
-  { id: 'd', name: 'Rocket Whistle', description: 'A fizzy blue rocket plume shoots out little golden stars.' },
-  { id: 'e', name: 'Confetti Clouds', description: 'Cotton-candy clouds carry a shower of rainbow star embers.' },
-] as const satisfies readonly { id: SmokeVariant; name: string; description: string }[];
+export type SmokeVariant = 'normal' | 'confetti';
 
 const CAPACITY = 120;
 const UP = new THREE.Vector3(0, 1, 0);
-const RIGHT = new THREE.Vector3(1, 0, 0);
 const RING_NORMAL = new THREE.Vector3(0, 0, 1);
 const CREAM = new THREE.Color('#fff8e8');
 const PALETTES: Record<SmokeVariant, readonly THREE.Color[]> = {
   normal: ['#f3eee3', '#e2e4df', '#fff7e6'].map(c => new THREE.Color(c)),
-  a: ['#ff8ea9', '#ffbc70', '#ffdf78', '#95dfac', '#7ecdea', '#b8a3f2'].map(c => new THREE.Color(c)),
-  b: ['#81d4b5', '#d3e978', '#48b6a9', '#b9e7a9'].map(c => new THREE.Color(c)),
-  c: ['#ffd273', '#77dbd1', '#fff0b1', '#92cce4'].map(c => new THREE.Color(c)),
-  d: ['#a6e9f0', '#6fc7eb', '#e8faff', '#ffdc77'].map(c => new THREE.Color(c)),
-  e: ['#fac1e4', '#d4b9f3', '#b8e7ed', '#fbe3b3'].map(c => new THREE.Color(c)),
+  confetti: ['#fac1e4', '#d4b9f3', '#b8e7ed', '#fbe3b3'].map(c => new THREE.Color(c)),
 };
-const RAINBOW = PALETTES.a;
-const RATES: Record<SmokeVariant, number> = { normal: 9, a: 19, b: 4.2, c: 8, d: 25, e: 6 };
+const RAINBOW = ['#ff8ea9', '#ffbc70', '#ffdf78', '#95dfac', '#7ecdea', '#b8a3f2'].map(c => new THREE.Color(c));
+const RATES: Record<SmokeVariant, number> = { normal: 9, confetti: 6 };
 
 type Particle = {
-  live: boolean; kind: 0 | 1 | 2; born: number; life: number;
+  live: boolean; kind: 0 | 1; born: number; life: number;
   x: number; y: number; z: number; vx: number; vy: number; vz: number;
   size: number; grow: number; stretch: number; buoyancy: number; gravity: number; drag: number;
   curl: number; phase: number; bounce: number; spin: number;
@@ -70,7 +56,7 @@ function starGeometry() {
 
 /** Opaque, pooled funnel smoke. Attach group to the scene, not to the locomotive.
  * All particle positions use the emitter's coordinates; callers may translate
- * group when shifting a large world's render origin. Three draw batches at most,
+ * group when shifting a large world's render origin. Two draw batches at most,
  * no shadows or textures, and no allocations in the animation loop. */
 export class TrainSmoke {
   readonly group = new THREE.Group();
@@ -96,7 +82,7 @@ export class TrainSmoke {
   private readonly up = new THREE.Vector3();
   private readonly side = new THREE.Vector3();
   private readonly across = new THREE.Vector3();
-  private readonly counts = [0, 0, 0];
+  private readonly counts = [0, 0];
   private previousEmitter = false;
   private previousVariant: SmokeVariant = 'normal';
   private clock = 0;
@@ -112,11 +98,10 @@ export class TrainSmoke {
     this.group.name = 'train-funnel-smoke';
     this.batches = [
       cloudGeometry(),
-      new THREE.TorusGeometry(1, .115, 5, 16),
       starGeometry(),
     ].map((geometry, kind) => {
       const mesh = new THREE.InstancedMesh(geometry, this.material, CAPACITY);
-      mesh.name = ['smoke-puffs', 'smoke-rings', 'smoke-stars'][kind];
+      mesh.name = ['smoke-puffs', 'smoke-stars'][kind];
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.setColorAt(0, CREAM);
       mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
@@ -194,7 +179,7 @@ export class TrainSmoke {
     return this.seed / 4294967296;
   }
 
-  private spawn(kind: 0 | 1 | 2, born: number, color: THREE.Color): Particle {
+  private spawn(kind: 0 | 1, born: number, color: THREE.Color): Particle {
     const p = this.particles[this.cursor];
     this.cursor = (this.cursor + 1) % CAPACITY;
     p.live = true; p.kind = kind; p.born = born;
@@ -221,42 +206,9 @@ export class TrainSmoke {
     const palette = PALETTES[variant], index = this.chuff++;
     if (variant === 'normal') {
       const p = this.spawn(0, born, palette[index % palette.length]);
-      p.life = 1.05 + this.random() * .2; p.size = .10; p.grow = .25;
+      p.life = 2.1 + this.random() * .4; p.size = .20; p.grow = .50;
       p.stretch = .82; p.curl = .10;
       this.thrust(p, 1.6, .35);
-    } else if (variant === 'a') {
-      const p = this.spawn(0, born, palette[Math.floor(index / 2) % palette.length]);
-      p.life = 1.8; p.size = .13; p.grow = .48; p.curl = .38;
-      p.stretch = .88; p.bounce = .08; p.buoyancy = 1.05;
-      this.thrust(p, 2.65, .6);
-    } else if (variant === 'b') {
-      for (let lobe = 0; lobe < 3; lobe++) {
-        const p = this.spawn(0, born, palette[(index + lobe) % palette.length]);
-        const angle = lobe * Math.PI * 2 / 3 + index * .7, radius = lobe ? .20 : 0;
-        p.x += (this.side.x * Math.cos(angle) + this.across.x * Math.sin(angle)) * radius;
-        p.y += (this.side.y * Math.cos(angle) + this.across.y * Math.sin(angle)) * radius;
-        p.z += (this.side.z * Math.cos(angle) + this.across.z * Math.sin(angle)) * radius;
-        p.life = 2.0 + lobe * .06; p.size = lobe ? .20 : .28;
-        p.grow = lobe ? .74 : .92; p.stretch = .86;
-        p.curl = .55; p.bounce = .30; p.spin *= 3; p.buoyancy = .95;
-        this.thrust(p, 4.35 + lobe * .18, 2.7);
-      }
-    } else if (variant === 'c') {
-      const p = this.spawn(1, born, palette[index % palette.length]);
-      p.life = 2; p.size = .12; p.grow = .8; p.curl = .1;
-      p.buoyancy = .6; p.spin = (index % 2 ? -1 : 1) * .55;
-      this.thrust(p, 2.5, .45);
-    } else if (variant === 'd') {
-      const p = this.spawn(0, born, palette[index % 3]);
-      p.life = .78; p.size = .09; p.grow = .19; p.stretch = 2.5;
-      p.curl = .035; p.drag = 1.2; p.buoyancy = .1;
-      this.thrust(p, 11.5, .24);
-      if (index % 2 === 0) {
-        const star = this.spawn(2, born, palette[3]);
-        star.life = 1.05; star.size = .1; star.grow = .25;
-        star.curl = .04; star.buoyancy = -.45; star.spin *= 5;
-        this.thrust(star, 10.2, 2.6);
-      }
     } else {
       for (let lobe = 0; lobe < 3; lobe++) {
         const p = this.spawn(0, born, palette[(index + lobe) % palette.length]);
@@ -265,7 +217,7 @@ export class TrainSmoke {
         this.thrust(p, 2.6 + lobe * .35, 1.8);
       }
       for (let ember = 0; ember < 3; ember++) {
-        const p = this.spawn(2, born, RAINBOW[(index + ember * 2) % RAINBOW.length]);
+        const p = this.spawn(1, born, RAINBOW[(index + ember * 2) % RAINBOW.length]);
         p.life = 1.7; p.size = .12; p.grow = .40; p.spin *= 4;
         p.buoyancy = 0; p.gravity = 1.1; p.drag = .75; p.curl = .13;
         this.thrust(p, 6.6, 6.8);
@@ -293,12 +245,12 @@ export class TrainSmoke {
       this.scale.set(size * roll, size * p.stretch / roll, size);
       this.rotation.set(p.qx, p.qy, p.qz, p.qw);
       // Stars spin in their own plane so their points stay legible as confetti.
-      this.turn.setFromAxisAngle(p.kind === 1 ? RIGHT : p.kind === 2 ? RING_NORMAL : UP, p.spin * age);
+      this.turn.setFromAxisAngle(p.kind === 1 ? RING_NORMAL : UP, p.spin * age);
       this.rotation.multiply(this.turn);
       this.matrix.compose(this.position, this.rotation, this.scale);
       const mesh = this.batches[p.kind], instance = this.counts[p.kind]++;
       mesh.setMatrixAt(instance, this.matrix);
-      this.color.setRGB(p.r, p.g, p.b).lerp(CREAM, t * (p.kind === 2 ? .1 : .25));
+      this.color.setRGB(p.r, p.g, p.b).lerp(CREAM, t * (p.kind === 1 ? .1 : .25));
       mesh.setColorAt(instance, this.color);
     }
     for (let kind = 0; kind < this.batches.length; kind++) {

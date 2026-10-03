@@ -1,1 +1,0 @@
-Frozen visual baseline from main b346bfc for the special-piece comparison page. These modules are imported only by the review page, never by the game. Keep this snapshot unchanged while reviewing proposed improvements. Shared track geometry and rendering primitives remain the same on both sides.

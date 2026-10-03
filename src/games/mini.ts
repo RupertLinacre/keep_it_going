@@ -446,7 +446,7 @@ export class Mini extends BaseGame {
       550 + (x - centerX) * scale,
       300 - (y - centerY) * scale,
     ];
-    if (theme && power !== "tilt") {
+    if (theme && power !== "tilt" && power !== "confetti") {
       ctx.save(); ctx.globalAlpha = .4;
       for (let i = 0; i < 120; i++) {
         const p = weatherPoint(i, this.track.seed, power!, this.elapsed, frame.position);

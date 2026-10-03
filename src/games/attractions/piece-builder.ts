@@ -1,18 +1,14 @@
 import * as T from 'three';
-import { WorldModel } from '../../games/world-models';
-import type { MiniSection } from '../../games/mini-track';
-import type { PieceAnimation } from '../../games/piece-animation';
-import type { FairgroundLights } from '../../games/world-lighting';
+import { WorldModel } from '../world-models';
+import type { MiniSection } from '../mini-track';
+import type { PieceAnimation } from '../piece-animation';
+import type { FairgroundLights } from '../world-lighting';
 
-export const DESIGN_OPTIONS = ['a', 'b', 'c', 'd', 'e'] as const;
-export type DesignOption = typeof DESIGN_OPTIONS[number];
-export type AlternativeOption = Exclude<DesignOption, 'a'>;
-export type ExtraOption = 'd' | 'e';
 export type InstancePool = T.InstancedMesh[];
 
-/** Review alternatives share the game's batching and lifecycle conventions.
+/** Selected attractions share the game's batching and lifecycle conventions.
  * Only the selected design is built; animation never creates render objects. */
-export class VariantBuilder implements PieceAnimation {
+export class PieceBuilder implements PieceAnimation {
   readonly group = new T.Group();
   private geometries = new Set<T.BufferGeometry>();
   private instances: T.InstancedMesh[] = [];

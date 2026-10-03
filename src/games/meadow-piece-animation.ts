@@ -13,36 +13,6 @@ export function meadowArrival(distance:number,at:number,reach=18) {
 }
 const colors=['#efb381','#91c6bb','#e8c778','#d4b3cd'];
 
-function flowerModel() {
-  const m=new WorldModel();
-  m.add(G.pole,'#779b65',[0,.84,0],[.07,1.68,.07]);
-  for(let i=0;i<8;i++) {
-    const a=i*TAU/8;m.add(G.rock,i%2?'#fff0c5':'#f5d88b',[Math.sin(a)*.47,1.8+Math.cos(a)*.47,0],[.28,.3,.14],[0,0,-a]);
-  }
-  m.add(G.round,'#e9b664',[0,1.8,.06],[.4,.4,.18]);
-  for(const side of [-1,1]) {
-    m.add(G.rock,'#655953',[side*.13,1.87,.23],[.047,.063,.024]);
-    m.add(G.rock,'#e39b78',[side*.23,1.72,.208],[.07,.047,.023]);
-  }
-  m.add(G.rock,'#fff2c6',[0,1.66,.233],[.09,.045,.018]);
-  // Rounded leaf shoes and little petal freckles help the face read at speed.
-  for(const side of [-1,1]){m.add(G.rock,'#9bb879',[side*.13,.06,.1],[.21,.1,.15]);m.add(G.rock,'#c78f72',[side*.18,1.74,.235],[.02,.018,.016]);}return m;
-}
-function flowerArmModel() {
-  const m=new WorldModel();
-  m.beam('#86a36b',new T.Vector3(),new T.Vector3(.54,.18,0),.055);
-  m.add(G.rock,'#94b47b',[.48,.23,0],[.37,.16,.12],[0,0,.45]);
-  m.add(G.rock,'#b7cb8e',[.67,.37,.02],[.18,.23,.08],[0,0,-.3]);return m;
-}
-function butterflyModel() {
-  const m=new WorldModel();
-  for(const side of [-1,1]) {
-    m.add(G.rock,'#d7a3bf',[side*.22,.08,0],[.25,.32,.07],[0,0,-side*.3]);
-    m.add(G.rock,'#f7d496',[side*.19,-.21,0],[.2,.18,.06]);
-    m.add(G.rock,'#fce2b1',[side*.26,.16,.063],[.1,.13,.026]);
-  }
-  m.add(G.rock,'#8e785e',[0,-.02,.025],[.053,.34,.055]);return m;
-}
 function waterwheelModel() {
   const m=new WorldModel();
   for(const z of [-.3,.3]) {
@@ -128,7 +98,7 @@ function flourBagModel() {
 /** Every section owns at most four fixed instanced draws; shared materials
  * remain owned by AdventureScene. Update uses only cached section-local sites. */
 export function createMeadowPieceAnimation(section:MiniSection,material:T.Material,lights:FairgroundLights):PieceAnimation|undefined {
-  if(!['sheepbank','pondbridge','windmillloop'].includes(section.kind))return undefined;
+  if(!['pondbridge','windmillloop'].includes(section.kind))return undefined;
   const group=new T.Group(),meshes:T.InstancedMesh[]=[];
   group.name=`meadow-${section.kind}-interaction`;
   const dummy=new T.Object3D();
@@ -141,34 +111,7 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
     dummy.position.set(x,y,z);dummy.rotation.set(rx,ry,rz);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);
   };
   let update:(time:number,distance:number,reduced:boolean)=>void;
-  if(section.kind==='sheepbank') {
-    const flowers=batch(flowerModel(),12),butterflies=batch(butterflyModel(),8),arms=batch(flowerArmModel(),24);
-    flowers.name="waving-flowers";arms.name="flower-arms";
-    const sites=Array.from({length:12},(_,i)=>{
-      const at=section.start+section.length*(.09+i*.075),p=section.sample(at).position,side=i%2?1:-1;
-      return {at,x:p.x-section.origin.x,y:.22,z:p.z-section.origin.z+side*8.8,side};
-    });
-    update=(time,distance,reduced)=>{
-      for(let i=0;i<sites.length;i++) {
-        const p=sites[i],greet=meadowArrival(distance,p.at,20),s=1.4+(i%3)*.18;
-        // A clear travelling cheer: flowers lean towards the approaching train,
-        // stretch at its arrival, then bow after it passes instead of jittering.
-        const passing=T.MathUtils.clamp((distance-p.at)/16,-1,1);
-        const tilt=reduced?0:Math.sin(time*2.4+i*.65)*.024-greet*passing*.24;
-        const stretch=reduced?1:1+greet*(.23-.08*Math.max(0,passing));
-        put(flowers,i,p.x,p.y,p.z,0,0,tilt,s,s/Math.sqrt(stretch),s*stretch,s);
-
-        for(let j=0;j<2;j++) {
-          const side=j?1:-1,wave=reduced?.12:.12+greet*(.88+.19*Math.sin(time*4.2+i+j));
-          put(arms,i*2+j,p.x-Math.sin(tilt)*.8*s*stretch,p.y+Math.cos(tilt)*.8*s*stretch,p.z+.03,0,j?0:Math.PI,side*tilt+wave,s);
-        }
-      }
-      for(let i=0;i<8;i++) {
-        const p=sites[i+2],greet=meadowArrival(distance,p.at,22),t=reduced?i:time*.7+i*1.7;
-        put(butterflies,i,p.x+Math.sin(t)*(.65+greet*.8),2.3+Math.sin(t*2)*.25+(reduced?0:greet*1.4),p.z+.7+Math.cos(t)*.4,0,Math.sin(t)*.3,Math.sin(t*2)*.2,.68,.68*(reduced?1:.55+Math.abs(Math.sin(time*7+i))*.45),.68,.68);
-      }
-    };
-  } else if(section.kind==='pondbridge') {
+  if(section.kind==='pondbridge') {
     const wheel=batch(waterwheelModel(),1),boats=batch(boatModel(),3),ripples=batch(rippleModel(),9),paddles=batch(paddleModel(),6);
     paddles.name="boat-paddles";
     wheel.name="pond-waterwheel";boats.name="captain-boats";ripples.name="boat-wakes";

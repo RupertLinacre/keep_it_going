@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { attractionRail } from './attraction-kinds';
 import { adventureAt } from './adventure-worlds';
 import type { MiniSection, MiniTrack } from './mini-track';
 import { seededRandom } from './mini-rail';
@@ -6,7 +7,7 @@ const LOOP_KINDS=new Set(['loop','midwayloop','windmillloop','noninvertingloop',
 const peaks=new WeakMap<MiniSection,number[]>();
 /** Local maxima on loop elements, including the separate crests of nested loops. */
 export function loopCrests(section:MiniSection) {
-  if(!LOOP_KINDS.has(section.kind))return [];
+  if(!LOOP_KINDS.has(attractionRail(section.kind)))return [];
   let result=peaks.get(section);
   if(!result) {
     result=[];

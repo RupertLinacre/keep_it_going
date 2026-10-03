@@ -1,3 +1,4 @@
+import { attractionRail } from "./attraction-kinds";
 import { StrengthTowerAttraction } from "./strength-tower-attraction";
 import type { StrengthTower } from "./strength-tower";
 import { LoopFireworks } from "./loop-fireworks";
@@ -213,7 +214,7 @@ export class MiniView {
   }
   private updateSmoke(state: EngineSmoke, time: number, sourceTime: number, source: unknown,
     position: THREE.Vector3 | null, rotation: THREE.Quaternion, speed: number, anchor: number,
-    travelVelocity?: THREE.Vector3) {
+    travelVelocity?: THREE.Vector3, confetti = false) {
     const elapsed = state.time === undefined ? 0 : time - state.time;
     let reset = elapsed < 0 || elapsed > .5 || (state.source !== undefined && source !== state.source)
       || (state.sourceTime !== undefined && sourceTime < state.sourceTime);
@@ -235,7 +236,7 @@ export class MiniView {
     // Camera settling uses a fallback timestep; smoke only follows game time,
     // so repeated pause/resize renders neither emit nor age particles.
     if (elapsed > 0) state.effect.update(elapsed, position ? state.emitter : null,
-      state.direction, state.velocity.length(), "normal", state.velocity);
+      state.direction, state.velocity.length(), confetti ? "confetti" : "normal", state.velocity);
     state.time = time; state.sourceTime = sourceTime; state.source = source; state.active = !!position;
   }
   private instanceModel(model: THREE.Group, capacity: number) {
@@ -412,7 +413,7 @@ export class MiniView {
     group.add(sleepers);
     const supports: THREE.Vector3[] = [];
     const supportDistances: number[] = [];
-    for (let s = section.start + 0.8; s < section.end; s += (["carouselhelix", "witchhat"].includes(section.kind) ? 8 : ["pondbridge", "ravinebridge"].includes(section.kind) ? 12 : 2.4)) {
+    for (let s = section.start + 0.8; s < section.end; s += (["carouselhelix", "witchhat"].includes(attractionRail(section.kind)) ? 8 : ["pondbridge", "ravinebridge"].includes(attractionRail(section.kind)) ? 12 : 2.4)) {
       if (!section.hasRail(s)) continue;
       const f = section.sample(s);
       const local = f.position.clone().sub(section.origin);
@@ -790,7 +791,7 @@ export class MiniView {
     this.drawModel(this.funnelParts, funnels, []);
     const lead = attached.find(pose => pose.coach.id === 0)?.frame;
     this.updateSmoke(this.trainSmoke, time, time, effects ?? this.track,
-      lead ? lane(lead.position) : null, lead?.rotation ?? f.rotation, tower ? 0 : velocity, anchor);
+      lead ? lane(lead.position) : null, lead?.rotation ?? f.rotation, tower ? 0 : velocity, anchor, undefined, powerups?.active === "confetti");
     const remoteLead = opponent?.bodies.find(body => body.id === "coach-0");
     const remoteNearby = !!remoteLead && Math.abs(remoteLead.position[0] - f.position.x) < 130;
     if (remoteNearby) this.opponentSmoke ??= this.createSmoke();
@@ -800,7 +801,7 @@ export class MiniView {
       if (remoteVelocity) remoteVelocity.z *= -1;
       this.updateSmoke(this.opponentSmoke, time, opponent?.time ?? time, remoteLead?.id,
         remoteNearby ? lane(new THREE.Vector3(...remoteLead!.position), true) : null,
-        rotation, opponent?.speed ?? 0, anchor, remoteVelocity);
+        rotation, opponent?.speed ?? 0, anchor, remoteVelocity, opponent?.power?.active === "confetti");
     }
     this.drawModel(this.trainParts, closed, closedColors);
     this.drawModel(this.wagonParts, open, openColors);
