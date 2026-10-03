@@ -1,5 +1,7 @@
 import type { MiniKind } from '../games/mini-track';
 import type { DesignOption } from './variants/variant-kit';
+import { SMOKE_DESIGNS } from '../games/train-smoke';
+export type ReviewKind = MiniKind | 'smoke';
 export const PIECE_REVIEW: {kind:MiniKind;title:string;idea:string}[]=[
  {kind:'sheepbank',title:'Sheep Shuffle',idea:'Flowers perform a travelling stretch-and-bow wave while butterflies rise to escort the train across their storybook farm.'},
  {kind:'pondbridge',title:'Lily Pad Bridge',idea:'Duck captains sail sculpted striped catamarans that rock playfully, with hull-mounted paddles and trailing wakes.'},
@@ -13,6 +15,11 @@ export const PIECE_REVIEW: {kind:MiniKind;title:string;idea:string}[]=[
  {kind:'pumpkinhop',title:'Pumpkin Hops',idea:'A pumpkin marching band trades alternating drum strokes beneath scalloped bandstands, sending larger musical notes above each crest.'},
  {kind:'pumpkintunnel',title:'Pumpkin Portal',idea:'Castle pennants cheer as sweets launch from their circling lollipops in staggered volleys and gently refill after the burst.'},
  {kind:'witchhat',title:'Witch’s Hat',idea:'Broad patchwork panels wrap the glowing school where spectacled broom-riding kittens read fluttering spellbooks.'},
+];
+
+/** Keep ride geometry separate from power-ups: smoke never becomes a track kind. */
+export const REVIEW_ITEMS: {kind:ReviewKind;title:string;idea:string}[]=[...PIECE_REVIEW,
+ {kind:'smoke',title:'Funnel Smoke',idea:'Gentle everyday steam, plus five twenty-second power-up ideas for the moving train.'},
 ];
 
 const alternatives:Record<string,{name:string;idea:string}[]>={
@@ -92,7 +99,11 @@ const extras:Record<string,{name:string;idea:string}[]>={
   {name:'Boo Hotel',idea:'Crooked guest rooms open their shutters to wave hello while a little lift carries a ghost between the floors.'},
   {name:'Spider Silk Spindle',idea:'A giant spider plucks a three-tier silk loom, sending bright beads along the webs as weaving shuttles slide beneath it.'}],
 };
-export function designFor(kind:MiniKind,option:DesignOption){
+export function designFor(kind:ReviewKind,option:DesignOption){
+ if(kind==='smoke'){
+  const design=SMOKE_DESIGNS.find(d=>d.id===option)!;
+  return {name:design.name,idea:design.description};
+ }
  const i=PIECE_REVIEW.findIndex(p=>p.kind===kind),p=PIECE_REVIEW[i];
  return option==='a'?{name:originalNames[i],idea:p.idea}:option==='d'||option==='e'?extras[kind][option==='d'?0:1]:alternatives[kind][option==='b'?0:1];
 }

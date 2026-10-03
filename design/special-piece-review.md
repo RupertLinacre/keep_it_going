@@ -398,3 +398,59 @@ results are in ignored `output/playwright/de-performance.json`. The benchmark
 script now supports all five designs; this run focused on the new options
 because A/B/C rendering is unchanged. Everything remains on the workshop
 branch for selection, with no merge or deployment.
+
+## Everyday steam and five smoke power-up proposals
+
+The leading engine now has a little cream-and-brass funnel and gentle,
+world-space steam in the game, including both players' engines and the existing
+ride previews. The funnel follows the engine through loops, gravity flips and
+the strength tower. Smoke follows game time, so pause and camera settling do
+not keep emitting; replay, restarts and teleports clear old trails. Particles
+are excluded from camera framing.
+
+The gallery has a separate thirteenth entry, **Funnel Smoke**, under Power-ups:
+`piece-review.html?piece=smoke&option=a&compare=original`. Its moving-train scene
+shows two seconds of normal steam, a twenty-second powered effect, then three
+seconds of normal steam. Normal steam can be compared with any candidate, or
+two candidates can be compared together. The closer camera follows the train.
+Saved choices for the twelve existing rides are preserved.
+
+| Option | Proposal |
+| --- | --- |
+| A | Rainbow Express — scalloped, curling rainbow puffs |
+| B | Dragon Chuffs — large rolling mint-and-lime cloud bursts |
+| C | Bubble Rings — expanding gold and turquoise smoke rings |
+| D | Rocket Whistle — a forceful blue steam jet with golden stars |
+| E | Confetti Clouds — cotton-candy billows and a rainbow star shower |
+
+The powered variants remain review proposals; they are not randomly awarded
+in the game until a design is chosen. Only everyday smoke is enabled in normal
+play on this branch. The existing track proposals remain unchanged.
+
+Each smoke system has a fixed 120-particle pool and at most three opaque
+instanced batches, without additional lights, shadows, textures or transparent
+layers. Ordinary steam uses one draw batch per engine. Existing puffs retain
+their world positions as the engine moves, and changing effects lets those
+puffs finish naturally. Reduced-motion settings lower emission and movement.
+
+Two visual rounds refined the original sphere puffs into lobed clouds, enlarged
+the dragon billows, raised the rocket plume and made the confetti stars legible.
+The mobile preview is shorter and the closer camera keeps the moving engine in
+view. Static preview scenery is merged into batches.
+
+Validation: the full **342-test suite passed**, followed by all 14 affected
+smoke/gallery tests after visual refinements. The production build passes.
+Browser checks cover all **65 choices**, saved selections, responsive layouts
+at 320/390/768/1024/1600px, normal/powered timing, pause, replay, filters and
+navigation. Three gallery tours showed no GPU resource growth or browser
+errors. Local captures and raw data are under ignored `output/playwright/`.
+
+A warmed 4K browser run sampled 26 cases: normal smoke on/off across all four
+worlds in single- and two-train scenes, plus every powered candidate with two
+trains in the carnival and Halloween worlds. The viewport was 3840×2160; the
+game's rendering cap produced a 3401×1763 framebuffer. Across 2,314 sampled
+frames, median intervals were 16.6–16.7ms, the worst case p95 was 18.3ms and the
+maximum was 18.8ms, with no interval above 25ms. CPU submission p95 was at most
+5.9ms. These are local renderer measurements with a synthetic opponent, not a
+claim about every device or network. The repeatable harness is
+`scripts/profile-train-smoke-browser.js`.

@@ -31,9 +31,21 @@ import type { RideState } from "../multiplayer/protocol";
 import { MINI_CAMERA_DIRECTION, MiniCameraRig, coasterFraming, towerFraming } from "./mini-camera";
 import { DOWNHILL_TILT, tiltPoint } from "./mini-tilt";
 import { scenePixelRatio } from "./render-resolution";
-import { CART_COLORS, createMiniCar, createMiniParcel } from "./train-model";
+import { CART_COLORS, createMiniCar, createMiniFunnel, createMiniParcel, MINI_FUNNEL_OUTLET } from "./train-model";
+import { TrainSmoke } from "./train-smoke";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
+type EngineSmoke = {
+  effect: TrainSmoke;
+  emitter: THREE.Vector3;
+  previousEmitter: THREE.Vector3;
+  direction: THREE.Vector3;
+  velocity: THREE.Vector3;
+  active: boolean;
+  time?: number;
+  sourceTime?: number;
+  source?: unknown;
+};
 
 /** A fixed-horizon, orthographic model railway view. The camera never rides the train. */
 export class MiniView {
@@ -49,6 +61,9 @@ export class MiniView {
   cartCount = MINI_STARTING_CARTS;
   renderedCartCount = MINI_STARTING_CARTS;
   private trainParts: ModelPart[];
+  private funnelParts: ModelPart[];
+  private readonly trainSmoke: EngineSmoke;
+  private opponentSmoke?: EngineSmoke;
   private wagonParts: ModelPart[];
   private parcelParts: ModelPart[];
   private sailParts?: ModelPart[];
@@ -143,6 +158,9 @@ export class MiniView {
     this.scene.add(this.board);
     // Instance each material batch, so adding coaches does not add draw calls.
     this.trainParts = this.instanceModel(createMiniCar("#ffffff", false, (geometry, color) => this.mesh(geometry, color)), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
+    this.funnelParts = this.instanceModel(createMiniFunnel((geometry, color) => this.mesh(geometry, color)), 2);
+    for (const part of this.funnelParts) part.mesh.castShadow = part.mesh.receiveShadow = false;
+    this.trainSmoke = this.createSmoke();
     this.wagonParts = this.instanceModel(createMiniCar("#ffffff", true, (geometry, color) => this.mesh(geometry, color)), MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
     this.parcelParts = this.instanceModel(createMiniParcel((geometry, color) => this.mesh(geometry, color)), 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS) + MINI_MAX_FLYING_PARCELS);
     this.train.push(...[...this.trainParts, ...this.wagonParts].map(part => part.mesh));
@@ -186,6 +204,39 @@ export class MiniView {
     mesh.count = 0;
     this.scene.add(mesh);
     return mesh;
+  }
+  private createSmoke(): EngineSmoke {
+    const effect = new TrainSmoke();
+    this.scene.add(effect.group);
+    return { effect, emitter: new THREE.Vector3(), previousEmitter: new THREE.Vector3(),
+      direction: new THREE.Vector3(0, 1, 0), velocity: new THREE.Vector3(), active: false };
+  }
+  private updateSmoke(state: EngineSmoke, time: number, sourceTime: number, source: unknown,
+    position: THREE.Vector3 | null, rotation: THREE.Quaternion, speed: number, anchor: number,
+    travelVelocity?: THREE.Vector3) {
+    const elapsed = state.time === undefined ? 0 : time - state.time;
+    let reset = elapsed < 0 || elapsed > .5 || (state.source !== undefined && source !== state.source)
+      || (state.sourceTime !== undefined && sourceTime < state.sourceTime);
+    if (position) {
+      state.emitter.copy(MINI_FUNNEL_OUTLET).applyQuaternion(rotation).add(position);
+      state.direction.set(0, 1, 0).applyQuaternion(rotation);
+      const travel = state.active ? state.emitter.distanceTo(state.previousEmitter) : 0;
+      reset ||= travel > Math.max(8, Math.abs(speed) * Math.max(0, elapsed) * 3 + 4);
+      if (travelVelocity) state.velocity.copy(travelVelocity);
+      else if (state.active && elapsed > 0 && !reset) state.velocity.copy(state.emitter).sub(state.previousEmitter).divideScalar(elapsed);
+      else state.velocity.set(0, 0, -Math.abs(speed)).applyQuaternion(rotation);
+      state.previousEmitter.copy(state.emitter);
+    }
+    if (reset) state.effect.reset();
+    // Particles retain world-lane positions. Rebasing the parent shifts every
+    // old puff equally, while the scene's downhill tilt also applies to smoke.
+    state.effect.group.position.x = -anchor;
+    state.effect.reducedMotion = this.reducedMotion.matches;
+    // Camera settling uses a fallback timestep; smoke only follows game time,
+    // so repeated pause/resize renders neither emit nor age particles.
+    if (elapsed > 0) state.effect.update(elapsed, position ? state.emitter : null,
+      state.direction, state.velocity.length(), "normal", state.velocity);
+    state.time = time; state.sourceTime = sourceTime; state.source = source; state.active = !!position;
   }
   private instanceModel(model: THREE.Group, capacity: number) {
     const parts: ModelPart[] = [];
@@ -669,14 +720,15 @@ export class MiniView {
     fog.far = cameraDistance + Math.max(180, height * 3);
     this.cartCount = cartCount;
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
-    const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [], dynamite: THREE.Matrix4[] = [];
+    const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [], dynamite: THREE.Matrix4[] = [], funnels: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
     const sails: THREE.Matrix4[] = [], sailColors: number[] = [];
     const localSail = sailDeployment(powerups), remoteSail = sailDeployment(opponent?.power);
     const ice: THREE.Matrix4[] = [];
     const localIce=iceDeployment(powerups),remoteIce=iceDeployment(opponent?.power);
-    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false, bombs = 0, attached = false) => {
+    const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false, bombs = 0, attached = false, engine = false) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
+      if (engine) funnels.push(matrix);
       const frozen = rival ? remoteIce : localIce;
       if (attached && frozen > 0) ice.push(matrix.clone().multiply(new THREE.Matrix4().compose(
         new THREE.Vector3(0,isParcelWagon(index)?.89:1.62,0),new THREE.Quaternion(),new THREE.Vector3(isParcelWagon(index)?1:.6,frozen,1))));
@@ -706,7 +758,7 @@ export class MiniView {
       position.x -= anchor;
       const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0, true);
+      addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0, true, coach.id === 0);
     }
     this.renderedCartCount = open.length + closed.length;
     for (const cart of flights) {
@@ -723,7 +775,7 @@ export class MiniView {
         const position = lane(new THREE.Vector3(...body.position), true); position.x -= anchor;
         const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
         if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
-        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true, body.bombs ?? 0, body.id.startsWith("coach-"));
+        addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true, body.bombs ?? 0, body.id.startsWith("coach-"), body.id === "coach-0");
       }
       for (const parcel of opponent.parcels) {
         const position = lane(new THREE.Vector3(...parcel.position), true); position.x -= anchor;
@@ -735,6 +787,21 @@ export class MiniView {
     if(this.icicleParts)this.drawModel(this.icicleParts,ice,[]);
     if (sails.length && !this.sailParts) this.sailParts = this.instanceModel(this.sail(), MINI_VISIBLE_CARTS * 2);
     if (this.sailParts) this.drawModel(this.sailParts, sails, sailColors);
+    this.drawModel(this.funnelParts, funnels, []);
+    const lead = attached.find(pose => pose.coach.id === 0)?.frame;
+    this.updateSmoke(this.trainSmoke, time, time, effects ?? this.track,
+      lead ? lane(lead.position) : null, lead?.rotation ?? f.rotation, tower ? 0 : velocity, anchor);
+    const remoteLead = opponent?.bodies.find(body => body.id === "coach-0");
+    const remoteNearby = !!remoteLead && Math.abs(remoteLead.position[0] - f.position.x) < 130;
+    if (remoteNearby) this.opponentSmoke ??= this.createSmoke();
+    if (this.opponentSmoke) {
+      const rotation = remoteLead ? mirrorRotation(new THREE.Quaternion(...remoteLead.rotation)) : new THREE.Quaternion();
+      const remoteVelocity = remoteLead?.velocity ? new THREE.Vector3(...remoteLead.velocity) : undefined;
+      if (remoteVelocity) remoteVelocity.z *= -1;
+      this.updateSmoke(this.opponentSmoke, time, opponent?.time ?? time, remoteLead?.id,
+        remoteNearby ? lane(new THREE.Vector3(...remoteLead!.position), true) : null,
+        rotation, opponent?.speed ?? 0, anchor, remoteVelocity);
+    }
     this.drawModel(this.trainParts, closed, closedColors);
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);
@@ -926,6 +993,8 @@ export class MiniView {
     this.resize.disconnect();
     this.adventureScene?.destroy();
     this.fireworks?.destroy();
+    this.trainSmoke.effect.dispose();
+    this.opponentSmoke?.effect.dispose();
     this.powerScene?.destroy();
     this.opponentPowerScene?.destroy();
     // All geometries are owned by this view; shared materials are released once.

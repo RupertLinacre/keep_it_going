@@ -1,4 +1,4 @@
-// Playwright CLI run-code. Exercise all 60 proposals without keeping them resident.
+// Playwright CLI run-code. Exercise all track and smoke proposals without keeping them resident.
 async page => {
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:390,height:844});
@@ -22,7 +22,7 @@ async page => {
  await page.setViewportSize({width:1600,height:1250});await page.locator('[data-mode=both]').click();await page.locator('#reset-view').click();if(await page.locator('#close-up').getAttribute('aria-pressed')!=='false')throw Error('Reset view did not restore full track');
  const cycles=await page.evaluate(async()=>{
   const m=await import('/src/review/piece-review.ts'),d=await import('/src/review/piece-review-data.ts'),{DESIGN_OPTIONS}=await import('/src/review/variants/variant-kit.ts'),runs=[];
-  for(let j=0;j<3;j++){const r=[];for(const p of d.PIECE_REVIEW)for(const option of DESIGN_OPTIONS){
+  for(let j=0;j<3;j++){const r=[];for(const p of d.REVIEW_ITEMS)for(const option of DESIGN_OPTIONS){
    m.reviewSelect(p.kind,option,'original');const s=m.reviewAt(2);r.push({kind:p.kind,option,memory:s.memory,metrics:s.metrics});
   }runs.push(r);}return runs;
  });
