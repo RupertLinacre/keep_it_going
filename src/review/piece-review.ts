@@ -6,7 +6,7 @@ import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PieceReviewScene, type ReviewVersion } from './piece-review-view';
 import { PIECE_REVIEW, designFor } from './piece-review-data';
-import type { DesignOption } from './variants/variant-kit';
+import { DESIGN_OPTIONS, type DesignOption } from './variants/variant-kit';
 import { WORLDS } from '../games/adventure-worlds';
 import type { MiniKind } from '../games/mini-track';
 import './piece-review.css';
@@ -16,7 +16,7 @@ const params=new URLSearchParams(location.search);
 let index=Math.max(0,PIECE_REVIEW.findIndex(p=>p.kind===(params.get('piece')??'carouselhelix')));
 let elapsed=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,cutaway=false,closeup=false;
 let mode:'both'|'before'|'after'=innerWidth<760?'after':'both';
-const options:DesignOption[]=['a','b','c'];
+const options:readonly DesignOption[]=DESIGN_OPTIONS;
 let option:DesignOption=options.includes(params.get('option') as DesignOption)?params.get('option') as DesignOption:'a';
 let reference:ReviewVersion=['original',...options].includes(params.get('compare')??'')?params.get('compare') as ReviewVersion:'original';
 const storageKey='keep-going-piece-choices-v2';
@@ -26,10 +26,10 @@ let choices:Record<string,string>={};try{
  for(const key of Object.keys(choices)){if(choices[key]==='after')choices[key]='a';if(choices[key]==='before')choices[key]='original';if(!['original',...options].includes(choices[key]))delete choices[key];}
 }catch{}
 app.innerHTML=`<header><a href="./index.html"><img src="./images/keep-it-going-logo.png" alt="Keep it going"></a><a class="quiet" href="./tracks.html">Track collection ↗</a></header>
-<main><div class="intro"><div><p class="eyebrow">THE SPECIAL-PIECE WORKSHOP</p><h1>Three ways to play.</h1><p>Twelve rides. Thirty-six designs. Explore three different directions for every piece, then choose your favourites.</p></div><div class="branch-note">A is the first proposal.<br>B and C are new alternatives.<br>Your choices stay on this device.</div></div>
+<main><div class="intro"><div><p class="eyebrow">THE SPECIAL-PIECE WORKSHOP</p><h1>Five ways to play.</h1><p>Twelve rides. Sixty designs. Explore five different directions for every piece, then choose your favourites.</p></div><div class="branch-note">A is the first proposal.<br>B–E explore other directions.<br>Your choices stay on this device.</div></div>
 <section class="comparison" aria-label="Before and after comparison"><div class="heading"><div><p id="world" class="eyebrow"></p><h2 id="name"></h2></div><div class="arrows"><button id="previous" aria-label="Previous piece">←</button><span id="number"></span><button id="next" aria-label="Next piece">→</button></div></div><p id="idea"></p>
 <div class="design-options" aria-label="Design options">${options.map(o=>`<button data-option="${o}"><span class="option-letter">${o.toUpperCase()}</span><span><strong></strong><small></small></span></button>`).join('')}</div>
-<div class="toolbar"><div class="segmented" aria-label="Comparison view"><button data-mode="both">Side by side</button><button data-mode="before">Reference</button><button data-mode="after">Selected design</button></div><div class="compare-picker"><label for="reference">Compare with</label><select id="reference"><option value="original">Original game</option><option value="a">Option A</option><option value="b">Option B</option><option value="c">Option C</option></select><button id="close-up" aria-pressed="false">Closer look</button><button id="reset-view">Reset view</button><button id="cutaway" hidden>Inside tunnel</button></div></div>
+<div class="toolbar"><div class="segmented" aria-label="Comparison view"><button data-mode="both">Side by side</button><button data-mode="before">Reference</button><button data-mode="after">Selected design</button></div><div class="compare-picker"><label for="reference">Compare with</label><select id="reference"><option value="original">Original game</option>${options.map(o=>`<option value="${o}">Option ${o.toUpperCase()}</option>`).join('')}</select><button id="close-up" aria-pressed="false">Closer look</button><button id="reset-view">Reset view</button><button id="cutaway" hidden>Inside tunnel</button></div></div>
 <div id="stage"><div class="view-label before-label"><span></span><small></small></div><div class="view-label after-label"><span></span><small></small></div><div class="divider"></div><div class="orbit-hint">Drag to orbit · scroll to zoom</div></div>
 <div class="playback"><button id="play">Pause</button><button id="replay">↻ Replay</button><input id="timeline" type="range" min="0" max="1000" value="0" aria-label="Preview timeline"><span id="phase">Train approaching</span></div>
 <div class="decision"><span id="saved" role="status">Choose this piece’s version</span><div><button data-choice="original">Keep original</button><button id="choose-option">Choose A</button><button data-choice="">Decide later</button></div></div>
@@ -58,7 +58,7 @@ function fit(){
 function updateChoices(){
  app.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach(b=>b.setAttribute('aria-pressed',String((choices[PIECE_REVIEW[index].kind]??'')===b.dataset.choice)));
  $('#choose-option').textContent=`Choose ${option.toUpperCase()}`;$('#choose-option').setAttribute('aria-pressed',String(choices[PIECE_REVIEW[index].kind]===option));
- app.querySelectorAll<HTMLButtonElement>('[data-piece]').forEach(b=>{const choice=choices[b.dataset.piece!];b.setAttribute('aria-pressed',String(b.dataset.piece===PIECE_REVIEW[index].kind));b.querySelector('.choice-badge')!.textContent=choice==='original'?'✓ Keep original':choice?`✓ Option ${choice.toUpperCase()}`:'3 designs · Not chosen yet';});
+ app.querySelectorAll<HTMLButtonElement>('[data-piece]').forEach(b=>{const choice=choices[b.dataset.piece!];b.setAttribute('aria-pressed',String(b.dataset.piece===PIECE_REVIEW[index].kind));b.querySelector('.choice-badge')!.textContent=choice==='original'?'✓ Keep original':choice?`✓ Option ${choice.toUpperCase()}`:'5 designs · Not chosen yet';});
  const chosen=choices[PIECE_REVIEW[index].kind];$('#saved').textContent=chosen==='original'?'Saved: original game':chosen?`Saved: ${chosen.toUpperCase()} · ${designFor(PIECE_REVIEW[index].kind,chosen as DesignOption).name}`:'Choose this piece’s version';
 }
 function rebuild(keepTime=false){
@@ -68,7 +68,7 @@ function rebuild(keepTime=false){
  for(const version of [reference,option])scenes.push(new PieceReviewScene(piece.kind,version,Number(params.get('km'))||0));
  bounds=scenes[0].bounds.clone().union(scenes[1].bounds);duration=(scenes[0].section.length+12)/24+8;elapsed=0;cutaway=false;metrics=[];
  $('#name').textContent=piece.title;$('#world').textContent=`${world.icon} ${world.name}`;$('#number').textContent=`${index+1} / ${PIECE_REVIEW.length}`;$('#idea').textContent=designFor(piece.kind,option).idea;$('#cutaway').hidden=piece.kind!=='tunnel';$('#cutaway').setAttribute('aria-pressed','false');
- app.querySelectorAll<HTMLButtonElement>('[data-option]').forEach(b=>{const o=b.dataset.option as DesignOption,d=designFor(piece.kind,o);b.querySelector('strong')!.textContent=d.name;b.querySelector('small')!.textContent=o==='a'?'First proposal':'New direction';b.setAttribute('aria-pressed',String(o===option));});
+ app.querySelectorAll<HTMLButtonElement>('[data-option]').forEach(b=>{const o=b.dataset.option as DesignOption,d=designFor(piece.kind,o);b.querySelector('strong')!.textContent=d.name;b.querySelector('small')!.textContent=o==='a'?'First proposal':o==='d'||o==='e'?'Just added':'New direction';b.setAttribute('aria-pressed',String(o===option));});
  $('.before-label span').textContent=reference==='original'?'ORIGINAL':`OPTION ${reference.toUpperCase()}`;
  $('.before-label small').textContent=reference==='original'?'Current game':designFor(piece.kind,reference).name;
  $('.after-label span').textContent=`OPTION ${option.toUpperCase()}`;$('.after-label small').textContent=designFor(piece.kind,option).name;

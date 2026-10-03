@@ -4,8 +4,10 @@ import type { MiniSection } from '../../games/mini-track';
 import type { PieceAnimation } from '../../games/piece-animation';
 import type { FairgroundLights } from '../../games/world-lighting';
 
-export type DesignOption = 'a' | 'b' | 'c';
-export type AlternativeOption = 'b' | 'c';
+export const DESIGN_OPTIONS = ['a', 'b', 'c', 'd', 'e'] as const;
+export type DesignOption = typeof DESIGN_OPTIONS[number];
+export type AlternativeOption = Exclude<DesignOption, 'a'>;
+export type ExtraOption = 'd' | 'e';
 export type InstancePool = T.InstancedMesh[];
 
 /** Review alternatives share the game's batching and lifecycle conventions.

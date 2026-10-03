@@ -3,7 +3,7 @@ import { WorldModel, WORLD_SHAPES as G } from '../../games/world-models';
 import { ghostModel, witchHatCenter } from '../../games/world-halloween';
 import type { MiniSection } from '../../games/mini-track';
 import type { FairgroundLights } from '../../games/world-lighting';
-import { VariantBuilder, CrossingPulses, point, at, arrival, type AlternativeOption } from './variant-kit';
+import { VariantBuilder, CrossingPulses, point, at, arrival } from './variant-kit';
 
 const cream='#fff0c7',green='#c7f494',purple='#9676ae',dark='#55416d',pink='#ecb3d5',gold='#e7bd7b';
 function eyes(m:WorldModel,x:number,y:number,z:number,size=1){
@@ -402,7 +402,7 @@ function moonConservatory(s:MiniSection,v:VariantBuilder){
  });
 }
 
-export function createHalloweenVariant(s:MiniSection,option:AlternativeOption,material:T.Material,lights:FairgroundLights){
+export function createHalloweenVariant(s:MiniSection,option:'b'|'c',material:T.Material,lights:FairgroundLights){
  if(!['pumpkinhop','pumpkintunnel','witchhat'].includes(s.kind))return;
  const v=new VariantBuilder(material,lights);
  if(s.kind==='pumpkinhop')(option==='b'?potionHops:ghostLaundry)(s,v);

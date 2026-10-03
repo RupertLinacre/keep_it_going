@@ -54,7 +54,45 @@ const alternatives:Record<string,{name:string;idea:string}[]>={
   {name:'Moon Moth Conservatory',idea:'Smiling moonflowers bloom in sequence and release pollen sparkles as patterned moths swoop in and slow their wings to visit.'}],
 };
 const originalNames=['Meadow Flower Show','Lily Pad Regatta','Storybook Flour Mill','Alpine Goat Chorus','Glowstone Ropeway','Waterwheel Rainbow','Bunny Lantern Parade','Starlight Marquee','Unicorn Palace','Pumpkin Drumline','Candy Castle Portal','Broomstick Academy'];
+const extras:Record<string,{name:string;idea:string}[]>={
+ sheepbank:[
+  {name:'Seesaw Apple Orchard',idea:'Sheep rock giant harvest seesaws, sending apples into waiting baskets as the train passes each crest.'},
+  {name:'Woolly Balloon Post',idea:'Sheep airships carry knitted baskets, spinning propellers and parcel hoists that deliver gifts in a travelling wave.'}],
+ pondbridge:[
+  {name:'Turtle Picnic Ferries',idea:'Smiling turtles paddle duck picnic parties along the water, banking beneath striped parasols.'},
+  {name:'Watering Can Waltz',idea:'Giant watering cans tip in sequence, pouring into lily bowls whose flowers rise and unfold.'}],
+ windmillloop:[
+  {name:'Giant Dandelion Wishes',idea:'A fluffy dandelion opens its crown and releases parachute seeds carrying tiny mouse passengers towards flowerpots.'},
+  {name:'Pancake Mill',idea:'A chef-hat kitchen flips pancakes from tilting pans onto waiting plates while its cook waves oversized spatulas.'}],
+ mountainpass:[
+  {name:'Cloud Laundry Ridge',idea:'Alpine wringers squeeze cloud pillows beneath a mountain washing line of waving mittens.'},
+  {name:'Yeti Snow-Cone Summit',idea:'A happy yeti works a giant mountain snow-cone machine, scooping icy treats for the passing train.'}],
+ tunnel:[
+  {name:'Sleepy Snail Tunnel',idea:'The train enters a giant spiral shell while a friendly snail raises its feelers and peeks out to greet it.'},
+  {name:'Alpine Accordion Tunnel',idea:'A chalet-sized accordion squeezes its bellows and plays its keys as the train passes through the middle.'}],
+ ravinebridge:[
+  {name:'Otter Teeter Dam',idea:'Two enormous otters balance on a working timber seesaw over their mountain dam.'},
+  {name:'Stork Sock Fishing',idea:'Long-legged storks bend their fishing rods to reel surprising striped socks from the ravine.'}],
+ lanternrun:[
+  {name:'Popcorn Pop Parade',idea:'Striped kettles open their lids before popcorn pals tumble upward and settle back into their pots.'},
+  {name:'Dragon Kite Parade',idea:'Smiling dragon kites ripple their jointed tails and open their wings above train-powered winding reels.'}],
+ midwayloop:[
+  {name:'Big Top Juggle Loop',idea:'Balancing seals toss star balls through a juggling cascade beneath a scalloped circus arch.'},
+  {name:'Gumball Giggle Factory',idea:'A giant gumball globe turns its candy scoops and dispenses bright sweets into a waiting bowl.'}],
+ carouselhelix:[
+  {name:'Octopus Oompah Palace',idea:'Crab gondolas spin on three seashell decks beneath a crowned octopus whose tentacles cheer the passing train.'},
+  {name:'Honeybee Cake Carousel',idea:'Bee gondolas circle three honeycomb decks as flowers open in sequence beneath a wobbling honey-dipper crown.'}],
+ pumpkinhop:[
+  {name:'Skeleton Xylophone',idea:'Three friendly skeletons play rainbow bone keys with alternating mallets, sending golden notes dancing above the humps.'},
+  {name:'Spider Spring Fair',idea:'Party-hat spiders bounce on web trampolines beside each crest, tucking their jointed legs as stars spin around them.'}],
+ pumpkintunnel:[
+  {name:'Bookworm Library',idea:'A spectacled bookworm peeks over giant storybooks while the train turns their illustrated pages overhead.'},
+  {name:'Ticklish Fossil',idea:'The train tickles a friendly dinosaur skeleton, making its jaw giggle and its long tail wag above the rib tunnel.'}],
+ witchhat:[
+  {name:'Boo Hotel',idea:'Crooked guest rooms open their shutters to wave hello while a little lift carries a ghost between the floors.'},
+  {name:'Spider Silk Spindle',idea:'A giant spider plucks a three-tier silk loom, sending bright beads along the webs as weaving shuttles slide beneath it.'}],
+};
 export function designFor(kind:MiniKind,option:DesignOption){
  const i=PIECE_REVIEW.findIndex(p=>p.kind===kind),p=PIECE_REVIEW[i];
- return option==='a'?{name:originalNames[i],idea:p.idea}:alternatives[kind][option==='b'?0:1];
+ return option==='a'?{name:originalNames[i],idea:p.idea}:option==='d'||option==='e'?extras[kind][option==='d'?0:1]:alternatives[kind][option==='b'?0:1];
 }

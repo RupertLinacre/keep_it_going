@@ -5,19 +5,19 @@ Branch: `codex/special-piece-polish`. Based on main `b346bfc`.
 Run `npm run dev -- --port 5198` and open
 <http://localhost:5198/piece-review.html>.
 
-## Three designs for each of twelve rides
+## Five designs for each of twelve rides
 
-The workshop now contains 36 proposals: the first improvement is option A,
-with two complete alternative attractions, B and C, for every piece. The
+The workshop now contains 60 proposals: the first improvement is option A,
+with four complete alternative attractions, B through E, for every piece. The
 original game is also available as a reference. All versions share the same
 rails, train, lighting and camera so the differences are easy to judge.
 
-Select A, B or C, then compare against the original or another option. Drag
+Select A through E, then compare against the original or another option. Drag
 either view to orbit both, replay the train, or scrub the timeline. Tunnels
 have a cutaway. Playback continues after the train leaves so you can inspect
-lingering animations, including all three carousel designs coasting to rest.
+lingering animations, including all five carousel designs coasting to rest.
 
-Use **Choose A/B/C**, **Keep original**, or **Decide later**, then **Copy my
+Use **Choose A/B/C/D/E**, **Keep original**, or **Decide later**, then **Copy my
 choices**. Selections stay in this browser; browsing another design does not
 change your choice. Saved choices from the first workshop migrate to A or
 original. Selection does not alter gameplay or merge anything.
@@ -338,3 +338,63 @@ errors. Raw local results are `output/playwright/round4-performance.json`
 (ignored). These samples show no sustained regression on this machine; they
 do not establish performance on every device or under real network load.
 The refinement remains on the workshop branch, with no merge or deployment.
+
+## Options D and E: twenty-four new attractions
+
+The gallery now has five options for every piece, sixty proposals in total.
+The two new options are complete workshop-only factories in separate
+`*-extra-variants.ts` modules. Existing A/B/C designs and the frozen original
+are preserved. D/E work in URLs, reference comparisons, saved selections and
+copied choices; the existing storage key is retained so earlier votes survive.
+Only the selected pair of scenes is constructed.
+
+| Piece | D | E |
+| --- | --- | --- |
+| Sheep Shuffle | Seesaw Apple Orchard — sheep-powered harvest boards throw apples into baskets | Woolly Balloon Post — sheep airships lower parcels from their baskets |
+| Lily Pad Bridge | Turtle Picnic Ferries — paddling turtles carry duck picnics | Watering Can Waltz — tipping cans water opening lilies |
+| Windmill Loop | Giant Dandelion Wishes — mouse parachutes land in individual flowerpots | Pancake Mill — a chef flips pancakes from tilting pans onto plates |
+| Mountain Pass | Cloud Laundry Ridge — wringer rollers squeeze fluffy cloud pillows | Yeti Snow-Cone Summit — giant shaved-ice stations with working cranks |
+| Glowstone Tunnel | Sleepy Snail Tunnel — a spiral shell around a real bore, with rising feelers | Alpine Accordion Tunnel — a playable chalet-sized instrument around the railway |
+| Waterfall Viaduct | Otter Teeter Dam — counterbalanced otters on a timber seesaw | Stork Sock Fishing — comically large birds reel striped socks out of the ravine |
+| Lantern Parade | Popcorn Pop Parade — lids open before popcorn pals spring out | Dragon Kite Parade — winding reels and rippling jointed dragon tails |
+| Marquee Loop | Big Top Juggle Loop — balancing seals juggle beneath a circus canopy | Gumball Giggle Factory — candy scoops and a supported dispensing chute |
+| Carousel Climb | Octopus Oompah Palace — three seashell decks and cheering tentacles | Honeybee Cake Carousel — bee gondolas, opening flowers and a honey-dipper crown |
+| Pumpkin Hops | Skeleton Xylophone — friendly skeletons play broad rainbow bone keys | Spider Spring Fair — party-hat spiders bounce on web trampolines |
+| Pumpkin Portal | Bookworm Library — turning storybook leaves and a curious reader | Ticklish Fossil — a friendly dinosaur's rib tunnel, giggling jaw and wagging tail |
+| Witch's Hat | Boo Hotel — opening guest-room shutters and an occupied ghost lift | Spider Silk Spindle — three open web tiers with plucking legs and weaving shuttles |
+
+Each new design receives two visual reviews at different animation moments or
+angles. Corrections from those reviews include radial flower hinges, mirrored
+bank clearance, a pot for every dandelion seed, attached skeleton arms and
+mallet contact, a larger circus canopy, supported candy plumbing, half-width
+hotel shutters, lift passenger floor clearance and spider feet that reach the
+silk. Web tiers use open rings so the weaving remains visible.
+
+All new attractions use fixed instance pools and at most seven draw batches.
+No realtime lights or extra shadow passes are introduced. Both new carousels
+use the existing sampled train-angle driver and time-based coasting decay.
+Tests cover replay, reduced motion, finite transforms, geometry disposal,
+attachment points, clearance and timed mechanical actions.
+
+Validation: **330 tests pass**, including new mechanical and rendering-budget
+checks. The production build passes. The gallery passes at 320, 390, 768, 1024
+and 1600px, including D/E persistence, reference switching, copied choices,
+tunnel cutaways and three complete tours of all sixty designs without GPU
+geometry/texture growth. Browser checks report no errors.
+
+The new D/E designs were measured in the actual game renderer in 32 cases:
+all 24 new designs plus eight two-track cases. The viewport was 3840×2160,
+with the game's standard cap producing a 3401×1763 framebuffer. As with the
+earlier measurements, these are warmed scenes and a synthetic opponent;
+they do not measure mobile hardware or real network performance.
+
+| New option | Frame median | Frame p95 range | CPU submission p95 range | Frames above 25 ms |
+| --- | --- | --- | --- | --- |
+| D | 16.7 ms | 18.0–18.6 ms | 1.1–4.4 ms | 0 |
+| E | 16.7 ms | 17.8–18.6 ms | 3.8–4.4 ms | 0 |
+
+Across 2,848 sampled frames, the maximum interval was 18.7 ms. Raw local
+results are in ignored `output/playwright/de-performance.json`. The benchmark
+script now supports all five designs; this run focused on the new options
+because A/B/C rendering is unchanged. Everything remains on the workshop
+branch for selection, with no merge or deployment.

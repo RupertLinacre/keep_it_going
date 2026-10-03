@@ -1,4 +1,4 @@
-// Compare A/B/C in the actual game renderer at a 4K viewport.
+// Compare A/B/C/D/E in the actual game renderer at a 4K viewport.
 async page => {
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:3840,height:2160});
@@ -22,7 +22,7 @@ async page => {
  const kinds=['sheepbank','pondbridge','windmillloop','mountainpass','tunnel','ravinebridge','lanternrun','midwayloop','carouselhelix','pumpkinhop','pumpkintunnel','witchhat'];
  const cases=[...kinds.map(kind=>({kind,race:false})),...['windmillloop','tunnel','carouselhelix','witchhat'].map(kind=>({kind,race:true}))];
  const results=[];
- for(const item of cases)for(const design of ['a','b','c']){
+ for(const item of cases)for(const design of ['a','b','c','d','e']){
   const result=await page.evaluate(async({kind,race,design})=>{
    const g=window.worldGame,s=window.reviewSections.find(s=>s.kind===kind);if(!s)throw Error('Missing '+kind);
    g.track.sections.splice(0,g.track.sections.length,...window.reviewSections.filter(p=>p.end>s.start-180));
