@@ -7,6 +7,9 @@ import { seededRandom } from '../games/mini-rail';
 import { railGeometries } from '../games/mini-mesh';
 import { createMiniCar, createMiniParcel } from '../games/train-model';
 import { WorldModel, WORLD_SHAPES as G } from '../games/world-models';
+import { createVariant } from './variants';
+import type { DesignOption } from './variants/variant-kit';
+export type ReviewVersion = 'original' | DesignOption;
 
 /** Only the selected pair of pieces is resident. Both use identical track,
  * train, light and camera settings; the frozen before scene is review-only. */
@@ -21,7 +24,7 @@ export class PieceReviewScene {
  private train:T.InstancedMesh[]=[];
  private materials:T.Material[]=[];
  private dummy=new T.Object3D();
- constructor(kind:MiniKind,before:boolean,km=0){
+ constructor(kind:MiniKind,version:ReviewVersion,km=0){
   const world=WORLDS.find(w=>w.pieces.includes(kind))!;
   this.scene.background=new T.Color(world.sky);
   this.scene.add(new T.HemisphereLight(world.ambient,'#687288',2.4));
@@ -40,6 +43,14 @@ export class PieceReviewScene {
   this.staticGroup.add(sleepers);
   const supports=new WorldModel();
   for(let d=this.section.start;d<this.section.end;d+=8){const f=this.section.sample(d);if(f.up.y>.15)supports.beam('#a5b6ad',new T.Vector3(f.position.x,0,f.position.z),f.position.clone().addScaledVector(f.up,-.25),.13);}
+  // Short common entry/exit stubs let each coach leave the demo cleanly. It
+  // must not keep sailing through empty space while the attraction coasts.
+  for(const [distance,sign] of [[this.section.start,-1],[this.section.end,1]]){
+   const f=this.section.sample(distance),end=f.position.clone().addScaledVector(f.tangent,sign*4);
+   for(const side of [-1,1])supports.beam(world.rail,f.position.clone().addScaledVector(f.right,side*.55),end.clone().addScaledVector(f.right,side*.55),.075);
+   const rotation=new T.Euler().setFromQuaternion(f.rotation);
+   for(let d=.6;d<4;d+=.75){const p=f.position.clone().addScaledVector(f.tangent,d*sign).addScaledVector(f.up,-.14);supports.add(G.box,'#cfbc98',p.toArray(),[1.55,.13,.18],[rotation.x,rotation.y,rotation.z]);}
+  }
   this.staticGroup.add(supports.finish(solid,solid,false));
   for(const open of [false,true]){
    const source=createMiniCar('#dcdf9c',open);if(open)for(const z of [-.43,.43]){const parcel=createMiniParcel();parcel.position.set(0,.69,z);parcel.scale.setScalar(.8);source.add(parcel);}
@@ -49,7 +60,8 @@ export class PieceReviewScene {
    const merged=model.finish(solid,solid,false).children[0] as T.Mesh;
    const mesh=new T.InstancedMesh(merged.geometry,solid,3);mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.frustumCulled=false;this.train.push(mesh);this.scene.add(mesh);
   }
-  this.attraction=before?new BeforeScene(this.scene,{attractionsOnly:true,world}):new AdventureScene(this.scene,{attractionsOnly:true,world});
+  this.attraction=version==='original'?new BeforeScene(this.scene,{attractionsOnly:true,world}):new AdventureScene(this.scene,{attractionsOnly:true,world,
+   ...(version==='a'?{}:{pieceFactory:(s,m,l)=>createVariant(s,version,m,l)})});
   this.attraction.render(this.track,this.section.start-12,0,0,0);
   this.scene.updateMatrixWorld(true);
   this.bounds.setFromObject(this.staticGroup).union(new T.Box3().setFromObject(this.attraction.group));
@@ -60,10 +72,11 @@ export class PieceReviewScene {
   const s=this.section;this.attraction.setTunnelCutaway(cutaway);this.attraction.render(this.track,distance,0,0,time);
   this.train.forEach(mesh=>mesh.count=0);
   for(let i=0;i<6;i++){
-   const d=distance-i*2.4,at=T.MathUtils.clamp(d,s.start,s.end),f=s.sample(at);f.position.addScaledVector(f.tangent,d-at);
+   const d=distance-i*2.4;if(d<s.start-4||d>s.end+4)continue;
+   const at=T.MathUtils.clamp(d,s.start,s.end),f=s.sample(at);f.position.addScaledVector(f.tangent,d-at);
    const mesh=this.train[i%2];this.dummy.position.copy(f.position);this.dummy.quaternion.copy(f.rotation);this.dummy.scale.setScalar(1);this.dummy.updateMatrix();mesh.setMatrixAt(mesh.count++,this.dummy.matrix);
   }
-  this.train.forEach(mesh=>{mesh.visible=distance<s.end+55;mesh.instanceMatrix.needsUpdate=true;});
+  this.train.forEach(mesh=>{mesh.visible=mesh.count>0;mesh.instanceMatrix.needsUpdate=true;});
  }
  destroy(){
   this.attraction.destroy();

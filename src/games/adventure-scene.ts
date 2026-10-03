@@ -22,7 +22,7 @@ import { createMeadowPieceAnimation } from './meadow-piece-animation';
 import { createMountainPieceAnimation } from './mountain-piece-animation';
 import { createCarnivalPieceAnimation } from './carnival-piece-animation';
 import { createHalloweenPieceAnimation } from './halloween-piece-animation';
-import type { PieceAnimation } from './piece-animation';
+import type { PieceAnimation, PieceAnimationFactory } from './piece-animation';
 
 type Actor = { kind: "sheep" | "pumpkin" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number; liftCable?:boolean; sheepDistance?:number; portalIndex?:number; flights?:[SceneryFlight,SceneryFlight] };
 type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive]; portals?:[PortalImpact,PortalImpact]; builtHeight:number; animations:[PieceAnimation|undefined,PieceAnimation|undefined] };
@@ -54,7 +54,7 @@ export class AdventureScene {
   private lastFlightTime?: number;
   private portalEffects:PortalEffects;
   private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
-  constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld; tunnelCutaway?: boolean } = {}) {
+  constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld; tunnelCutaway?: boolean; pieceFactory?: PieceAnimationFactory } = {}) {
     scene.add(this.group);
     this.portalEffects=new PortalEffects(this.group);
     const sheep = new WorldModel();
@@ -160,6 +160,10 @@ export class AdventureScene {
       } else meadowScenery(model, actor => actors.push(actor), x, back, front, random,variant);
     }
     let formation:T.Group|undefined, gorgeWall:T.Group|undefined;
+    const alternative=this.options.pieceFactory?.(section,this.material,this.luminous);
+    // Review designs replace the attraction completely, while reusing the
+    // normal rails, landscape, independent rider transforms and lifecycle.
+    if(!alternative){
     if (['sheepbank','pondbridge','windmillloop'].includes(section.kind)) {
       const attraction=new WorldModel();
       if(section.kind==='sheepbank'){
@@ -226,16 +230,18 @@ export class AdventureScene {
     if(world.id==='night'&&!formation){
       const lights=new WorldModel();tracksideLights(lights,section);formation=lights.finish(this.material,this.luminous);this.group.add(formation);
     }
+    }
     const root = model.finish(this.material, this.luminous);
     this.group.add(root);
-    const tunnel=section.kind==='tunnel'?tunnelModel(this.material,this.luminous):undefined;
+    const tunnel=!alternative&&section.kind==='tunnel'?tunnelModel(this.material,this.luminous):undefined;
     if(tunnel)this.group.add(tunnel);
-    const animation=this.createAnimation(section);if(animation)this.group.add(animation.group);
+    const animation=alternative??this.createAnimation(section);if(animation)this.group.add(animation.group);
     return { root, actors, section, tunnel, formation, gorgeWall, animations:[animation,undefined], builtHeight:section.height(section.start+section.length/2), drives:[new AttractionDrive(),new AttractionDrive()],
-      portals:section.kind==='pumpkintunnel'?[new PortalImpact(),new PortalImpact()]:undefined };
+      portals:!alternative&&section.kind==='pumpkintunnel'?[new PortalImpact(),new PortalImpact()]:undefined };
   }
   private createAnimation(section:MiniSection){
-    return createMeadowPieceAnimation(section,this.material,this.luminous)
+    return this.options.pieceFactory?.(section,this.material,this.luminous)
+      ??createMeadowPieceAnimation(section,this.material,this.luminous)
       ??createMountainPieceAnimation(section,this.material,this.luminous)
       ??createCarnivalPieceAnimation(section,this.material,this.luminous)
       ??createHalloweenPieceAnimation(section,this.material,this.luminous);
@@ -303,6 +309,7 @@ export class AdventureScene {
         const animation=tile.animations[rider];if(!animation)continue;
         animation.group.position.set(section.origin.x-anchor,rider?remoteLift:ownLift,(section.origin.z+laneOffset)*(rider?-1:1));
         animation.group.scale.z=rider?-1:1;
+        animation.group.userData.cutaway=!!this.options.tunnelCutaway;
         animation.update(time,rider?opponentDistance??distance:distance,!!this.reducedMotion?.matches);
       }
       if(tile.tunnel) {
