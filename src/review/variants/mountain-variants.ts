@@ -20,6 +20,37 @@ function surface(m: WorldModel, rows: P[][], colors: string[]) {
     m.add(geometry, colors[band % colors.length], [0, 0, 0]); geometry.dispose();
   }
 }
+/** Large irregular facets, grouped by colour before baking, give the rock real
+ * planes without spending a draw call on every ledge or triangular face. */
+function rockSurface(m: WorldModel, rows: P[][], colors: string[]) {
+  const groups = colors.map(() => [] as number[]);
+  for (let band = 0; band < rows[0].length - 1; band++) for (let i = 0; i < rows.length - 1; i++) {
+    const a = rows[i][band], c = rows[i][band + 1], b = rows[i + 1][band], d = rows[i + 1][band + 1];
+    const color = (band * 2 + (i % 7 === 2 ? 1 : 0)) % colors.length;
+    groups[color].push(...a, ...c, ...b, ...b, ...c, ...d);
+  }
+  groups.forEach((positions, i) => {
+    if (!positions.length) return;
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); g.computeVertexNormals();
+    m.add(g, colors[i], [0, 0, 0]); g.dispose();
+  });
+}
+/** An ice shelf fills the space beneath a slide and its return conveyor. */
+function glacierShelf(m: WorldModel, slide: (t: number) => T.Vector3, backZ: number) {
+  const rows: P[][] = [];
+  for (let i = 0; i <= 24; i++) {
+    const p = slide(i / 24), ripple = Math.sin(i * 1.7) * .65;
+    rows.push([[p.x, 0, p.z - 4.6], [p.x, p.y * .36, p.z - 3.8 + ripple],
+      [p.x, p.y - .58, p.z - 2.45], [p.x, p.y - .42, p.z + 2.35],
+      [p.x, p.y - .42, backZ + 1.7], [p.x, p.y * .42, backZ + 3.1 - ripple], [p.x, 0, backZ + 5]]);
+  }
+  rockSurface(m, rows, ['#86b7cb', '#b8dee5', '#dfeee8', '#add5e1', '#e8f3e9']);
+  for (const t of [0, 1]) {
+    const p = slide(t), radius = Math.abs(backZ - p.z) / 2;
+    m.add(G.rock, '#b9dce4', [p.x, Math.max(.2, p.y * .42), (backZ + p.z) / 2], [radius + 2.8, Math.max(.5, p.y * .52), radius + 2.6]);
+    m.add(G.round, '#e5f1e9', [p.x, p.y - .55, (backZ + p.z) / 2], [radius + 2.3, .35, radius + 2]);
+  }
+}
 function arc(m: WorldModel, color: string, cx: number, cy: number, z: number, radius: number, width: number, start = 0, end = Math.PI) {
   const positions: number[] = [];
   for (let i = 0; i < 32; i++) {
@@ -77,15 +108,26 @@ function returnBelt(m: WorldModel, slide: (t: number) => T.Vector3, backZ: numbe
  * from design A. The near-side scenery starts beyond the fence. */
 function alpineBase(s: MiniSection, m: WorldModel, ice: boolean) {
   const ridge: P[][] = [], ledge: P[][] = [], water: P[][] = [];
-  for (let i = 0; i <= 48; i++) {
-    const t = i / 48, p = point(s, t), e = Math.sin(Math.PI * t), y = p.y - .55;
-    ridge.push([[p.x, 0, p.z - 17], [p.x, y + e * (10 + 5 * Math.sin(t * Math.PI * 5) ** 2), p.z - 9], [p.x, y + e * 6, p.z - 4], [p.x, y, p.z - 2.9]]);
-    ledge.push([[p.x, 0, p.z - 2.9], [p.x, y, p.z - 2.9], [p.x, y, p.z + 2.6], [p.x, 0, p.z + 5.5]]);
+  for (let i = 0; i <= 36; i++) {
+    const t = i / 36, p = point(s, t), e = Math.sin(Math.PI * t), y = p.y - .55;
+    const tooth = Math.sin(i * 1.83) * 1.3, peak = y + e * (12 + 5 * Math.sin(t * Math.PI * 5) ** 2);
+    ridge.push([[p.x, 0, p.z - 21], [p.x, y * .55, p.z - 17],
+      [p.x, peak - 4 + tooth, p.z - 12], [p.x, peak + tooth, p.z - 9.2],
+      [p.x, y + e * (7.4 + tooth), p.z - 6], [p.x, y + e * 3.2, p.z - 4.1], [p.x, y, p.z - 2.9]]);
+    ledge.push([[p.x, 0, p.z - 2.9], [p.x, y, p.z - 2.9], [p.x, y, p.z + 2.6],
+      [p.x, y * .8, p.z + 3.25 + tooth * .13], [p.x, y * .42, p.z + 4.3], [p.x, 0, p.z + 6.2]]);
     water.push([[p.x, .14, p.z + 5.5], [p.x, .18, p.z + 14.5], [p.x, 0, p.z + 17]]);
   }
-  surface(m, ridge, ice ? ['#accdd8', '#f0f4e6', '#b9dfe6'] : ['#a69e93', '#e2d4b3', '#a4b9ae']);
-  surface(m, ledge, ice ? ['#89b9c9', '#e5efea', '#76a4b7'] : ['#8d9e96', '#cbd3b2', '#859a91']);
+  rockSurface(m, ridge, ice ? ['#9fc4d1', '#c5dfe2', '#e5eee7', '#adced5', '#d4e9e6'] : ['#899d9a', '#b6bba7', '#d9d6bc', '#94a79f', '#c8cbb3']);
+  rockSurface(m, ledge, ice ? ['#88b6c8', '#cbe6e5', '#e8f1e6', '#a9cdd9'] : ['#81958f', '#bfc5aa', '#d3d8bd', '#9eafa0']);
   surface(m, water, ice ? ['#a9e1e9', '#d9efe9'] : ['#81c8cf', '#b8d5b7']);
+  surface(m, ridge.map(row => [[row[3][0], row[3][1] - .4, row[3][2] - .7],
+    [row[3][0], row[3][1] + .12, row[3][2]], [row[3][0], row[3][1] - .5, row[3][2] + 1.25]]), ['#f2f1dc', '#dbe7df']);
+  for (let i = 0; i < 8; i++) {
+    const t = .12 + i * .105, p = point(s, t), h = p.y * .38;
+    m.add(G.rock, ice ? '#9ac9d9' : '#80988f', [p.x, h, p.z + 5.4], [2.1, Math.max(1.5, h + .8), 1.9], [0, i, .1]);
+    m.add(G.rock, '#e1e8d8', [p.x, h * 1.85, p.z + 5.3], [2, .35, 1.7]);
+  }
   let previous: T.Vector3 | undefined;
   for (let i = 1; i < 19; i++) {
     const p = point(s, i / 19); p.z += 2.35;
@@ -130,17 +172,26 @@ function yodel(s: MiniSection, b: VariantBuilder) {
       m.add(G.box, palette[i], [p.x - 2.45, p.y + 1, p.z + 6.85], [3.5, 1.5, .65]);
     }
     m.add(G.box, '#85694e', [p.x - 3, p.y + 1.2, p.z + 7.5], [1, 2.1, 1.9]);
+    m.add(G.box, '#a87e56', [p.x - 2.4, p.y + .55, p.z + 8.7], [4.6, .9, 1.35]);
+    for (let key = 0; key < 9; key++) {
+      m.add(G.box, '#f4e6bd', [p.x - 4.35 + key * .48, p.y + 1.03, p.z + 8.9], [.41, .13, .85]);
+      if (key % 3 !== 0) m.add(G.box, '#607f83', [p.x - 4.11 + key * .48, p.y + 1.16, p.z + 8.61], [.22, .16, .45]);
+    }
+    m.beam('#c49d63', new T.Vector3(p.x - 3, p.y + 1.4, p.z + 7.5), new T.Vector3(p.x + .4, p.y + .7, p.z + 7.5), .22);
   }
   b.batch(m);
   const horns = b.pool(hornModel(), stops.length), notes = b.pool(noteModel(), stops.length * 4);
   const bellowsModel = new WorldModel();
   for (let i = 0; i < 9; i++) bellowsModel.add(G.box, i % 2 ? '#8ebfb5' : '#e4cfa0', [(i - 4) * .2, 0, 0], [.13, 1.5 + i % 2 * .2, 1.5]);
   const bellows = b.pool(bellowsModel, stops.length);
+  const bellowsPose = new T.Object3D();
   b.animate((time, distance, reduced) => {
     for (const [i, { p, at: stop }] of stops.entries()) {
       const hello = arrival(distance, stop, 15), pump = reduced ? 0 : hello * Math.sin(time * 5 + i);
       b.place(horns, i, p.x + .6, p.y + .1, p.z + 7.5, 1.5, 0, i % 2 ? .18 : -.12, pump * .05);
-      b.place(bellows, i, p.x - 2.1 + pump * .4, p.y + 1.2, p.z + 7.5, 1, 0, 0, pump * .035);
+      bellowsPose.position.set(p.x - 2.1 + pump * .15, p.y + 1.8, p.z + 7.5);
+      bellowsPose.scale.set(1 + pump * .38, 1, 1); bellowsPose.updateMatrix();
+      for (const mesh of bellows) mesh.setMatrixAt(i, bellowsPose.matrix);
       for (let j = 0; j < 4; j++) {
         const phase = reduced ? j / 4 : (time * .45 + j / 4) % 1;
         b.place(notes, i * 4 + j, p.x + 1.7 + Math.sin(phase * 4 + i) * 1.1, p.y + 4.5 + phase * 6, p.z + 8.7, .22 + (reduced ? 0 : hello * (1 - phase) * .65), 0, -.25, Math.sin(phase * 5) * .2);
@@ -163,6 +214,7 @@ function snowball(s: MiniSection, b: VariantBuilder) {
   }
   surface(m, rows, ['#b5e4eb', '#ecf6ed', '#8fcbdc']);
   const start = path(0), end = path(1), backZ = center.z + 19;
+  glacierShelf(m, path, backZ);
   returnBelt(m, path, backZ);
   for (const side of [-1, 1]) {
     const x = center.x + side * 25, z = center.z + 9;
@@ -173,6 +225,15 @@ function snowball(s: MiniSection, b: VariantBuilder) {
     for (const arm of [-1, 1]) m.beam('#947a65', new T.Vector3(x + arm * 1.9, 2.8, z), new T.Vector3(x + arm * 4, 4.4, z), .12);
   }
   const lift = path(0); m.add(G.pole, '#7eacbd', [lift.x - 2.5, lift.y / 2, lift.z], [.45, lift.y, .45]);
+  // The lift ends at a substantial snowball launcher, with a clear open chute.
+  for (const side of [-1, 1]) {
+    m.add(G.box, '#8ebecb', [lift.x - 1.8, lift.y + 2, lift.z + side * 2.25], [4.2, 4, .45]);
+    m.add(G.box, '#dcece4', [lift.x - 1.8, lift.y + 4.15, lift.z + side * 1.75], [4.8, .35, 1.5], [side * .2, 0, 0]);
+    m.add(G.pole, '#b2cfd3', [end.x + 1.3, 1.2, end.z + side * 2.4], [.3, 2.4, .3]);
+  }
+  m.add(G.box, '#78a6bd', [lift.x - 3.7, lift.y + 1.8, lift.z], [.4, 3.6, 4.5]);
+  m.add(G.box, '#dfbe85', [lift.x - 1.7, lift.y + 3.2, lift.z + 2.53], [2.5, .9, .12]);
+  for (let i = 0; i < 3; i++) m.add(G.rock, '#f1f2dc', [lift.x - 2.45 + i * .75, lift.y + 3.2, lift.z + 2.64], [.23, .23, .1]);
   b.batch(m);
   const snow = new WorldModel(); snow.add(G.round, '#eff5e8', [0, 0, 0], [1, 1, 1]);
   for (let i = 0; i < 5; i++) snow.add(G.rock, '#b6d8de', [Math.sin(i * 2.4) * .87, Math.cos(i * 2.4) * .87, .38], [.16, .16, .12]);
@@ -186,7 +247,7 @@ function snowball(s: MiniSection, b: VariantBuilder) {
   const wheel = b.pool(spinner, 1);
   b.animate((time, distance, reduced) => {
     const clock = reduced ? 0 : time, push = reduced ? 0 : T.MathUtils.clamp(distance - at(s, .25), 0, s.length * .5) * .009;
-    b.place(wheel, 0, lift.x - 2.5, lift.y + 1, lift.z, 1, 0, 0, -clock * .7 - push * 4);
+    b.place(wheel, 0, lift.x - 2.5, lift.y + 1.4, lift.z + 2.6, .8, 0, 0, -clock * .7 - push * 4);
     for (let i = 0; i < 8; i++) {
       const u = (clock * .08 + push + i / 8) % 1, { p } = circuit(u, path, start, end, backZ);
       b.place(balls, i, p.x, p.y + 1, p.z, .75 + i % 3 * .1, 0, 0, -u * 42);
@@ -201,14 +262,15 @@ function tunnelShell(s: MiniSection, b: VariantBuilder, mine: boolean) {
   local.position.copy(p); local.quaternion.copy(frame.rotation); b.group.add(local);
   const near = new WorldModel(), far = new WorldModel(), details = new WorldModel();
   const steps = 20, radius = 3.2, spring = .6;
-  const shellY = (a: number, r: number) => spring + Math.pow(Math.sin(a), mine && r > 4 ? 1.7 : 1) * r * (mine && r > 4 ? 1.35 : 1);
+  const shellY = (a: number, r: number) => spring + Math.pow(Math.sin(a), mine && r > 4 ? 1.25 : 1) * r * (mine && r > 4 ? 1.45 : 1);
+  const outsideRadius = (z: number) => 8.4 + Math.sin((z + 14) / 28 * Math.PI) * (mine ? 4.8 + Math.sin(z * .86) * 1.7 : 4.6);
   for (const side of [0, 1]) {
     const model = side === 0 ? near : far;
     const positions: number[] = [];
     for (let z = 0; z < 12; z++) for (let j = side * steps / 2; j < (side + 1) * steps / 2; j++) {
       const a = Math.PI * j / steps, c = Math.PI * (j + 1) / steps;
       const lo = -14 + z * 28 / 12, hi = -14 + (z + 1) * 28 / 12;
-      const r0 = 8.4 + Math.sin((lo + 14) / 28 * Math.PI) * 4.6, r1 = 8.4 + Math.sin((hi + 14) / 28 * Math.PI) * 4.6;
+      const r0 = outsideRadius(lo), r1 = outsideRadius(hi);
       const v = (angle: number, r: number, zz: number): P => [Math.cos(angle) * r, shellY(angle, r), zz];
       const A = v(a, r0, lo), B = v(a, r1, hi), C = v(c, r0, lo), D = v(c, r1, hi);
       positions.push(...A, ...C, ...B, ...B, ...C, ...D);
@@ -221,13 +283,35 @@ function tunnelShell(s: MiniSection, b: VariantBuilder, mine: boolean) {
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); g.computeVertexNormals();
     model.add(g, mine ? side ? '#8d8175' : '#b3a28a' : side ? '#8885af' : '#b2afce', [0, 0, 0]); g.dispose();
     model.add(G.box, mine ? '#9a907b' : '#9c9bbb', [side ? -3.38 : 3.38, -.05, 0], [.36, 1.3, 28]);
-    if (mine) for (let j = 1; j < 5; j++) {
-      const z = -12 + j * 5, r = 8.4 + Math.sin((z + 14) / 28 * Math.PI) * 4.6, sign = side ? -1 : 1;
+    if (mine) for (let j = 0; j < 6; j++) {
+      const z = -12 + j * 4.8, r = outsideRadius(z), sign = side ? -1 : 1;
+      // Overlapping angular buttresses and exposed strata break up the smooth
+      // shell, while the shell still guarantees a continuous railway bore.
+      model.add(G.rock, j % 2 ? '#a09583' : '#81918d', [sign * (r - 1.1), 3.2, z], [3.7, 5.4 + j % 2, 3.5], [0, j * .7, sign * -.12]);
+      model.add(G.rock, '#d2c7a6', [sign * (r - 1.1), 5.7, z], [3.25, .65, 3.1], [0, j * .7, 0]);
+      model.add(G.rock, '#a7b5a7', [sign * 3.8, shellY(1.15, r), z], [3.3, 3.8 + j % 2, 3.1], [0, j * .3, sign * .2]);
       for (let k = 0; k < 3; k++) {
         const a = .35 + k * .23, c = a + .18;
         model.beam('#debf82', new T.Vector3(sign * (Math.cos(a) * r + .08), shellY(a, r), z - .8), new T.Vector3(sign * (Math.cos(c) * r + .08), shellY(c, r), z + .8), .09);
       }
       model.add(G.cone, j % 2 ? '#afd9ce' : '#c0cede', [sign * Math.cos(.9) * r, shellY(.9, r) + 1, z], [.75, 3, .75], [0, j, sign * -.25]);
+    }
+    if (mine) {
+      const sign = side ? -1 : 1;
+      for (const [height, x, length] of [[5, 11, 24], [10.3, 8.5, 16]]) {
+        model.add(G.box, '#bd9a6e', [sign * x, height, 0], [3.6, .45, length]);
+        for (let z = -length / 2 + 1; z < length / 2; z += 3) {
+          model.beam('#a9865e', new T.Vector3(sign * (x + 1.4), .2, z), new T.Vector3(sign * (x + 1.4), height + 1.2, z), .14);
+          model.beam('#d4bd8a', new T.Vector3(sign * (x + 1.4), height + 1.1, z), new T.Vector3(sign * (x + 1.4), height + 1.1, z + 3), .09);
+          model.beam('#b39369', new T.Vector3(sign * (x - .5), height - 3, z), new T.Vector3(sign * (x + 1.4), height, z), .15);
+        }
+      }
+      // Two real workshops sit in the terraced rock, with pitched teal roofs.
+      for (const [height, x, z] of [[5.3, 11, -5.5], [10.6, 8.5, 3.5]]) {
+        model.add(G.box, '#cfb184', [sign * x, height + 1.2, z], [3, 2.4, 5]);
+        for (const roofSide of [-1, 1]) model.add(G.box, '#6da69f', [sign * x + roofSide * .85, height + 2.65, z], [2.2, .22, 5.8], [0, 0, -roofSide * .42]);
+        for (const window of [-1, 1]) model.add(G.box, '#537c83', [sign * (x + 1.52), height + 1.35, z + window * 1.35], [.08, 1.1, .85]);
+      }
     }
   }
   for (const z of [-14, 14]) {
@@ -267,26 +351,55 @@ function dragon(s: MiniSection, b: VariantBuilder) {
     m.add(G.round, '#d2b1cb', [side * 5.35, 3.5, 15.4], [.62, .48, .27]);
     m.beam('#eee1b8', new T.Vector3(side * 5.2, 2.3, 15.5), new T.Vector3(side * 7, 3.2, 15.5), .14);
   }
-  // A long sleeping dragon coils over the roof, ending in a curled tail.
-  for (let i = 0; i < 11; i++) {
-    const z = 10 - i * 2.2, y = 11.4 + Math.sin(i / 10 * Math.PI) * 3;
-    m.add(G.round, i % 2 ? '#a9abd2' : '#b8b7dc', [Math.sin(i * .6) * .7, y, z], [2, 1.45, 1.8]);
-    m.add(G.cone, '#d9d8af', [Math.sin(i * .6) * .7, y + 1.8, z], [.65, 1.7, .7]);
+  // Broad overlapping armour plates replace the bead-like ridge. The soft
+  // shell becomes a recognisable torso, with haunches, folded arms and claws.
+  for (let i = 0; i < 8; i++) {
+    const z = 9 - i * 2.8, y = 8.9 + Math.sin((z + 14) / 28 * Math.PI) * 4.6;
+    m.add(G.rock, i % 2 ? '#a9acd0' : '#c2bfdf', [0, y + .3, z], [4, 1.5, 2.1]);
+    m.add(G.cone, '#e2d9aa', [0, y + 2, z - .2], [.85, 2.8, 1.2], [-.3, 0, 0]);
   }
-  for (const side of [-1, 1]) for (let i = 0; i < 3; i++) m.add(G.round, '#b2b3d7', [side * (4.8 + i * .65), .2, 9], [.8, .5, 1.3]);
-  // Broad folded wings make the entire mountain read as a friendly dragon.
-  // Their membranes lie outside the shell and never enter the rail bore.
   for (const side of [-1, 1]) {
-    const anchor: P = [side * 12.8, 5.8, -5];
-    const tips: P[] = [[side * 10.4, 17, -3], [side * 13.8, 12.5, 3], [side * 13.5, 7.2, 8]];
+    m.add(G.round, '#a6abd2', [side * 9, 3.2, -8], [4.7, 4.6, 4.8]);
+    m.add(G.round, '#bbbadd', [side * 7.1, 3.9, 8.5], [2.2, 4.4, 2.7], [0, 0, side * .33]);
+    m.add(G.round, '#c0bddf', [side * 7.9, .55, 12], [2.7, 1.2, 3]);
+    for (let toe = 0; toe < 3; toe++) m.add(G.cone, '#efe2b7', [side * (6.4 + toe * 1.3), .4, 14.4], [.42, 1.45, .42], [Math.PI / 2, 0, 0]);
+    for (let i = 0; i < 7; i++) {
+      const z = -9 + i * 3, radius = 8.4 + Math.sin((z + 14) / 28 * Math.PI) * 4.6;
+      // Overlapping shoulder scales give the broad flank intentional anatomy.
+      for (let row = 0; row < 3; row++) {
+        const angle = .25 + row * .28;
+        m.add(G.rock, row % 2 ? '#c5c2df' : '#a8add2', [side * (Math.cos(angle) * radius + .14), .6 + Math.sin(angle) * radius, z + row % 2 * .5], [.75, 1.35, 1.95], [0, 0, side * angle]);
+      }
+    }
+  }
+  // A raised curling tail never crosses the open exit or the railway envelope.
+  for (let i = 0; i < 12; i++) {
+    const u = i / 11, a = u * Math.PI * 1.45, r = 5.2 - u * 3.7;
+    m.add(G.round, i % 2 ? '#b1b2d6' : '#a1a7cc', [5.5 + Math.sin(a) * r, 5.2 + Math.sin(u * Math.PI) * 2.2, -13.2 - Math.cos(a) * r], [2.1 - u * 1.35, 1.5 - u * .9, 2.1 - u * 1.35]);
+  }
+  // Each wing has a bowed leading edge, three fingers and scalloped membrane.
+  for (const side of [-1, 1]) {
+    const anchor: P = [side * 12.4, 6.3, -3];
+    // Bow the near wing back over the shoulder: a flat fan was edge-on from
+    // the normal camera and lost nearly its whole silhouette.
+    const tips: P[] = [[side * 11, 20, -8], [side * 12.8, 18.8, -.5], [side * 15.1, 12.5, 6.5], [side * 15.3, 7.3, 10]];
     const vertices: number[] = [];
-    for (let i = 0; i < 2; i++) vertices.push(...anchor, ...tips[i], ...tips[i + 1], ...anchor, ...tips[i + 1], ...tips[i]);
+    for (let i = 0; i < 3; i++) {
+      const a = tips[i], c = tips[i + 1], inset: P = [(a[0] + c[0]) * .42 + anchor[0] * .16, (a[1] + c[1]) * .38 + anchor[1] * .24, (a[2] + c[2]) * .5];
+      for (const [p, q] of [[a, inset], [inset, c]]) vertices.push(...anchor, ...p, ...q, ...anchor, ...q, ...p);
+      m.beam('#d4d2a7', new T.Vector3(...a), new T.Vector3(...inset), .13);
+      m.beam('#d4d2a7', new T.Vector3(...inset), new T.Vector3(...c), .13);
+    }
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(vertices, 3)); g.computeVertexNormals();
     m.add(g, '#a4ccc2', [0, 0, 0]); g.dispose();
     for (const tip of tips) m.beam('#d4d2a7', new T.Vector3(...anchor), new T.Vector3(...tip), .15);
-    for (let i = 0; i < 2; i++) m.beam('#d4d2a7', new T.Vector3(...tips[i]), new T.Vector3(...tips[i + 1]), .13);
   }
-  b.batch(m, local);
+  const body = b.batch(m, local), skin = (body.children[0] as T.Mesh).geometry;
+  const vertex = skin.getAttribute('position') as T.BufferAttribute, colors = skin.getAttribute('color');
+  const wingColors = ['#a4ccc2', '#d4d2a7'].map(c => new T.Color(c));
+  const moving: number[] = [], rest = new Float32Array(vertex.array);
+  for (let i = 0; i < vertex.count; i++) if (wingColors.some(c => Math.abs(colors.getX(i) - c.r) < .001 && Math.abs(colors.getY(i) - c.g) < .001 && Math.abs(colors.getZ(i) - c.b) < .001)) moving.push(i);
+  vertex.setUsage(T.DynamicDrawUsage);
   const head = new WorldModel();
   head.add(G.round, '#b9b9db', [0, 0, 0], [3.5, 1.8, 2.2]);
   head.add(G.round, '#d7d7df', [0, -.7, 1.7], [2.4, .75, 1.25]);
@@ -300,7 +413,16 @@ function dragon(s: MiniSection, b: VariantBuilder) {
   const gems = b.pool(breath, 10, local), stop = at(s, .5) - 12;
   b.animate((time, distance, reduced) => {
     cover.visible = !b.group.userData.cutaway;
+    // The optional railway cutaway also opens the dragon's outer armour and
+    // wings; otherwise they conceal the bore even after its near skin opens.
+    body.visible = !b.group.userData.cutaway;
     const hello = arrival(distance, stop, 18), t = reduced ? 0 : time;
+    const stretch = reduced ? 0 : Math.sin(t * 1.2) * .035 + hello * (.08 + Math.sin(t * 2) * .04);
+    for (const i of moving) {
+      const x = rest[i * 3], y = rest[i * 3 + 1], z = rest[i * 3 + 2];
+      vertex.setXYZ(i, x, y + (Math.abs(x) - 9) * stretch, z);
+    }
+    vertex.needsUpdate = true;
     b.place(face, 0, 0, 7.2 + (reduced ? 0 : Math.sin(t * 1.2) * .12 + hello * .25), 14.6, 1.3, reduced ? 0 : -hello * .09, 0, 0);
     for (let i = 0; i < 10; i++) {
       const u = (t * .24 + i / 10) % 1;
@@ -324,6 +446,16 @@ function mine(s: MiniSection, b: VariantBuilder) {
   }
   m.add(G.box, '#c7a872', [8, 2.1, -10], [4.3, 3.5, 4]);
   m.add(G.box, '#8ab6b1', [8, 4.2, -10], [5.2, .5, 5]);
+  // A sloping ore chute visibly connects the elevator to the sorting house.
+  for (const side of [-1, 1]) {
+    m.beam('#d5b482', new T.Vector3(11 + side * .95, 14, 0), new T.Vector3(8 + side * .95, 4.8, -8.3), .14);
+    m.beam('#8a9991', new T.Vector3(8 + side * .95, 0, -6.5), new T.Vector3(8 + side * .95, 7.4, -6.5), .16);
+  }
+  for (let i = 0; i < 14; i++) {
+    const u = i / 13;
+    m.add(G.box, i % 2 ? '#82aaa5' : '#aac4b5', [11 - u * 3, 14 - u * 9.2, -u * 8.3], [2.05, .16, .85], [-.83, 0, 0]);
+  }
+  m.add(G.box, '#d9bf8b', [8, 4.9, -8.6], [3.8, .4, 2.5]);
   for (const z of [-10.8, -9.2]) {
     m.add(G.round, '#f6e5b2', [10.23, 2.65, z], [.12, .55, .55]);
     m.add(G.round, '#52687b', [10.35, 2.65, z], [.08, .22, .22]);
@@ -346,7 +478,8 @@ function mine(s: MiniSection, b: VariantBuilder) {
     const clock = reduced ? 0 : time, push = reduced ? 0 : T.MathUtils.clamp(distance - (at(s, .5) - 14), 0, 28) * .06;
     for (let i = 0; i < 8; i++) {
       const a = clock * .28 + push + i / 8 * TAU;
-      b.place(buckets, i, 11, 8 + Math.sin(a) * 7, Math.cos(a) * 4, 1, 0, 0, 0);
+      const tip = reduced ? 0 : Math.max(0, Math.sin(a) - .78) / .22;
+      b.place(buckets, i, 11, 8 + Math.sin(a) * 7, Math.cos(a) * 4, 1, -tip * .7, 0, 0);
     }
     b.place(drill, 0, 10.6, 1.45, -10, 1, clock * 1.2 + push * 2, 0, 0);
   });
@@ -385,18 +518,32 @@ function weather(s: MiniSection, b: VariantBuilder) {
   for (const side of [-1, 1]) {
     m.add(G.pole, '#b9c6b5', [x + side * 5.5, 5.5, z], [.3, 11, .3]);
     cloud(m, x + side * 11, 6 + side, z - 1, 1.15, true);
+    // Rain has a destination: broad catch basins feed the coloured pressure
+    // tanks and the overhead sun turbine through a visible pipe network.
+    const tx = x + side * 7;
+    m.add(G.pole, '#a7ced0', [tx, 3.2, z], [2.35, 5.8, 2.35]);
+    for (const y of [.65, 5.65]) m.add(G.ring, '#e0c691', [tx, y, z], [2.48, 2.48, 2.48], [Math.PI / 2, 0, 0]);
+    m.add(G.pole, '#629fac', [tx, 6.1, z], [3.35, .55, 3.35]);
+    m.add(G.ring, '#d7e6d9', [tx, 6.45, z], [3.35, 3.35, 3.35], [Math.PI / 2, 0, 0]);
+    m.add(G.round, '#b3e6e0', [tx, 6.45, z], [2.9, .1, 2.9]);
+    m.beam('#d7bb89', new T.Vector3(tx, 2.5, z), new T.Vector3(x + side * 3.2, 2.5, z), .34);
+    m.beam('#9fbdad', new T.Vector3(tx, 5, z - 1), new T.Vector3(tx, 10.6, z - 1), .26);
+    m.beam('#9fbdad', new T.Vector3(tx, 10.6, z - 1), new T.Vector3(x, 10.6, z - 1), .26);
+    for (let i = 0; i < 4; i++) m.add(G.box, palette[i], [tx - .55 + i * .36, 2.6, z + 2.24], [.22, .7 + i * .5, .1]);
   }
   m.add(G.box, '#c6d6c5', [x, 10.8, z], [12, .4, .5]);
   m.add(G.round, '#e9db98', [x, 11, z + .2], [.6, .6, .5]);
+  // The sun's friendly face stays upright while its outer rays turn.
+  m.add(G.round, '#efd48a', [x, 11, z + 1.03], [2.5, 2.5, .48]);
+  for (const side of [-1, 1]) m.add(G.round, '#637b86', [x + side * .7, 11.3, z + 1.52], [.18, .25, .08]);
+  m.add(G.round, '#d3a77d', [x, 10.3, z + 1.52], [.6, .18, .09]);
   b.batch(m);
   const sun = new WorldModel();
-  sun.add(G.round, '#efd48a', [0, 0, 0], [2.5, 2.5, .48]);
+  sun.add(G.ring, '#ead095', [0, 0, 0], [2.65, 2.65, 2.65]);
   for (let i = 0; i < 12; i++) {
     const a = i / 12 * TAU;
     sun.add(G.cone, palette[i % 5], [Math.cos(a) * 3.4, Math.sin(a) * 3.4, 0], [.65, 2, .27], [0, 0, a - Math.PI / 2]);
   }
-  for (const side of [-1, 1]) sun.add(G.round, '#637b86', [side * .7, .3, .48], [.18, .25, .08]);
-  sun.add(G.round, '#d3a77d', [0, -.7, .48], [.6, .18, .09]);
   const turbine = b.pool(sun, 1), puff = new WorldModel(); cloud(puff, 0, 0, 0, 1.2, true);
   const clouds = b.pool(puff, 2), droplet = new WorldModel(); droplet.add(G.rock, '#bee9e6', [0, 0, 0], [.2, .48, .2], [], true);
   const rain = b.pool(droplet, 24), spark = new WorldModel(); spark.add(G.rock, '#f2e6a5', [0, 0, 0], [.2, .2, .2], [], true);
@@ -408,7 +555,7 @@ function weather(s: MiniSection, b: VariantBuilder) {
     for (let i = 0; i < 2; i++) b.place(clouds, i, x + (i ? 7 : -7), 15 + (reduced ? 0 : Math.sin(clock * .7 + i * 2) * .5 + hello), z, 1, 0, 0, 0);
     for (let i = 0; i < 24; i++) {
       const u = (clock * .32 + i / 24) % 1;
-      b.place(rain, i, x + (i % 2 ? 7 : -7) + Math.sin(i * 2.4) * 2.5, 14 - u * 12, z + Math.cos(i) * 1.1, reduced ? .65 : .65 + hello * .45);
+      b.place(rain, i, x + (i % 2 ? 7 : -7) + Math.sin(i * 2.4) * 2.5 * (1 - u * .4), 14 - u * 7.4, z + Math.cos(i) * 1.1, reduced ? .65 : .65 + hello * .45);
     }
     for (let i = 0; i < 14; i++) {
       const a = .1 + i / 13 * (Math.PI - .2);
@@ -449,9 +596,23 @@ function penguins(s: MiniSection, b: VariantBuilder) {
   m.add(G.round, '#83c5d7', [c.x + 17, .04, c.z + 12], [9, .2, 7]);
   for (let i = 0; i < 9; i++) m.add(G.rock, '#e5f0e5', [c.x + 17 + Math.sin(i * 2.4) * 8.5, .28, c.z + 12 + Math.cos(i * 2.4) * 6.5], [1.7, .45, 1.6]);
   const start = slide(0), end = slide(1);
+  glacierShelf(m, slide, c.z + 18);
   returnBelt(m, slide, c.z + 18);
+  // Blue crevasses, snow cornices and hanging ice make the whole circuit part
+  // of one glacier, with the return conveyor carved into its upper terrace.
+  for (let i = 0; i < 9; i++) {
+    const p = slide(.06 + i * .105);
+    m.add(G.rock, i % 2 ? '#74b3cb' : '#98c8d7', [p.x, Math.max(.5, p.y * .32), p.z - 3.9], [2, Math.max(1.1, p.y * .43), 1.9], [0, i * .3, -.1]);
+    m.add(G.rock, '#e6f2e8', [p.x, p.y - .65, p.z - 2.9], [2.2, .55, 1.6]);
+    for (const side of [-1, 1]) m.add(G.cone, '#b3e3e6', [p.x + side * .5, p.y - 2, p.z - 3.65], [.33, 2.5, .32], [0, 0, Math.PI]);
+  }
+  // A snow arch frames the top of the run; its opening is wide enough for the
+  // penguins and both rails of their conveyor, far outside the train route.
+  for (const side of [-1, 1]) m.add(G.rock, '#a8d4df', [start.x - 1.2, start.y + 1.3, start.z + side * 3], [2.7, 3, 1.4]);
+  m.add(G.rock, '#e4f0e6', [start.x - 1.2, start.y + 4.15, start.z], [2.8, 1.15, 4.1]);
   b.batch(m);
   const riders = b.pool(penguinModel(), 7), floe = new WorldModel();
+  const riderPose = new T.Object3D(); riderPose.rotation.order = 'YXZ';
   floe.add(G.rock, '#e8f3e8', [0, 0, 0], [2, .4, 1.6]);
   const floes = b.pool(floe, 4);
   b.animate((time, distance, reduced) => {
@@ -459,7 +620,10 @@ function penguins(s: MiniSection, b: VariantBuilder) {
     for (let i = 0; i < 7; i++) {
       const u = (clock * .075 + push + i / 7) % 1;
       const { p, yaw, down } = circuit(u, slide, start, end, c.z + 18);
-      b.place(riders, i, p.x, p.y + .3, p.z, 1.15, down ? -.3 : 0, yaw, 0);
+      // Belly-down sliding is a distinct pose from the upright ride uphill.
+      riderPose.position.set(p.x, p.y + (down ? .85 : .3), p.z); riderPose.scale.setScalar(1.3);
+      riderPose.rotation.set(down ? Math.PI / 2 - .17 : 0, yaw, down ? .08 * Math.sin(clock * 5 + i) : 0);
+      riderPose.updateMatrix(); for (const mesh of riders) mesh.setMatrixAt(i, riderPose.matrix);
     }
     for (let i = 0; i < 4; i++) b.place(floes, i, c.x + 15 + Math.sin(i * 2.4) * 5.5, .4 + Math.sin(clock * .8 + i) * (reduced ? 0 : .14), c.z + 12 + Math.cos(i * 2.4) * 4, 1, 0, i, 0);
   });

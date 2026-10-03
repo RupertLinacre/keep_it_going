@@ -38,6 +38,27 @@ export function lanternParade(m:WorldModel,section:MiniSection) {
     // A second scallop makes a shallow theatrical arch instead of a lone wire.
     const a=center.clone().addScaledVector(f.right,-4.4),b=center.clone().addScaledVector(f.right,4.4);
     a.y=b.y=h-.2;m.beam('#d8b0b9',a,b,.07);
+    // Broad rainbow ribbons turn the thin garlands into recognisable gateways.
+    for(let band=0;band<3;band++) {
+      const positions:number[]=[];
+      for(let j=0;j<20;j++) {
+        const quad:number[][]=[];
+        for(const [t,edge]of [[j/20,0],[(j+1)/20,0],[(j+1)/20,1],[j/20,1]]) {
+          const p=center.clone().addScaledVector(f.right,(t-.5)*8.8);
+          p.y=h+.45+Math.sin(t*Math.PI)*1.8+band*.22+edge*.17;
+          quad.push(p.toArray());
+        }
+        positions.push(...quad[0],...quad[1],...quad[2],...quad[0],...quad[2],...quad[3]);
+        positions.push(...quad[2],...quad[1],...quad[0],...quad[3],...quad[2],...quad[0]);
+      }
+      const ribbon=new T.BufferGeometry();ribbon.setAttribute('position',new T.Float32BufferAttribute(positions,3));ribbon.computeVertexNormals();
+      m.add(ribbon,BULBS[(band+i)%4],[0,0,0]);ribbon.dispose();
+    }
+    for(const side of [-1,1]){
+      const p=center.clone().addScaledVector(f.right,side*4.4);
+      m.add(G.cone,BULBS[(i+1)%4],[p.x,1.3,p.z],[.75,1.6,.75]);
+      m.add(G.rock,'#ffe2ae',[p.x,2.2,p.z],[.3,.3,.3],[],true,i*.7);
+    }
   }
 }
 
@@ -79,15 +100,15 @@ export function marqueeLoop(m: WorldModel, section: MiniSection) {
   // A big smiling sun is a landmark above the loop, outside the train envelope.
   for(let i=0;i<12;i++){
     const a=i*Math.PI/6;
-    m.add(G.cone,i%2?'#f6bd89':'#efd28a',[x+Math.sin(a)*2,y+Math.cos(a)*2,z],[.36,1,.26],[0,0,-a]);
+    m.add(G.cone,i%2?'#f6bd89':'#efd28a',[x+Math.sin(a)*2.48,y+Math.cos(a)*2.48,z],[.43,1.18,.26],[0,0,-a]);
   }
-  m.add(G.round,'#ffdc8e',[x,y,z],[1.62,1.62,.46],[],true);
+  m.add(G.round,'#ffdc8e',[x,y,z],[1.94,1.94,.46],[],true);
   for(const side of [-1,1]){
-    m.add(G.round,'#62527f',[x+side*.55,y+.24,z+.43],[.13,.21,.1]);
-    m.add(G.round,'#f397b0',[x+side*.94,y-.23,z+.42],[.26,.16,.09]);
+    m.add(G.round,'#62527f',[x+side*.65,y+.29,z+.43],[.15,.25,.1]);
+    m.add(G.round,'#f397b0',[x+side*1.12,y-.28,z+.42],[.31,.19,.09]);
   }
-  m.add(G.round,'#805784',[x,y-.48,z+.45],[.45,.28,.06]);
-  m.add(G.round,'#ffdc8e',[x,y-.32,z+.51],[.47,.24,.06],[],true);
+  m.add(G.round,'#805784',[x,y-.58,z+.45],[.54,.34,.06]);
+  m.add(G.round,'#ffdc8e',[x,y-.38,z+.51],[.56,.29,.06],[],true);
   // Twin ribbon towers frame the complete inversion without entering its plane.
   const xs=section.frames.map(f=>f.position.x-section.origin.x);
   for(const [side,tx]of [[-1,Math.min(...xs)-3.5],[1,Math.max(...xs)+3.5]]){
@@ -98,6 +119,11 @@ export function marqueeLoop(m: WorldModel, section: MiniSection) {
     m.add(G.cone,'#db8dbe',[tx,8.4,tz],[1.05,1.7,1.05]);
     star(m,tx,9.8,tz,.85,'#ffe0a0');
     m.add(G.box,BULBS[side===-1?1:2],[tx+side*.7,7,tz],[1.2,.65,.07],[0,0,side*.15]);
+    // A theatrical fan on each tower carries the same colours as the sun.
+    for(let j=0;j<5;j++) {
+      const a=(j-2)*.3;
+      m.add(G.cone,BULBS[j%4],[tx+Math.sin(a)*1.5,8.4+Math.cos(a)*1.4,tz-.2],[.27,1.5,.1],[0,0,-a]);
+    }
   }
 }
 
@@ -142,7 +168,7 @@ export function carouselClimb(m: WorldModel, section: MiniSection) {
   // Its footprint leaves 1.8m between every rail centre and every spinning part.
   for(let i=0;i<70;i++){
     const f=section.sample(section.start+section.length*i/69),p=f.position.clone().addScaledVector(f.right,1.25).addScaledVector(f.up,-.25);
-    m.add(G.round,BULBS[Math.floor(i/5)%4],[p.x-section.origin.x,p.y,p.z-section.origin.z],[.17,.17,.17],[],true,i*.3);
+    m.add(i%2?G.rock:G.round,BULBS[Math.floor(i/5)%4],[p.x-section.origin.x,p.y,p.z-section.origin.z],[.19,.19,.19],[],true,i*.3);
   }
 }
 

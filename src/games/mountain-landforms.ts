@@ -35,10 +35,11 @@ export function mountainGorge(m: WorldModel, section: MiniSection, backdrop = m)
     const x = p.x - section.origin.x, z = p.z - section.origin.z;
     const edge = Math.sin(Math.PI * t) ** .75, floor = .25 + Math.max(0, p.y - 4) * .12;
     const shelf = p.y - .45;
-    const peak = shelf + edge * (17 + 4 * Math.sin(t * Math.PI * 9) ** 2);
+    const tooth = Math.sin(i * 1.73) * .8 * edge;
+    const peak = shelf + edge * (17 + 4 * Math.sin(t * Math.PI * 9) ** 2) + tooth;
     const wall = shelf + edge * (10 + 3 * Math.sin(t * Math.PI * 7 + .3) ** 2);
     cliffs.push([
-      [x, 0, z - 17], [x, peak * .76, z - 11], [x, peak, z - 7.2],
+      [x, 0, z - 19], [x, peak * .53, z - 14.5], [x, peak * .76, z - 11], [x, peak, z - 7.2],
       [x, wall, z - 3.8], [x, shelf + (wall - shelf) * .7, z - 3.4],
       [x, shelf + (wall - shelf) * .37, z - 3.65], [x, shelf, z - 3.1],
       [x, 0, z - 3.1],
@@ -49,18 +50,23 @@ export function mountainGorge(m: WorldModel, section: MiniSection, backdrop = m)
     const lip = floor + edge * (3 + 2 * Math.sin(t * Math.PI * 6) ** 2);
     near.push([[x, floor, z + 8.7], [x, lip, z + 9.4], [x, lip + edge * 1.2, z + 12], [x, 0, z + 16]]);
   }
-  ribbon(backdrop, cliffs, ['#88969e', '#a8b5b8', '#d6dfdb', '#7a8993', '#a6b1b3', '#798b95']);
+  ribbon(backdrop, cliffs, ['#718b94', '#a4b5b5', '#c2ceca', '#d6dfdb', '#7a8993', '#a6b1b3', '#798b95']);
   ribbon(m, ledge, ['#718892', '#b5b6a2', '#718892', '#96a3a5']);
   ribbon(m, river, ['#b8c6b4', '#64bac9', '#a1c7c2']);
   ribbon(m, near, ['#758f9a', '#b0bdba', '#8f9fa1']);
   // A pale ribbon of snow makes the craggy ridge legible at game-camera scale.
   ribbon(backdrop, cliffs.map(row => [
-    [row[2][0], row[2][1] - .35, row[2][2] - 1.1],
-    [row[2][0], row[2][1] + .12, row[2][2]],
-    [row[2][0], row[2][1] - .55, row[2][2] + 1.25],
+    [row[3][0], row[3][1] - .35, row[3][2] - 1.1],
+    [row[3][0], row[3][1] + .12, row[3][2]],
+    [row[3][0], row[3][1] - .55, row[3][2] + 1.25],
   ]), ['#edf3ed', '#f8f4df']);
   for (const [i, fraction] of GORGE_GOAT_STOPS.entries()) {
     const p = gorgeLookout(section, fraction);
+    // These are real rock spurs rising out of the river, rather than balconies
+    // that hover halfway up the gorge. Snow shelves make their tops readable.
+    const base = .25 + Math.max(0, p.y - 3.6) * .12, height = p.y - base;
+    m.add(G.rock, i % 2 ? '#799299' : '#92a6a6', [p.x, base + height * .42, p.z + .5], [2.25, height * .58, 1.85], [0, i * .55, 0]);
+    m.add(G.rock, '#b6c3b8', [p.x - .45, base + height * .55, p.z + .95], [1.8, .45, 1.55]);
     m.add(G.rock, '#9aa8a6', [p.x, p.y - 1.1, p.z], [2.05, 1.5, 1.75]);
     m.add(G.rock, '#edf0df', [p.x, p.y - .13, p.z], [1.65, .3, 1.35]);
     // Crystals sit outside the rail envelope and light up as coaches pass.
@@ -172,6 +178,11 @@ export function mountainTunnel(material: T.Material, luminous: T.Material) {
       solid.add(G.box, i % 2 ? '#c5c4b1' : '#dcd6bd', [Math.cos(a) * r, SPRING + Math.sin(a) * r, z], [.6, .76, .55], [0, 0, a - Math.PI / 2]);
     }
     for (const x of [-BORE_RADIUS - .35, BORE_RADIUS + .35]) solid.add(G.box, '#b5b5a5', [x, .05, z], [.6, 1.7, .6]);
+    // Portal bell towers announce the arriving train with visible, swinging
+    // brass bells. Their posts are well outside the arched opening.
+    for (const x of [3.85, 5.55]) solid.add(G.box, '#a88c64', [x, 3.6, z + Math.sign(z) * .6], [.23, 7, .28]);
+    solid.add(G.box, '#d5bd8d', [4.7, 7.35, z + Math.sign(z) * .6], [2.3, .3, .5]);
+    for (const side of [-1, 1]) solid.add(G.box, '#66988e', [4.7 + side * .57, 7.7, z + Math.sign(z) * .6], [1.5, .19, 1.8], [0, 0, -side * .45]);
     solid.add(G.box, '#576c78', [0, 5.25, z + Math.sign(z) * .06], [3, .72, .12]);
     for (const x of [-1.1, 0, 1.1]) solid.add(G.rock, '#a0e6df', [x, 5.25, z + Math.sign(z) * .16], [.18, .23, .1], [], true);
   }
@@ -183,6 +194,11 @@ export function mountainTunnel(material: T.Material, luminous: T.Material) {
       const model = side < 0 ? back : cover;
       model.add(G.rock, i % 2 ? '#8698a2' : '#aab8bc', [side * (8 + swell * 2), 1.2, z],
         [2.5, 3 + (i % 3) * .7, 2.7], [0, i * .43, side * .16]);
+      model.add(G.rock, '#cbd7ce', [side * (8 + swell * 2), 3.2 + i % 3 * .5, z], [2.3, .48, 2.2], [0, i * .43, 0]);
+      if (i % 2 === 0) {
+        model.add(G.rock, '#668e9c', [side * (7.3 + swell * 2), 3.7, z + .45], [1.7, 1.75, 1.45]);
+        for (let j = 0; j < 3; j++) model.add(G.cone, ['#a8dfdb', '#bed8ec', '#d3e6dc'][j], [side * (8.4 + swell * 2), 3.4 + j * .6, z + (j - 1) * .67], [.55, 2.2, .48], [0, j, side * -.65]);
+      }
     }
   }
   for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { createHalloweenVariant } from '../src/review/variants/halloween-variants';
-import { createMiniSection } from '../src/games/mini-track';
+import { MiniSection, createMiniSection } from '../src/games/mini-track';
 import { seededRandom } from '../src/games/mini-rail';
 import { FairgroundLights } from '../src/games/world-lighting';
 import { CrossingPulses } from '../src/review/variants/variant-kit';
@@ -34,4 +34,58 @@ test('crossing effects fire once, pause, and reset when the gallery is replayed'
  p.update(2,25);assert.equal(p.age(0,2),1);p.update(3,41);assert.equal(p.age(1,3),0);
  p.update(0,0);assert.ok(p.age(0,0)<0);p.update(1,21);assert.equal(p.age(0,1),0);
  const late=new CrossingPulses([20]);late.update(100,25);assert.ok(late.age(0,100)<0,'Loading a passed gate must not invent a burst');
+});
+
+test('laundry ghosts rise continuously from the drum instead of teleporting off the clothesline',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkinhop',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'c',material,lights)!;
+ const mesh=v.group.getObjectByName('laundry-ghosts') as T.InstancedMesh,matrix=new T.Matrix4();
+ const hit=s.start+s.distances[Math.round(s.resolution/6)],position=()=>{mesh.getMatrixAt(0,matrix);return new T.Vector3().setFromMatrixPosition(matrix);};
+ v.update(0,hit-.1,false);const before=position();mesh.getMatrixAt(1,matrix);assert.ok(new T.Vector3().setFromMatrixPosition(matrix).distanceTo(before)>1.2,'Waiting ghosts have separate seats');v.update(.01,hit+.1,false);const justAfter=position();
+ assert.ok(before.distanceTo(justAfter)<.1,'The ghost leaves from its resting position in the washing drum');
+ v.update(1.3,hit+20,false);const flying=position();assert.ok(flying.y>before.y+2,'Ghost visibly launches upward');
+ v.update(4,hit+40,false);const hung=position();assert.ok(hung.y>before.y+3.7,'Ghost settles on the clothesline');
+ v.dispose();material.dispose();lights.dispose();
+});
+
+test('monster paws and dancing puppets stay clear of the train corridor in both directions',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ for(const hand of [-1,1])for(const option of ['b','c'] as const){
+  const s=new MiniSection(0,'pumpkintunnel',0,new T.Vector3(0,4,0),52,1.1,0,hand);
+  const v=createHalloweenVariant(s,option,material,lights)!,world=new T.Vector3(),delta=new T.Vector3(),matrix=new T.Matrix4(),instance=new T.Matrix4();
+  const frames=s.frames.filter(f=>Math.abs(f.position.x-s.sample(s.start+s.length/2).position.x)<18);
+  for(const time of [0,1,1.25,1.6,2]){
+   v.update(time,s.start+s.length/2+(time-1)*22,false);v.group.updateMatrixWorld(true);
+   v.group.traverse(o=>{
+    if(!(o instanceof T.Mesh))return;const positions=o.geometry.getAttribute('position');
+    for(let i=0;i<(o instanceof T.InstancedMesh?o.count:1);i++){
+     if(o instanceof T.InstancedMesh){o.getMatrixAt(i,instance);matrix.multiplyMatrices(o.matrixWorld,instance);}else matrix.copy(o.matrixWorld);
+     for(let j=0;j<positions.count;j++){
+      world.fromBufferAttribute(positions,j).applyMatrix4(matrix);
+      for(const f of frames){
+       delta.copy(world).sub(f.position);const up=delta.dot(f.up);
+       assert.ok(!(up>.1&&up<2.2&&Math.abs(delta.dot(f.right))<.8&&Math.abs(delta.dot(f.tangent))<1.1),`${option} animation must leave room for the carriage`);
+      }
+     }
+    }
+   });
+  }
+  v.dispose();
+ }
+ material.dispose();lights.dispose();
+});
+
+
+test('moonflower petals unfold radially around each crown',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('witchhat',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'c',material,lights)!;
+ const mesh=v.group.getObjectByName('moonflower-petals') as T.InstancedMesh,matrix=new T.Matrix4();
+ v.update(1,s.start+s.distances[Math.round(s.resolution*.48)],false);
+ for(let j=0;j<6;j++){
+  mesh.getMatrixAt(10+j,matrix);const axis=new T.Vector3(0,1,0).transformDirection(matrix),a=j*Math.PI/3;
+  const horizontal=new T.Vector3(axis.x,0,axis.z).normalize(),radial=new T.Vector3(Math.sin(a),0,Math.cos(a));
+  assert.ok(horizontal.dot(radial)>.999,'Each petal opens away from the stem, not in one shared direction');
+  assert.ok(Math.hypot(axis.x,axis.z)>.5,'The approaching train opens the crown visibly');
+ }
+ v.dispose();material.dispose();lights.dispose();
 });

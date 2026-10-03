@@ -53,7 +53,7 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
     scenery.add(G.box,'#ebc899',[gx-side*.8,top,p.z],[1.9,.28,.32]);
     for(let j=0;j<3;j++) {
       scenery.add(G.box,'#667794',[gx,1.3+j*1.2,p.z+.25],[.8,.85,.12]);
-      scenery.add(G.rock,CANDY[(i+j)%4],[gx,1.3+j*1.2,p.z+.35],[.24,.24,.12],[],true,i+j*.8);
+      scenery.add(G.rock,'#404767',[gx,1.3+j*1.2,p.z+.35],[.29,.29,.12]);
     }
     for(let j=0;j<6;j++) {
       const a=j*Math.PI/3;
@@ -61,6 +61,19 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
     }
     scenery.add(G.rock,'#889cc0',[p.x+side*2.3,.65,p.z+1.7],[1.2,.65,.7]);
     star(scenery,p.x+side*2.3,1.55,p.z+1.8,.45,GOLD);
+    for(const sign of [-1,1]){
+      scenery.add(G.box,'#c6ceda',[p.x+sign*1.5,.75,p.z],[.18,.3,2.6]);
+      scenery.add(G.box,'#ecca96',[p.x+sign*1.5,.95,p.z],[.25,.07,2.6]);
+    }
+  }
+  for(const fraction of [.27,.71]) {
+    const frame=s.frames[Math.round(s.resolution*fraction)],center=point(s,fraction).addScaledVector(frame.up,1.1),rotation=new T.Euler().setFromQuaternion(frame.rotation);
+    scenery.add(G.ring,'#c4bddf',center.toArray(),[4.7,4.7,4.7],[rotation.x,rotation.y,rotation.z]);
+    scenery.add(G.ring,'#9fe1d9',center.toArray(),[4.45,4.45,4.45],[rotation.x,rotation.y,rotation.z],true);
+    for(let j=0;j<8;j++) {
+      const a=j*Math.PI/4,p=center.clone().addScaledVector(frame.right,Math.sin(a)*4.7).addScaledVector(frame.up,Math.cos(a)*4.7);
+      scenery.add(G.rock,CANDY[j%4],p.toArray(),[.24,.24,.24],[],true,j*.5);
+    }
   }
   const moon=point(s,.5);moon.y=Math.max(...s.frames.map(f=>f.position.y))+10.8;
   scenery.add(G.round,'#f1dca0',moon.toArray(),[2.4,2.4,.8],[],true);
@@ -70,13 +83,26 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
   b.batch(scenery);
   const rockets=b.pool(rocketModel(),5),spark=new WorldModel();star(spark,0,0,0,.28,GOLD);
   const exhaust=b.pool(spark,35),pulses=new CrossingPulses(stops.map(stop=>stop.distance));
+  const flame=new WorldModel();flame.add(G.cone,'#ffce84',[0,-.5,0],[.53,1.85,.53],[0,0,Math.PI],true);
+  flame.add(G.cone,'#a4e3e8',[0,-.16,.02],[.32,1.2,.32],[0,0,Math.PI],true);const flames=b.pool(flame,5);
+  const lamp=new WorldModel();lamp.add(G.round,CREAM,[0,0,0],[.28,.28,.16],[],true);const countdown=b.pool(lamp,15);
+  for(const mesh of flames)mesh.name='rocket-flames';
+  for(const mesh of countdown)mesh.name='launch-countdown';
+  const lampColors=['#f3a5c5','#ffe29b','#a3e4cd'].map(color=>new T.Color(color));
+  for(const mesh of countdown)for(let i=0;i<15;i++)mesh.setColorAt(i,lampColors[i%3]);
   b.animate((time,distance,reduced)=>{
     pulses.update(time,distance);
     for(let i=0;i<stops.length;i++) {
       const {p}=stops[i],age=pulses.age(i,time),active=!reduced&&age>=0&&age<6;
       const lift=active?11*smooth(age/2.5)*(1-smooth((age-4.2)/1.8)):0;
       const bank=active?Math.sin(age*1.4)*.08:0;
-      b.place(rockets,i,p.x,3.1+lift,p.z,1,0,.2*Math.sin(i),bank);
+      b.place(rockets,i,p.x,3.5+lift,p.z,1.12,0,.2*Math.sin(i),bank);
+      b.place(flames,i,p.x,1.44+lift,p.z,active&&lift>.3?.85+.12*Math.sin(time*14+i):0);
+      const gap=stops[i].distance-distance;
+      for(let j=0;j<3;j++) {
+        const lit=j===0?gap>12&&gap<30:j===1?gap>2&&gap<=12:gap<=2&&(reduced||age<2.5);
+        b.place(countdown,i*3+j,p.x+stops[i].side*2.5,1.3+j*1.2,p.z+.42,lit?1.15:.28);
+      }
       for(let j=0;j<7;j++) {
         const progress=active?(age*1.6+j/7)%1:0;
         b.place(exhaust,i*7+j,p.x+Math.sin(j*2.4+(active?age:0))*progress*.9,1.55+lift-progress*2.1,p.z+Math.cos(j*2.4)*progress*.9,
@@ -91,6 +117,8 @@ function jellyModel() {
   m.add(dome,'#a4e7e2',[0,0,0],[1.65,1.35,1.65],[],true);dome.dispose();
   m.add(G.pole,'#bfa7e3',[0,.04,0],[1.64,.12,1.64],[],true);
   face(m,0,.43,1.48,.95);
+  m.add(G.rock,GOLD,[0,1.37,0],[.25,.38,.25],[],true);
+  for(const side of [-1,1])m.add(G.rock,'#d5b8ed',[side*.52,1.22,0],[.2,.28,.2],[],true);
   for(let j=0;j<8;j++) {
     const a=j*Math.PI/4,x=Math.sin(a)*1.42,z=Math.cos(a)*1.42;
     m.add(G.round,CANDY[j%4],[x,-.04,z],[.3,.24,.3],[],true);
@@ -110,6 +138,7 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
     p.addScaledVector(frame.right,i%2===0?0:(i%4===1?-6.3:6.3));
     p.y+=i%2===0?7.5:5.6;return {p,distance:at(s,f)};
   });
+  const clams:{p:T.Vector3;distance:number}[]=[];
   for(let i=0;i<10;i++) {
     const f=.035+i*.103,frame=s.frames[Math.round(s.resolution*f)],p=point(s,f),side=i%2?1:-1;
     p.addScaledVector(frame.right,side*6.3);p.y=.3;
@@ -118,27 +147,45 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
       const base=p.clone().add(v((j-1)*.72,0,0)),top=base.clone().add(v((j-1)*.35,2.4+(i+j)%3*.5,.2));
       scenery.beam(CANDY[(i+j)%4],base,top,.18);
       for(const side of [-1,1])scenery.beam(CANDY[(i+j)%4],base.clone().lerp(top,.5),top.clone().add(v(side*.65,-.55,.12)),.12);
-      scenery.add(G.round,CANDY[(i+j)%4],top.toArray(),[.25,.25,.25],[],true,i+j*.4);
+      scenery.add(G.rock,CANDY[(i+j)%4],top.toArray(),[.29,.29,.29],[],true,i+j*.4);
     }
     // An open clam and its luminous pearl anchor the floating jellyfish forest.
     scenery.add(G.round,'#d1a5cb',[p.x+side*1.4,.65,p.z+.9],[.85,.24,.65]);
-    scenery.add(G.round,'#ebc4d2',[p.x+side*1.4,1.1,p.z+.5],[.85,.65,.22],[.4,0,0]);
     scenery.add(G.round,GOLD,[p.x+side*1.4,.95,p.z+.94],[.28,.28,.28],[],true,i*.3);
+    clams.push({p:v(p.x+side*1.4,.7,p.z+.65),distance:at(s,f)});
+    for(let j=0;j<5;j++) {
+      const a=(j-2)*.33;
+      scenery.add(G.round,CANDY[(i+1)%4],[p.x+Math.sin(a)*1.15,.6+Math.cos(a)*1.15,p.z-1],[.16,.9,.16],[0,0,-a]);
+    }
   }
   b.batch(scenery);
   const jellies=b.pool(jellyModel(),7),bubble=new WorldModel();
   bubble.add(G.ring,'#bcf5ee',[0,0,0],[.45,.45,.45],[],true);
   bubble.add(G.rock,CREAM,[-.22,.26,.01],[.065,.1,.04],[],true);
   const bubbles=b.pool(bubble,28);
+  const shell=new WorldModel();shell.add(G.round,'#e9bfd8',[0,.68,0],[.93,.77,.17]);
+  for(let j=0;j<5;j++)shell.beam('#f4d7bd',v(0,0,.14),v((j-2)*.31,1.23-Math.abs(j-2)*.09,.14),.04);
+  const lids=b.pool(shell,10),fish=new WorldModel();
+  fish.add(G.round,'#f4c08f',[0,0,0],[.75,.38,.25]);fish.add(G.cone,'#eaaaad',[-.85,0,0],[.38,.55,.08],[0,0,Math.PI/2]);
+  fish.add(G.cone,'#f2dc9c',[0,.39,0],[.24,.35,.08]);
+  for(const side of [-1,1])fish.add(G.rock,INK,[.38,.06,side*.22],[.085,.1,.06]);
+  const fishPool=b.pool(fish,7);
+  for(const mesh of lids)mesh.name='pearl-clam-lids';
   b.animate((time,distance,reduced)=>{
     for(let i=0;i<7;i++) {
       const stop=stops[i],near=arrival(distance,stop.distance,12),bob=reduced?0:Math.sin(time*1.25+i)*.22+near*.65;
-      b.place(jellies,i,stop.p.x,stop.p.y+bob,stop.p.z,1,0,.2*Math.sin(i),reduced?0:Math.sin(time+i)*.04);
+      b.place(jellies,i,stop.p.x,stop.p.y+bob,stop.p.z,1+(reduced?0:near*.08),0,.2*Math.sin(i),reduced?0:Math.sin(time+i)*.04);
+      const swim=(reduced?0:time*.6+near*.8)+i*.8;
+      b.place(fishPool,i,stop.p.x+Math.sin(swim)*2.9,stop.p.y+1.35+Math.cos(swim)*.3,stop.p.z+Math.cos(swim)*2.9,.78,0,swim);
       for(let j=0;j<4;j++) {
         const rise=reduced?j*.45:(time*.55+j*.75+i*.21)%3;
         b.place(bubbles,i*4+j,stop.p.x+Math.sin(j*1.7+i)*2.25,stop.p.y+.5+rise,stop.p.z+Math.cos(j*1.7)*1.9,
           .48+near*.45+(j%2)*.22,0,reduced?0:Math.sin(time*.4+j)*.4);
       }
+    }
+    for(let i=0;i<clams.length;i++){
+      const clam=clams[i],open=reduced?0:arrival(distance,clam.distance,10);
+      b.place(lids,i,clam.p.x,clam.p.y,clam.p.z,1,1.3-open*1.17);
     }
   });
 }
@@ -178,26 +225,37 @@ function pinballParade(s:MiniSection,b:VariantBuilder) {
     m.add(G.box,'#7865a0',[cx+side*(width*.5+2),.3,back+2],[2.4,.6,5]);
     m.add(G.round,'#e7ad97',[cx+side*(width*.5+2),1.4,back+3.8],[.65,.65,.65]);
   }
+  m.add(G.box,'#8e78ad',[cx,1,back+1.2],[width+5.6,2,4.5]);
+  m.add(G.box,'#eed09b',[cx,2.08,back+1.2],[width+5.8,.16,4.7]);
+  for(let j=0;j<8;j++)m.add(G.box,CANDY[j%4],[cx+(j-3.5)*(width+4)/8,1,back+3.48],[(width+4)/10,.6,.05]);
   b.batch(m);
   const bumper=new WorldModel();bumper.add(G.round,'#f1a5cb',[0,0,0],[1.6,1.6,.55],[],true);face(bumper,0,0,.54,1);
+  for(const side of [-1,1])bumper.add(G.cone,'#ffc2dd',[side*.88,1.42,0],[.4,.83,.3],[0,0,-side*.22],true);
   const caps=b.pool(bumper,3),flipper=new WorldModel();
   flipper.add(G.box,'#f6ca87',[1.5,0,0],[3,.75,.55]);flipper.add(G.round,'#ffddb0',[3,0,0],[.5,.4,.3]);
   flipper.add(G.pole,'#99d3ce',[0,0,0],[.55,.7,.55],[Math.PI/2,0,0]);
   const flips=b.pool(flipper,2),ball=new WorldModel();ball.add(G.round,'#d1e5e6',[0,0,0],[.82,.82,.82]);
   ball.add(G.rock,CREAM,[-.28,.33,.65],[.22,.19,.07]);const balls=b.pool(ball,1);
   const segment=new WorldModel();segment.add(G.box,GOLD,[0,0,0],[.16,.73,.1],[],true);
-  const digits=b.pool(segment,21),patterns=[0b0111111,0b0000110,0b1011011,0b1001111,0b1100110,0b1101101,0b1111101,0b0000111,0b1111111,0b1101111];
+  const digits=b.pool(segment,45),patterns=[0b0111111,0b0000110,0b1011011,0b1001111,0b1100110,0b1101101,0b1111101,0b0000111,0b1111111,0b1101111];
+  for(const mesh of digits)mesh.name='pinball-display-and-rays';
   const segmentLayout=[[0,.94,1],[.49,.47,0],[.49,-.47,0],[0,-.94,1],[-.49,-.47,0],[-.49,.47,0],[0,0,1]];
   const cached=s.frames.map(f=>v(f.position.x-s.origin.x,f.position.y,f.position.z-s.origin.z-4.25));
+  const impacts=new CrossingPulses([.22,.5,.78].map(t=>at(s,t)));
   b.animate((time,distance,reduced)=>{
+    impacts.update(time,distance);
     const progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1),route=progress*s.length;
     let i=0,end=s.resolution;
     while(end-i>1){const middle=(i+end)>>1;if(s.distances[middle]<=route)i=middle;else end=middle;}
     const blend=(route-s.distances[i])/(s.distances[i+1]-s.distances[i]);
     const p=cached[i],q=cached[i+1];b.place(balls,0,p.x+(q.x-p.x)*blend,p.y+(q.y-p.y)*blend,p.z+(q.z-p.z)*blend);
     for(let j=0;j<3;j++) {
-      const pulse=arrival(distance,at(s,.22+j*.28),10),p=bumpers[j];
-      b.place(caps,j,p.x,p.y,p.z+.42,1+(reduced?0:pulse*.23));
+      const age=impacts.age(j,time),pop=!reduced&&age>=0&&age<1.5?Math.exp(-age*3.2)*Math.abs(Math.sin(age*13)):0,p=bumpers[j];
+      b.place(caps,j,p.x,p.y,p.z+.42,1+pop*.2);
+      for(let ray=0;ray<8;ray++) {
+        const a=ray*Math.PI/4,r=2.35+pop*.7;
+        b.place(digits,21+j*8+ray,p.x+Math.sin(a)*r,p.y+Math.cos(a)*r,p.z+.48,pop*.9,0,0,-a);
+      }
     }
     const flip=arrival(distance,s.start+4,14)+arrival(distance,s.end-5,14);
     b.place(flips,0,cx-width*.27,3.3,back+1.6,1,0,0,.25+(reduced?0:flip*.55));
@@ -242,6 +300,11 @@ function windupWonderland(s:MiniSection,b:VariantBuilder) {
   m.add(G.round,'#d7becd',[cx,cy,back-1],[width*.5+4,(top-s.origin.y)*.5+4,.6]);
   m.add(G.ring,GOLD,[cx,cy,back-.32],[width*.5+4,(top-s.origin.y)*.5+4,1]);
   for(let j=0;j<5;j++)m.beam('#ad91b4',v(left-1,cy-2+j,back-.22),v(right+1,cy-2+j,back-.22),.055);
+  for(const side of [-1,1]){
+    m.add(G.round,'#aa86b6',[cx+side*(width*.5+1.2),cy+1,back-.08],[2,(top-s.origin.y)*.4,.18]);
+    m.add(G.round,'#dfb7cd',[cx+side*(width*.5+.6),cy+5,back+.08],[1.1,6,.12],[0,0,side*.13]);
+    m.add(G.box,GOLD,[cx+side*(width*.5+1.2),cy-1,back+.14],[2.5,.23,.1]);
+  }
   for(let j=0;j<14;j++) {
     const a=j*Math.PI/7;
     m.add(G.rock,CANDY[j%4],[cx+Math.sin(a)*(width*.5+3.8),cy+Math.cos(a)*((top-s.origin.y)*.5+3.8),back+.15],[.38,.38,.18],[],true,j*.7);
@@ -267,14 +330,22 @@ function windupWonderland(s:MiniSection,b:VariantBuilder) {
   key.add(G.box,'#ecc797',[0,0,0],[2.6,.28,.25]);
   for(const side of [-1,1])key.add(G.ring,'#ecc797',[side*.58,.55,0],[.55,.6,.55]);
   const keys=b.pool(key,1);
+  const piano=new WorldModel();piano.add(G.box,CREAM,[0,0,0],[.72,.16,1.25]);piano.add(G.box,INK,[.24,.14,-.33],[.25,.16,.55]);
+  const keyboard=b.pool(piano,20),keyStops=Array.from({length:20},(_,i)=>s.start+s.length*(i+.5)/20);
+  for(const mesh of keyboard)mesh.name='piano-keyboard';
   b.animate((time,distance,reduced)=>{
     const on=arrival(distance,(s.start+s.end)/2,s.length*.55),progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1);
-    b.place(fairy,0,cx,fairyY,back+1,1.9,0,reduced?0:progress*Math.PI*4);
+    const beat=reduced?0:Math.sin(progress*Math.PI*16)*on;
+    b.place(fairy,0,cx,fairyY+Math.max(0,beat)*.16,back+1,1.9,0,reduced?0:progress*Math.PI*4,beat*.035);
     b.place(keys,0,right+6.8,3.6,back+5,1,reduced?0:progress*Math.PI*8,Math.PI/2,0);
     for(let j=0;j<16;j++) {
       const a=j*Math.PI*2/16,rx=width*.5+2.6,ry=(top-s.origin.y)*.5+2.8;
-      const bounce=reduced?0:Math.sin(time*1.8+j)*.2+on*Math.max(0,Math.sin(time*2-j*.55))*.65;
-      b.place(notes,j,cx+Math.sin(a)*rx,cy+Math.cos(a)*ry+bounce,back+1.3,.65+(j%3)*.1,0,0,-.12*Math.sin(a));
+      const play=reduced?0:arrival(distance,s.start+s.length*(j+.5)/16,8),bounce=reduced?0:Math.sin(time*1.8+j)*.16+play*1.15;
+      b.place(notes,j,cx+Math.sin(a)*rx,cy+Math.cos(a)*ry+bounce,back+1.3,.65+(j%3)*.1+play*.35,0,0,-.12*Math.sin(a));
+    }
+    for(let i=0;i<20;i++){
+      const press=reduced?0:arrival(distance,keyStops[i],3.5);
+      b.place(keyboard,i,cx+(i-9.5)*(width+3)/20,2.36-press*.12,back+5.6,1,press*.08);
     }
   });
 }
@@ -287,22 +358,26 @@ function teacupModel() {
   m.add(G.ring,'#edcfa3',[.94,.08,0],[.4,.47,.4]);
   m.add(G.pole,'#c5e3db',[0,-.51,0],[1.03,.12,1.03]);
   // A little rabbit sits inside every cup, with ears visible above the rim.
-  m.add(G.round,CREAM,[0,.67,0],[.42,.4,.36]);
-  for(const side of [-1,1])m.add(G.round,CREAM,[side*.2,1.17,0],[.13,.4,.14],[0,0,-side*.13]);
-  face(m,0,.72,.35,.48);
+  m.add(G.round,CREAM,[0,.76,0],[.49,.46,.41]);
+  for(const side of [-1,1]){
+    m.add(G.round,CREAM,[side*.23,1.34,0],[.15,.49,.15],[0,0,-side*.13]);
+    m.add(G.rock,'#eaa6c6',[side*.23,1.36,.13],[.06,.3,.035],[0,0,-side*.13]);
+  }
+  face(m,0,.81,.41,.57);
   for(let j=0;j<6;j++){const a=j*Math.PI/3;m.add(G.rock,CANDY[j%4],[Math.sin(a)*.76,.06,Math.cos(a)*.76],[.11,.18,.07],[0,a,0]);}
   return m;
 }
 
 function teapot(m:WorldModel,y:number,radius:number) {
   const size=radius/3.15;
-  m.add(G.round,'#aee0d7',[0,y,0],[1.35*size,1.25*size,1.1*size]);
-  m.add(G.cone,'#edd5a3',[0,y+1.15*size,0],[.95*size,.45*size,.82*size]);
-  m.add(G.round,'#ecabd0',[0,y+1.53*size,0],[.23*size,.23*size,.23*size]);
+  m.add(G.round,'#aee0d7',[0,y,0],[1.5*size,1.48*size,1.25*size]);
+  m.add(G.cone,'#edd5a3',[0,y+1.37*size,0],[1.08*size,.48*size,.93*size]);
+  m.add(G.round,'#ecabd0',[0,y+1.77*size,0],[.26*size,.26*size,.26*size]);
   m.add(G.ring,'#efd3a0',[-1.35*size,y,0],[.95*size,1.05*size,.8*size]);
   const spout=[v(.95*size,y-.1*size,0),v(1.65*size,y+.25*size,0),v(1.95*size,y+.85*size,0),v(2.55*size,y+1.15*size,0)];
   for(let i=1;i<spout.length;i++)m.beam('#bce5dc',spout[i-1],spout[i],(.43-i*.07)*size);
-  face(m,0,y,1.03*size,.92*size);
+  face(m,0,y,1.23*size,1.06*size);face(m,0,y,-1.23*size,1.06*size);
+  for(const side of [-1,1])m.add(G.rock,'#edb4cb',[side*.65*size,y-.77*size,1.05*size],[.22*size,.22*size,.06*size]);
 }
 
 function teaParty(s:MiniSection,b:VariantBuilder) {
@@ -313,12 +388,14 @@ function teaParty(s:MiniSection,b:VariantBuilder) {
   m.add(G.pole,'#d9bd90',[0,(potY+2)/2,0],[r*.2,potY-2,r*.2]);
   for(let level=0;level<3;level++) {
     const y=floors[level];
+    const cake=new T.CylinderGeometry(r*.93,r*.88,.9,16);
+    m.add(cake,level%2?'#c698bf':'#e9c7a3',[0,y-.43,0]);cake.dispose();
     m.add(G.pole,'#a3d7d1',[0,y,0],[r*.97,.38,r*.97]);
     m.add(G.pole,CREAM,[0,y+.24,0],[r*.89,.13,r*.89]);
     m.add(G.ring,GOLD,[0,y+.13,0],[r*.91,r*.91,r*.91],[Math.PI/2,0,0]);
     for(let j=0;j<12;j++) {
       const a=j*Math.PI/6;
-      m.add(G.round,CANDY[(j+level)%4],[Math.sin(a)*r*.89,y-.19,Math.cos(a)*r*.89],[.25,.3,.25]);
+      m.add(G.rock,CREAM,[Math.sin(a)*r*.89,y-.45,Math.cos(a)*r*.89],[.29,.47,.26]);
       m.add(G.rock,GOLD,[Math.sin(a)*r*.93,y+.28,Math.cos(a)*r*.93],[.12,.12,.12],[],true,j*.4+level);
     }
     m.add(G.round,CANDY[level],[0,y+step*.48,0],[r*.28,step*.28,r*.28]);
@@ -326,20 +403,37 @@ function teaParty(s:MiniSection,b:VariantBuilder) {
       const a=j*Math.PI/3;
       m.add(G.box,'#eac5a2',[Math.sin(a)*r*.2,y+step*.48,Math.cos(a)*r*.2],[.13,step*.5,.13],[0,a,.15]);
     }
+    // Tall gilded spoons form a colonnade between the iced china tiers.
+    for(let j=0;j<4;j++) {
+      const a=j*Math.PI/2+Math.PI/4,x=Math.sin(a)*r*.82,z=Math.cos(a)*r*.82,top=y+step-1.1;
+      m.add(G.pole,'#e7c896',[x,(y+top)/2,z],[.07,top-y,.07]);
+      m.add(G.round,'#f2dba8',[x,top-.25,z],[.24,.48,.09],[0,a,0]);
+      for(let k=1;k<6;k++) {
+        const angle=a+k/6*Math.PI/2;
+        m.add(G.rock,CANDY[(level+j)%4],[Math.sin(angle)*r*.84,top-.45-Math.sin(k/6*Math.PI)*.3,Math.cos(angle)*r*.84],[.21,.28,.12],[0,angle,0]);
+      }
+    }
   }
-  teapot(m,potY,r);b.batch(m,rotor);
+  const crown=new T.CylinderGeometry(r*.34,r*.9,1,16);
+  m.add(crown,'#ecc3d7',[0,potY-2.05,0]);crown.dispose();
+  m.add(G.ring,GOLD,[0,potY-2.52,0],[r*.86,r*.86,r*.86],[Math.PI/2,0,0]);
+  b.batch(m,rotor);
+  const pouringPot=new T.Group(),pot=new WorldModel();pouringPot.name='pouring-teapot';pouringPot.position.y=potY;rotor.add(pouringPot);teapot(pot,0,r);b.batch(pot,pouringPot);
   const cups=b.pool(teacupModel(),12,rotor),steam=new WorldModel();
   steam.add(G.rock,'#d9e7dd',[0,0,0],[.3,.42,.3],[],true);const steamPool=b.pool(steam,10,rotor),motion=new CarouselMotion(s);
+  for(const mesh of cups)mesh.name='toasting-teacups';
+  const greetings=[.2,.42,.65].map(t=>at(s,t));
   b.animate((time,distance,reduced)=>{
     rotor.rotation.y=motion.update(time,distance,reduced);
+    pouringPot.rotation.z=reduced?0:-arrival(distance,at(s,.7),16)*.16;
     for(let i=0;i<12;i++) {
-      const level=Math.floor(i/4),a=(i%4)*Math.PI/2+level*.4,spin=reduced?0:rotor.rotation.y*.7;
-      b.place(cups,i,Math.sin(a)*r*.59,floors[level]+.72+(reduced?0:Math.sin(rotor.rotation.y*2+a)*.12),Math.cos(a)*r*.59,
-        Math.min(.8,r*.25),0,a+spin);
+      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,spin=reduced?0:rotor.rotation.y*.7,toast=reduced?0:arrival(distance,greetings[level]+i%4,11);
+      b.place(cups,i,Math.sin(a)*r*.61,floors[level]+.81+(reduced?0:Math.sin(rotor.rotation.y*2+a)*.1)+toast*.4,Math.cos(a)*r*.61,
+        Math.min(.94,r*.27),0,a+spin,toast*.08*Math.sin(a));
     }
     for(let i=0;i<10;i++) {
       const rise=reduced?i*.26:(time*.65+i*.28)%2.8;
-      b.place(steamPool,i,Math.sin(rise*2.4)*.38,potY+r/3.15*1.7+rise,Math.cos(rise*2.4)*.2,(1-rise/3.4)*.9);
+      b.place(steamPool,i,Math.sin(rise*2.4)*.38-Math.sin(pouringPot.rotation.z)*r/3.15*1.9,potY+r/3.15*1.9+rise,Math.cos(rise*2.4)*.2,(1-rise/3.4)*.9);
     }
   });
 }
@@ -347,7 +441,7 @@ function teaParty(s:MiniSection,b:VariantBuilder) {
 function saucerModel() {
   const m=new WorldModel();m.add(G.pole,'#d4c1e6',[0,0,0],[.92,.24,.92]);
   m.add(G.round,'#b1dcda',[0,.29,0],[.6,.48,.6]);
-  m.add(G.round,'#b3dea8',[0,.46,.15],[.29,.3,.24]);face(m,0,.49,.4,.4);
+  m.add(G.round,'#b3dea8',[0,.56,.15],[.36,.36,.29]);face(m,0,.59,.46,.5);
   for(const side of [-1,1]) {
     m.beam('#b3dea8',v(side*.17,.63,.1),v(side*.32,.95,.1),.045);
     m.add(G.rock,GOLD,[side*.32,.98,.1],[.1,.1,.1],[],true);
@@ -364,32 +458,43 @@ function planetParade(s:MiniSection,b:VariantBuilder) {
   m.add(G.pole,'#92bac8',[0,(crown+2)/2,0],[.16,crown-2,.16]);
   for(let level=0;level<3;level++) {
     const y=floors[level];
+    const hull=new T.CylinderGeometry(r*.93,r*.64,.95,16);
+    m.add(hull,level%2?'#9695c3':'#8aadc0',[0,y-.43,0]);hull.dispose();
+    m.add(G.pole,'#d2d5e4',[0,y+.03,0],[r*.89,.13,r*.89]);
     m.add(G.ring,'#accfe0',[0,y,0],[r*.91,r*.91,r*.91],[Math.PI/2,0,0]);
     m.add(G.ring,CANDY[level],[0,y+.32,0],[r*.77,r*.77,r*.77],[Math.PI/2,0,0],true);
-    m.add(G.round,CANDY[(level+1)%4],[0,y+2.45,0],[r*.35,r*.35,r*.35]);
-    face(m,0,y+2.5,r*.35,.6);
-    m.add(G.ring,GOLD,[0,y+2.45,0],[r*.51,r*.51,r*.51],[Math.PI*.37,0,.2*level]);
+    m.add(G.round,CANDY[(level+1)%4],[0,y+3.45,0],[r*.43,r*.43,r*.43]);
+    face(m,0,y+3.5,r*.425,.85);
+    m.add(G.ring,GOLD,[0,y+3.45,0],[r*.57,r*.57,r*.57],[Math.PI*.56,0,.1*level]);
+    m.add(G.ring,'#accddd',[0,y+step-1,0],[r*.89,r*.89,r*.89],[Math.PI/2,0,0]);
     for(let j=0;j<8;j++) {
       const a=j*Math.PI/4;
       m.beam('#8daabb',v(0,y,0),v(Math.sin(a)*r*.9,y,Math.cos(a)*r*.9),.085);
       m.add(G.rock,GOLD,[Math.sin(a)*r*.85,y+.13,Math.cos(a)*r*.85],[.13,.13,.13],[],true,j*.6+level);
-      if(j%2===0)m.beam('#b0bdde',v(Math.sin(a)*r*.82,y,Math.cos(a)*r*.82),v(Math.sin(a+.3)*r*.82,y+step-.5,Math.cos(a+.3)*r*.82),.06);
+      m.add(G.box,CANDY[(j+level)%4],[Math.sin(a)*r*.85,y-.36,Math.cos(a)*r*.85],[.37,.23,.06],[0,a,0],true,j*.4);
+      if(j%2===1){
+        m.beam('#b0bdde',v(Math.sin(a)*r*.82,y,Math.cos(a)*r*.82),v(Math.sin(a)*r*.82,y+step-1,Math.cos(a)*r*.82),.12);
+        m.add(G.cone,'#dad6e8',[Math.sin(a)*r*.82,y+step-1.65,Math.cos(a)*r*.82],[.23,1.1,.23]);
+      }
     }
   }
-  m.add(G.round,'#f0cf97',[0,crown,0],[r*.49,r*.49,r*.49],[],true);face(m,0,crown,r*.48,.88);
+  m.add(G.round,'#f0cf97',[0,crown,0],[r*.59,r*.59,r*.59],[],true);face(m,0,crown,r*.585,1.1);
+  for(const dy of [-.7,.7])m.add(G.ring,'#eabb95',[0,crown+dy,0],[r*.52,r*.52,r*.52],[Math.PI/2,0,0]);
   m.add(G.ring,'#cfb7e9',[0,crown,0],[r*.91,r*.91,r*.91],[Math.PI*.35,0,.2],true);
   star(m,0,crown+r*.58+1,0,.65,GOLD);b.batch(m,rotor);
   const ufos=b.pool(saucerModel(),12,rotor),comet=new WorldModel();
-  comet.add(G.rock,CREAM,[0,0,0],[.19,.19,.19],[],true);const comets=b.pool(comet,24,rotor),motion=new CarouselMotion(s);
+  comet.add(G.cone,CREAM,[0,0,0],[.16,.42,.08],[0,0,-Math.PI/2],true);const comets=b.pool(comet,24,rotor),motion=new CarouselMotion(s);
+  for(const mesh of ufos)mesh.name='greeting-saucers';
+  const greetings=[.2,.42,.65].map(t=>at(s,t));
   b.animate((time,distance,reduced)=>{
     rotor.rotation.y=motion.update(time,distance,reduced);
     for(let i=0;i<12;i++) {
-      const level=Math.floor(i/4),a=(i%4)*Math.PI/2+level*.4,bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.22;
-      b.place(ufos,i,Math.sin(a)*r*.65,floors[level]+.8+bob,Math.cos(a)*r*.65,Math.min(.86,r*.26),0,a);
+      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14+arrival(distance,greetings[level]+i%4,12)*.8;
+      b.place(ufos,i,Math.sin(a)*r*.64,floors[level]+.85+bob,Math.cos(a)*r*.64,Math.min(1.06,r*.3),0,a,bob*.05);
     }
     for(let i=0;i<24;i++) {
       const level=Math.floor(i/8),a=(i%8)*.14+(reduced?0:time*.65)+level*1.8;
-      b.place(comets,i,Math.sin(a)*r*.83,floors[level]+2.2+Math.cos(a)*.3,Math.cos(a)*r*.83,1-(i%8)*.08);
+      b.place(comets,i,Math.sin(a)*r*.87,floors[level]+step-1,Math.cos(a)*r*.87,1-(i%8)*.055,0,a);
     }
   });
 }

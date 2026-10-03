@@ -24,7 +24,7 @@ original. Selection does not alter gameplay or merge anything.
 
 | Piece | A — first proposal | B — new direction | C — new direction |
 | --- | --- | --- | --- |
-| Sheep Shuffle | Meadow Flower Show: terraced farm, hay cart, flowers and butterflies | Bouncy Baa Circus: sheep spring from trampolines through star hoops | Woolly Jumper Factory: a giant loom, knitting needles, reels and a long scarf |
+| Sheep Shuffle | Meadow Flower Show: terraced farm, hay cart, flowers and butterflies | Bouncy Baa Circus: sheep spring from trampolines through star hoops | Woolly Scarf Factory: a giant loom, knitting needles, reels and a long scarf |
 | Lily Pad Bridge | Lily Pad Regatta: flowering pond, boats and waterwheel | Frog Pond Orchestra: frog musicians, bobbing conductor and musical notes | Rubber Duck Wash: a giant bath, copper tap, ducks and floating foam |
 | Windmill Loop | Storybook Flour Mill: lattice sails, detailed facade, gears and grain | Cuckoo Clock Loop: turning hands, pendulum, opening doors and a cuckoo | Sunflower Honey Factory: giant sunflower, circling bees and jars filling with honey |
 | Mountain Pass | Alpine Goat Chorus: snow and crystal gorge with reacting goats | Yodel Peak Orchestra: alphorns, pumping bellows and floating notes | Snowball Switchback: rolling snowballs, a mountain chute and return lift |
@@ -97,3 +97,112 @@ resolution cap. All 48 cases completed without browser errors:
 These warmed samples show no sustained frame-rate regression from the new
 alternatives on this Mac. Run `npm test`, `npm run build` and the browser
 comparisons again when selecting or integrating proposals into gameplay.
+
+## Second refinement pass
+
+A, B and C have all been refined individually. This pass concentrates on larger
+readable characters, coherent mechanisms and a stronger response to the train,
+with the same fixed-batch rendering approach. The workshop adds **Closer look**
+to frame the attractions without the long entry/exit track, and the pumpkin
+portals use a more frontal initial view so their faces and stages are legible.
+
+Halloween changes:
+
+- **Pumpkin Drumline:** fan-shaped bandstands, marching-band ruffles, braided
+  drums, character feet and striped mallets.
+- **Potion Pop Laboratory:** a continuous copper pipe across the hills,
+  readable pressure gauges with reacting needles, riveted feet and staggered
+  cork launches.
+- **Ghost Laundry Day:** scalloped machines, socks and pegs, with ghosts that
+  launch continuously from the drum and settle into empty spaces on the line.
+- **Candy Castle Portal:** biscuit turrets, battlements, shield windows,
+  candy-cane sentries and wrapped sweets circling the lollipops before impact.
+- **Monster Munch:** large eyebrows, waving articulated paws and a short candy
+  burp after swallowing the train.
+- **Haunted Puppet Theatre:** richer stage architecture and separate arms and
+  legs, letting three marionettes wave and kick without blocking the railway.
+- **Broomstick Academy:** glowing arched dormer windows, kitten tails and
+  ribbons, plus a sparkling trail behind each broom.
+- **Potion Rocket Tower:** connected copper pipework, moving pressure needles,
+  a stronger rocket launch and a bounded bubble-exhaust plume.
+- **Moon Moth Conservatory:** larger leaves, three sequentially blooming flower
+  crowns and patterned moths with independently flapping wings.
+
+Meadow changes:
+
+- **Meadow Flower Show:** waving articulated flowers make an audience for the
+  escaping sheep.
+- **Bouncy Baa Circus:** clearer tent detailing and trampoline beds that compress
+  with the sheep's feet before the bounce.
+- **Woolly Scarf Factory:** visible knitted stitches, a travelling shuttle and a
+  real output roller for the scarf.
+- **Lily Pad Regatta:** duck captains, correctly steered hulls and trailing wakes.
+- **Frog Pond Orchestra:** distinct conductor, brass and percussion players,
+  with moving instruments and mallets meeting the keys.
+- **Rubber Duck Wash:** independently flapping wings and more animated toy ducks.
+- **Storybook Flour Mill:** meshing gears drive a visible flour-bag conveyor.
+- **Cuckoo Clock Loop:** shaped wooden clock case, a proper hand ratio and staged
+  opening doors, bird emergence and retreat.
+- **Sunflower Honey Factory:** winged bees and an indexed line of open jars that
+  stop under the honey outlet before moving on.
+
+Mountain changes:
+
+- **Alpine Goat Chorus:** stronger snowy rock ledges and articulated goat
+  greetings, with clearer footing in the gorge.
+- **Yodel Peak Orchestra:** more varied mountain profiles and broad rock
+  buttresses give the instruments a convincing alpine stage.
+- **Snowball Switchback:** a substantial glacier supports the snowball chute
+  instead of leaving it hanging in space.
+- **Glowstone Ropeway:** detailed chalet structures and pulleys, richer mountain
+  rockwork and train-driven machinery.
+- **Crystal Dragon Cave:** haunches, arms, claws, armour scales, curled tail and
+  scalloped flexing wings turn the cave into a recognisable creature.
+- **Gemstone Mining Works:** jagged strata, timber galleries and roofed
+  workshops around the conveyor and drill.
+- **Waterwheel Rainbow:** bucketed wheel, more legible water flow and reacting
+  waterfall details.
+- **Rainbow Weatherworks:** pumping weather towers and a more coherent cloud
+  factory beneath the rainbow.
+- **Penguin Plunge:** a sculpted ice foundation and more expressive sliding
+  penguins support the full circuit.
+
+Carnival changes:
+
+- **Bunny Lantern Parade:** broad rainbow arches with butterfly-bunny lanterns
+  that bow and inflate as the train arrives.
+- **Rocket Rally:** orbit gates, staged countdowns and a distinct flame sequence
+  for each launch.
+- **Jellyfish Dreamway:** opening pearl clams and fish circling the jellyfish.
+- **Starlight Marquee:** a larger sun, tower fans and six train-triggered star
+  shields along the loop.
+- **Pinball Parade:** a substantial control console and comic bumper impacts.
+- **Wind-up Wonderland:** a train-played keyboard and theatrical music-box
+  curtains around the dancing fairy.
+- **Unicorn Palace:** scalloped gold arcades and twelve larger unicorns, with
+  space between them and a rearing greeting.
+- **Twirling Tea Party:** iced colonnades and a pouring teapot fill out the three
+  decks without crowding the cups.
+- **Planet Parade:** full saucer-deck pavilions and larger ships that lift off
+  from each tier.
+
+
+Final validation for this refinement: **262 tests and the production build
+pass**. The gallery passes mobile layout, saved-choice migration/persistence,
+closer-look/reset controls, tunnel cutaways and three full tours of all 36
+options with stable GPU geometry/texture counts and no browser errors.
+Cross-review additionally corrected radial flower hinges, overlapping waiting
+ghosts, wing hinge orientation, cuckoo door timing and honey retention in jars.
+
+The final 48-case 4K renderer comparison again had a **16.7 ms median frame
+interval** for every A/B/C case. P95 intervals were **17.8–18.6 ms**, with **zero
+sampled frames above 25 ms**. CPU update/render submission p95 ranged from
+3.6–4.5 ms. The viewport, resolution cap, warmup and synthetic-opponent limits
+are the same as the earlier comparison above. Raw results are in the ignored
+`output/playwright/polish2-performance.json`.
+
+A supplementary CPU-only first-tile construction check (three samples per
+piece/version with warmed primitive templates) measured 0.1–4.6 ms for the
+refined designs, including nearby scenery. This isolates geometry/actor setup;
+it excludes GPU upload and shader compilation and is not a cold-start FPS
+claim. Its local results are `output/playwright/polish2-build-cost.json`.

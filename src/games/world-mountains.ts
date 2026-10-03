@@ -50,7 +50,15 @@ export function ravineBridge(m: WorldModel, section: MiniSection) {
     previous = ends;
   }
   const { x: fx, z: fz, height: h } = ravineWaterfall(section);
-  m.add(G.rock, '#84979f', [fx, h * .4, fz - 5.5], [7, h * .68, 5]);
+  // Three irregular terraces carry the falls. Broad ledges and contrasting
+  // vertical buttresses give the gorge a readable layered silhouette.
+  for (let level = 0; level < 3; level++) {
+    const top = h * (1 - level * .24), width = 6.5 + level * 1.3, z = fz - 3.6 + level * .65;
+    m.add(G.rock, ['#849aa0', '#718f98', '#9cafab'][level], [fx - level * .25, top * .43, z], [width, top * .57, 4.1 + level * .2], [0, level * .18, 0]);
+    m.add(G.rock, '#b2c5ad', [fx - level * .25, top - .35, z], [width * .82, .62, 3.3]);
+    for (const side of [-1, 1]) m.add(G.rock, level % 2 ? '#8ba2a3' : '#a2b3ae', [fx + side * (3.2 + level), top * .5, fz - 1.2 + level * .3], [1.5, top * .47, 1.4], [0, side * .3, side * .1]);
+  }
+  m.add(G.round, '#9adbd8', [fx, h + .02, fz - 1.2], [3.5, .13, 2.2], [], true);
   // Two waterfalls land on mossy shelves before spilling into the river.
   for (const [x, y, z, height, width] of [
     [fx, h * .77, fz, h * .46, 3.2],
@@ -79,6 +87,19 @@ export function ravineBridge(m: WorldModel, section: MiniSection) {
   m.add(G.box, '#ffe5a3', [fx + 6.1, 3.3, fz + .75], [.9, .75, .12], [], true);
   m.add(G.pole, '#9d7650', [fx + 6.1, 2.7, fz + 1.6], [.2, 2, .2], [Math.PI / 2, 0, 0]);
   m.add(G.box, '#8dbaa8', [fx + 6.1, .3, fz + 2.5], [3.5, .12, 2.4]);
+  // The overshot wheel is fed from the waterfall's middle pool by a sloping
+  // timber flume, so the moving buckets have an obvious source of water.
+  const channelStart = new T.Vector3(fx + 2.2, h * .55, fz + 1.65), channelEnd = new T.Vector3(fx + 6.1, 5.02, fz + 1.65);
+  for (const side of [-1, 1]) {
+    m.beam('#a3825b', channelStart.clone().add(new T.Vector3(0, -.08, side * .52)), channelEnd.clone().add(new T.Vector3(0, -.08, side * .52)), .19);
+    m.beam('#d1b07a', channelStart.clone().add(new T.Vector3(0, .3, side * .52)), channelEnd.clone().add(new T.Vector3(0, .3, side * .52)), .12);
+  }
+  for (let j = 0; j < 5; j++) m.beam(j % 2 ? '#c4e9dd' : '#85d0cf', channelStart.clone().add(new T.Vector3(0, 0, (j - 2) * .18)), channelEnd.clone().add(new T.Vector3(0, 0, (j - 2) * .18)), .12);
+  for (let j = 0; j < 3; j++) {
+    const t = j / 2, p = channelStart.clone().lerp(channelEnd, t);
+    m.beam('#927958', new T.Vector3(p.x, .2, p.z), p.clone().add(new T.Vector3(0, -.25, 0)), .16);
+    m.add(G.box, '#d4bc8d', [p.x, p.y - .22, p.z], [.22, .18, 1.4]);
+  }
   // A softly coloured low arch hangs in the spray, behind the high railway.
   for (const [band, color] of ['#e8a39b', '#ecd49f', '#b4d4aa', '#a2d8d8', '#bac7e0'].entries()) {
     const vertices: number[] = [], radius = 6.6 - band * .32;

@@ -29,11 +29,19 @@ function lanternMascot() {
   for (const side of [-1,1]) m.add(G.pole, '#d4a5ab', [side*.28,-1.45,0], [.035,.58,.035]);
   m.add(G.box, '#a58bc1', [0,-1.8,0], [.74,.38,.6]);
   m.add(G.box, '#efd098', [0,-1.63,0], [.84,.1,.67]);
+  // Butterfly wings and ribbon tails give the whole lantern a cheerful silhouette.
+  for(const side of [-1,1]) {
+    m.add(G.round,'#f0b2d3',[side*1.04,.15,-.25],[.65,.82,.16],[0,0,-side*.45],true);
+    m.add(G.rock,'#b4e4dc',[side*1.03,-.55,-.22],[.45,.47,.15],[0,0,side*.35],true);
+    m.add(G.cone,'#e9b5d9',[side*.27,-2.18,0],[.16,.64,.055],[0,0,Math.PI-side*.12]);
+    m.add(G.rock,'#fff0c8',[side*.22,-1.42,.22],[.15,.18,.14]);
+  }
+  m.add(G.box,'#aee0d4',[0,-1.76,.32],[.18,.35,.04]);
   return m;
 }
 
 /** Low-poly unicorn with a saddle, mane, ears, hooves and a happy face on each
- * side. Eighteen riders reuse this one geometry and one material. */
+ * side. Twelve riders reuse this one geometry and one material. */
 function unicorn() {
   const m = new WorldModel();
   m.add(G.round, '#fff0cf', [0,0,0], [.83,.43,.34]);
@@ -88,12 +96,25 @@ function spinningPalace(radius:number, floors:number[], ceiling:number) {
     for(let j=0;j<6;j++) {
       const a=j*Math.PI/3;
       m.add(G.box, '#eed49a', [Math.sin(a)*radius*.43,y+.29,Math.cos(a)*radius*.43], [.16,.05,radius*.85], [0,a,0]);
-      const horseAngle=a+level*Math.PI/6;
-      m.add(G.pole,'#eacd98',[Math.sin(horseAngle)*radius*.62,(y+top)/2,Math.cos(horseAngle)*radius*.62],[.035,top-y-.5,.035]);
       // Inlaid mirrors on the centre drum give the tall interior a rich core.
       const core=radius*.225,px=Math.sin(a)*core,pz=Math.cos(a)*core;
       m.add(G.box,'#edd298',[px,y+(top-y)*.5,pz],[radius*.27,(top-y)*.64,.12],[0,a,0]);
       m.add(G.box,level%2?'#bcdbe0':'#d9c5e6',[px+Math.sin(a)*.08,y+(top-y)*.5,pz+Math.cos(a)*.08],[radius*.2,(top-y)*.55,.07],[0,a,0]);
+    }
+    for(let j=0;j<4;j++) {
+      const a=j*Math.PI/2+level*Math.PI/4;
+      m.add(G.pole,'#eacd98',[Math.sin(a)*radius*.6,(y+top)/2,Math.cos(a)*radius*.6],[.05,top-y-.5,.05]);
+    }
+    // Gold scalloped arches form an arcade above the ponies, with jewel pendants.
+    for(let j=0;j<6;j++) {
+      const a=j*Math.PI/3,b=a+Math.PI/3;
+      let previous:T.Vector3|undefined;
+      for(let k=0;k<=6;k++) {
+        const t=k/6,angle=a+(b-a)*t,p=new T.Vector3(Math.sin(angle)*radius*.87,top-2.1+Math.sin(t*Math.PI)*.65,Math.cos(angle)*radius*.87);
+        if(previous)m.beam('#f4d898',previous,p,.055);previous=p;
+      }
+      const angle=(a+b)/2;
+      m.add(G.rock,COLORS[(j+level)%4],[Math.sin(angle)*radius*.88,top-2.3,Math.cos(angle)*radius*.88],[.2,.36,.2],[],true,j*.5);
     }
   }
   for (let j=0;j<12;j++) {
@@ -138,17 +159,19 @@ class CarnivalPieceAnimation implements PieceAnimation {
     if(section.kind==='carouselhelix') {
       const center=carouselCenter(section),radius=carouselRideRadius(section),ceiling=section.origin.y+section.amplitude*.84;
       const floors=[2,2+(ceiling-2)/3,2+(ceiling-2)*2/3], rotor=new T.Group();
-      rotor.position.set(center.x,0,center.z);this.group.add(rotor);
+      rotor.name='carousel-rotor';rotor.position.set(center.x,0,center.z);this.group.add(rotor);
       batch(spinningPalace(radius,floors,ceiling),rotor);
-      const animals=pool(unicorn(),18,rotor),animalRadius=radius*.62;
-      const motion=new CarouselMotion(section),size=Math.min(1.1,radius*.31);
+      const animals=pool(unicorn(),12,rotor),animalRadius=radius*.6;
+      for(const mesh of animals)mesh.name='greeting-unicorns';
+      const motion=new CarouselMotion(section),size=Math.min(1.13,radius*.34);
+      const greetings=[.2,.42,.65].map(t=>section.start+section.distances[Math.round(section.resolution*t)]);
       this.tick=(time,distance,reduced)=>{
         rotor.rotation.y=motion.update(time,distance,reduced);
-        for(let i=0;i<18;i++) {
-          const level=Math.floor(i/6),a=(i%6)*Math.PI/3+level*Math.PI/6;
-          const bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.35;
+        for(let i=0;i<12;i++) {
+          const level=Math.floor(i/4),a=(i%4)*Math.PI/2+level*Math.PI/4,gap=(distance-greetings[level]-(i%4)*1.3)/11;
+          const greeting=reduced?0:Math.exp(-gap*gap),bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.28+greeting*.32;
           this.dummy.position.set(Math.sin(a)*animalRadius,floors[level]+1.65+bob,Math.cos(a)*animalRadius);
-          this.dummy.rotation.set(0,a,0);this.dummy.scale.setScalar(size);place(animals,i);
+          this.dummy.rotation.set(0,a,greeting*.13);this.dummy.scale.setScalar(size);place(animals,i);
         }
       };
     } else if(section.kind==='lanternrun') {
@@ -158,23 +181,30 @@ class CarnivalPieceAnimation implements PieceAnimation {
       });
       this.tick=(time,distance,reduced)=>{
         for(let i=0;i<7;i++) {
-          const stop=stops[i],arrival=Math.exp(-(((distance-stop.distance)/10)**2)),bob=reduced?0:Math.sin(time*1.5+i)*.16+arrival*.65;
-          this.dummy.position.copy(stop.position);this.dummy.position.y+=8.05+bob;
-          this.dummy.rotation.set(0,Math.sin(i*.8)*.35,reduced?0:Math.sin(time*1.8+i)*(.045+arrival*.12));
-          this.dummy.scale.setScalar(.83);place(meshes,i);
+          const stop=stops[i],arrival=Math.exp(-(((distance-stop.distance)/10)**2)),bob=reduced?0:Math.sin(time*1.5+i)*.16+arrival*.85;
+          this.dummy.position.copy(stop.position);this.dummy.position.y+=10+bob;
+          this.dummy.rotation.set(reduced?0:-arrival*.13,Math.sin(i*.8)*.35,reduced?0:Math.sin(time*1.8+i)*(.045+arrival*.12));
+          const size=.98+(reduced?0:arrival*.09);this.dummy.scale.set(size,size*(reduced?1:1+arrival*.08),size);place(meshes,i);
         }
       };
     } else {
       const m=new WorldModel();star(m,0,0,0,.62,'#ffe3a2');
       const meshes=pool(m,12),top=section.frames[Math.round(section.resolution/2)].position;
       const x=top.x-section.origin.x,y=top.y+5.8,z=top.z-section.origin.z;
+      const cheers=Array.from({length:6},(_,i)=>{
+        const stop=section.start+section.length*(.08+i*.168),f=section.sample(stop);
+        return {stop,p:f.position.clone().addScaledVector(f.up,-3.1).addScaledVector(f.right,2.2).sub(new T.Vector3(section.origin.x,0,section.origin.z))};
+      });
       this.tick=(time,distance,reduced)=>{
         const progress=T.MathUtils.clamp((distance-section.start)/section.length,0,1);
         const cheer=Math.sin(progress*Math.PI),spin=reduced?0:time*.25+progress*Math.PI;
-        for(let i=0;i<12;i++) {
-          const a=i*Math.PI/6+spin,r=3.15+cheer*.5;
+        for(let i=0;i<6;i++) {
+          const a=i*Math.PI/3+spin,r=3.45+cheer*.12;
           this.dummy.position.set(x+Math.sin(a)*r,y+Math.cos(a)*r,z+.15);
           this.dummy.rotation.set(0,0,-a);this.dummy.scale.setScalar(.7+cheer*.25);place(meshes,i);
+          const marker=cheers[i],gap=(distance-marker.stop)/8,pulse=Math.exp(-gap*gap);
+          this.dummy.position.copy(marker.p);this.dummy.rotation.set(0,0,reduced?0:pulse*Math.PI);
+          this.dummy.scale.setScalar(.9+(reduced?0:pulse*.85));place(meshes,i+6);
         }
       };
     }

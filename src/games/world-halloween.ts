@@ -37,6 +37,18 @@ export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacem
       }
       for(const eye of [-1,1])m.add(G.round,'#4e4563',[x+eye*.34,top+.7,dz+1.2],[.1,.15,.08]);
       m.add(G.round,'#724d79',[x,top+.36,dz+1.24],[.2,.08,.06]);
+      // Marching-band uniforms: a ruffled balcony, gold braiding and little
+      // feet turn each drum into a character rather than a floating cylinder.
+      for(let j=0;j<8;j++){const a=j*Math.PI/4;m.add(G.cone,j%2?'#f0b5d0':'#c5d998',[x+Math.sin(a)*1.65,top-.75,dz+Math.cos(a)*1.65],[.38,1,.38],[0,0,Math.PI]);}
+      for(const cheek of [-1,1]){
+        m.add(G.round,'#e79ac0',[x+cheek*.76,top+.46,dz+1.07],[.24,.16,.1]);
+        m.add(G.box,'#654c7b',[x+cheek*.32,top+1,dz+1.17],[.4,.09,.08],[0,0,cheek*.17]);
+        m.add(G.round,'#e6c787',[x+cheek*.6,top-.27,dz+1.45],[.37,.16,.6]);
+      }
+      m.add(G.box,'#c195d2',[x,top+1.18,dz-1],[.45,.25,.13]);
+      // A broad fan-shaped shell behind each drum reads as a tiny bandstand.
+      for(let j=0;j<5;j++){const a=(j-2)*.33;m.add(G.box,j%2?'#e9b077':'#bea2d4',[x+Math.sin(a)*1.8,top+2.25+Math.cos(a)*.25,dz-1.6],[.58,2.1,.18],[0,0,-a]);}
+
     }
     m.add(G.pole,'#a99a78',[x-2,1.5,z+1],[.1,3,.1]);
     m.add(G.box,'#f6cd7a',[x-1.6,2.5,z+1],[1.5,.75,.12]);
@@ -55,10 +67,22 @@ export function pumpkinPortalFrame(m:WorldModel,section:MiniSection){
   const f=section.sample(section.start+section.length/2);
   const place=(x:number,y:number,z:number)=>new T.Vector3(x,y,z).applyQuaternion(f.rotation).add(f.position).sub(new T.Vector3(section.origin.x,0,section.origin.z));
   const rotation=new T.Euler().setFromQuaternion(f.rotation);
+  const diskRotation=new T.Euler().setFromQuaternion(f.rotation.clone().multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),Math.PI/2)));
   for(const side of [-1,1]){
     for(let j=0;j<9;j++)m.add(G.pole,j%2?'#c4e69b':'#f0b8d2',place(side*(5.7+j*.045),j*.8-.1,0).toArray(),[.72,.83,.72],[rotation.x,rotation.y,rotation.z]);
     m.add(G.cone,'#a387c2',place(side*6.1,7.7,0).toArray(),[1.25,2.1,1.25],[rotation.x,rotation.y,rotation.z]);
     m.add(G.round,'#d6ff96',place(side*6.1,8.85,0).toArray(),[.3,.3,.3],[],true,side+2);
+    // Biscuit turrets and candy-cane sentries form a proper sweet-shop castle.
+    m.add(G.box,'#cfaa84',place(side*7,-.5,0).toArray(),[3.8,.8,4],[rotation.x,rotation.y,rotation.z]);
+    m.add(G.box,'#e9c88f',place(side*7.2,2.8,-.4).toArray(),[2.2,6,2.7],[rotation.x,rotation.y,rotation.z]);
+    for(let j=0;j<3;j++)m.add(G.box,'#f5dfae',place(side*7.2+(j-1)*.76,6.05,.9).toArray(),[.55,.75,.6],[rotation.x,rotation.y,rotation.z]);
+    for(let j=0;j<4;j++)m.add(G.box,j%2?'#d59dca':'#ceeba7',place(side*8.5,j*.6+1,2).toArray(),[.2,.6,.2],[rotation.x,rotation.y,rotation.z]);
+    const candy=place(side*8.5,4.45,2);m.add(G.pole,'#f2b1cf',candy.toArray(),[1.25,.24,1.25],[diskRotation.x,diskRotation.y,diskRotation.z]);
+    m.add(G.ring,'#f8e9b9',place(side*8.5,4.45,2.16).toArray(),[.85,.85,.85],[rotation.x,rotation.y,rotation.z]);
+    m.add(G.round,'#d4f1ac',place(side*8.5,4.45,2.25).toArray(),[.44,.44,.18],[],true);
+    m.add(G.box,'#a17db9',place(side*7.2,3.7,1.03).toArray(),[1,1.4,.12],[rotation.x,rotation.y,rotation.z]);
+    m.add(G.round,'#efdaa2',place(side*7.2,3.8,1.13).toArray(),[.34,.45,.09],[],true);
+
   }
   let previous:T.Vector3|undefined;
   for(let i=0;i<=20;i++){
@@ -128,6 +152,18 @@ export function witchHat(m:WorldModel,section:MiniSection,place:PumpkinPlacement
   m.add(G.pole,'#d59857',[x,3.3,z],[radius-2.25,.9,radius-2.25]);
   m.add(G.box,'#ffd98a',[x,3.3,z+radius-2.17],[1.3,1.15,.1],[],true);
   m.add(G.box,'#8a6592',[x,3.3,z+radius-2.05],[.75,.66,.12]);
+  // Arched dormer windows make the hat an inhabited wizard school. They sit
+  // on its tapered surface, safely inside the railway's spiral.
+  for(let j=0;j<4;j++){
+    const a=j*Math.PI/2,y=height*.45+1.6,r=(radius-2)*.55;
+    const px=x+Math.sin(a)*(r+.12),pz=z+Math.cos(a)*(r+.12);
+    m.add(G.box,'#76578b',[px,y,pz],[1.35,2.2,.35],[0,a,0]);
+    m.add(G.round,'#ecd596',[px+Math.sin(a)*.21,y+.55,pz+Math.cos(a)*.21],[.55,.73,.14],[0,a,0],true);
+    m.add(G.box,'#ecd596',[px+Math.sin(a)*.21,y-.24,pz+Math.cos(a)*.21],[1.08,.95,.16],[0,a,0],true);
+    m.add(G.box,'#a87f9a',[px+Math.sin(a)*.32,y,pz+Math.cos(a)*.32],[.1,1.85,.07],[0,a,0]);
+    m.add(G.box,'#a87f9a',[px+Math.sin(a)*.32,y+.1,pz+Math.cos(a)*.32],[1.13,.1,.07],[0,a,0]);
+    m.add(G.cone,'#cbafd3',[px,y+1.7,pz],[1.1,1.3,.72],[0,a,0]);
+  }
   m.add(G.round,'#ffe1a2',[x,11,z+(radius-2)*.65],[.8,.95,.09],[],true);
   m.add(G.round,'#a387b3',[x+.35,11.2,z+(radius-2)*.65+.06],[.65,.85,.09]);
   for(let i=0;i<9;i++){

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { MiniSection } from '../src/games/mini-track';
-import { carouselCenter, carouselRideRadius, carouselRotation, carouselClimb, lanternParade, marqueeLoop } from '../src/games/world-night';
+import { carouselCenter, carouselRideRadius, carouselRotation, carouselClimb, lanternDistance, lanternParade, marqueeLoop } from '../src/games/world-night';
 import { CarouselMotion } from '../src/games/carousel-motion';
 import { createCarnivalPieceAnimation } from '../src/games/carnival-piece-animation';
 import { FairgroundLights } from '../src/games/world-lighting';
@@ -81,7 +81,7 @@ test('carousel geometry is bounded inside its drifting spiral for every generate
 
 test('carnival effects have fixed draw-call and instance budgets, shared materials, and release their geometry',()=>{
   const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
-  const cases=[['carouselhelix',3,18,carouselClimb],['lanternrun',2,14,lanternParade],['midwayloop',1,12,marqueeLoop]] as const;
+  const cases=[['carouselhelix',3,12,carouselClimb],['lanternrun',2,14,lanternParade],['midwayloop',1,12,marqueeLoop]] as const;
   for(const [kind,drawCalls,instances,decorate]of cases) {
     const s=new MiniSection(1,kind,0,new Vector3(0,4,0),kind==='midwayloop'?12:62,kind==='midwayloop'?14:24,0,1,2);
     const animation=createCarnivalPieceAnimation(s,material,lights)!;
@@ -119,6 +119,25 @@ test('cached carnival placements do not double-apply a later height-track lift',
     for(const frame of s.frames)frame.position.y+=15;
     animation.update(1,s.start+s.length*.35,false);assert.deepEqual(capture(),before);
     animation.dispose();
+  }
+  material.dispose();lights.dispose();
+});
+
+test('original carnival characters greet the train while preserving their resting poses',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),matrix=new Matrix4();
+  for(const kind of ['lanternrun','midwayloop','carouselhelix']as const) {
+    const s=new MiniSection(1,kind,100,new Vector3(80,4,2),kind==='midwayloop'?12:62,kind==='midwayloop'?14:24,0,1,2);
+    const ride=createCarnivalPieceAnimation(s,material,lights)!;
+    let actors:InstancedMesh|undefined;ride.group.traverse(o=>{if(o instanceof InstancedMesh&&!actors)actors=o});
+    assert.ok(actors);
+    const stop=kind==='lanternrun'?lanternDistance(s,0):kind==='midwayloop'?s.start+s.length*.08:s.start+s.distances[Math.round(s.resolution*.2)];
+    const i=kind==='midwayloop'?6:0;
+    ride.update(1,stop,true);actors.getMatrixAt(i,matrix);const resting=matrix.clone();
+    ride.update(1,stop,false);actors.getMatrixAt(i,matrix);
+    if(kind==='carouselhelix')assert.ok(matrix.elements[1]>0,'The unicorn lifts its forward-facing head in its greeting');
+    else assert.ok(new Vector3().setFromMatrixScale(matrix).x>new Vector3().setFromMatrixScale(resting).x,'Lanterns and cheer stars grow as the train passes');
+    if(kind==='lanternrun')assert.ok(matrix.elements[13]-resting.elements[13]>.65,'The lantern rises above its rainbow arch');
+    ride.dispose();
   }
   material.dispose();lights.dispose();
 });

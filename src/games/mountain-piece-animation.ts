@@ -17,21 +17,24 @@ function baked(model: WorldModel, material: T.Material) {
   const group = model.finish(material, material, false);
   return (group.children[0] as T.Mesh).geometry;
 }
-function goatGeometry(material: T.Material) {
+function goatGeometry(material: T.Material, head = false) {
   const m = new WorldModel();
-  m.add(G.round, '#f1ecd6', [0, .62, 0], [.68, .46, .37]);
-  m.add(G.round, '#e7e2ce', [.5, .97, 0], [.31, .4, .3]);
-  m.add(G.round, '#f8f1d9', [.69, .89, .02], [.27, .2, .25]);
-  for (const side of [-1, 1]) {
-    m.add(G.cone, '#c1a783', [.41, 1.43, side * .18], [.075, .58, .075], [0, 0, .24]);
-    m.add(G.round, '#e3ccaa', [.5, 1.08, side * .33], [.18, .09, .17]);
-    m.add(G.round, '#364e58', [.73, 1, side * .21], [.065, .073, .035]);
-    for (const x of [-.38, .39]) {
-      m.add(G.pole, '#e6ddc7', [x, .25, side * .23], [.09, .45, .09]);
-      m.add(G.box, '#7e7768', [x + .03, .065, side * .23], [.2, .13, .18]);
+  if (head) {
+    m.add(G.round, '#e7e2ce', [.5, .97, 0], [.31, .4, .3]);
+    m.add(G.round, '#f8f1d9', [.69, .89, .02], [.27, .2, .25]);
+    for (const side of [-1, 1]) {
+      m.add(G.cone, '#c1a783', [.41, 1.43, side * .18], [.075, .58, .075], [0, 0, .24]);
+      m.add(G.round, '#e3ccaa', [.5, 1.08, side * .33], [.18, .09, .17]);
+      m.add(G.round, '#364e58', [.73, 1, side * .21], [.065, .073, .035]);
     }
+    m.add(G.cone, '#f3edd9', [.67, .64, 0], [.12, .28, .12], [0, 0, Math.PI]);
+    const geometry = baked(m, material); geometry.translate(-.43, -.78, 0); return geometry;
   }
-  m.add(G.cone, '#f3edd9', [.67, .64, 0], [.12, .28, .12], [0, 0, Math.PI]);
+  m.add(G.round, '#f1ecd6', [0, .62, 0], [.68, .46, .37]);
+  for (const side of [-1, 1]) for (const x of [-.38, .39]) {
+    m.add(G.pole, '#e6ddc7', [x, .25, side * .23], [.09, .45, .09]);
+    m.add(G.box, '#7e7768', [x + .03, .065, side * .23], [.2, .13, .18]);
+  }
   m.add(G.round, '#e3d6b8', [-.69, .7, 0], [.22, .11, .11], [0, 0, -.6]);
   m.add(G.box, '#70aaa6', [.4, .71, 0], [.19, .18, .65]);
   m.add(G.round, '#e6bc64', [.44, .59, .32], [.13, .13, .1]);
@@ -49,6 +52,10 @@ function wheelGeometry(material: T.Material, radius: number, water = false) {
   for (let i = 0; i < (water ? 12 : 8); i++) {
     const a = i * Math.PI * 2 / (water ? 12 : 8);
     m.add(G.box, water ? '#779c96' : '#d6c79e', [Math.cos(a) * radius, Math.sin(a) * radius, 0], [.42, .16, .72], [0, 0, a + Math.PI / 2]);
+    if (water) {
+      for (const side of [-1, 1]) m.add(G.box, '#b79567', [Math.cos(a) * radius, Math.sin(a) * radius, side * .42], [.58, .44, .14], [0, 0, a + Math.PI / 2]);
+      m.add(G.box, '#83ada5', [Math.cos(a - .07) * (radius - .16), Math.sin(a - .07) * (radius - .16), 0], [.18, .46, .75], [0, 0, a + Math.PI / 2]);
+    }
   }
   m.add(G.pole, '#697e80', [0, 0, 0], [.22, .9, .22], [Math.PI / 2, 0, 0]);
   return baked(m, material);
@@ -85,33 +92,44 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
   let update: PieceAnimation['update'];
   if (section.kind === 'mountainpass') {
     const goats = instances(goatGeometry(material), GORGE_GOAT_STOPS.length);
+    const heads = instances(goatGeometry(material, true), GORGE_GOAT_STOPS.length);
     const sparks = instances(diamond(), GORGE_GOAT_STOPS.length * 3, lights);
     const stops = GORGE_GOAT_STOPS.map(f => ({ p: gorgeLookout(section, f), at: section.start + section.length * f }));
     for (let i = 0; i < sparks.count; i++) sparks.setColorAt(i, new T.Color(['#b8e9de', '#e9e2ae', '#b4d6eb'][i % 3]));
+    const neck = new T.Object3D(), headMatrix = new T.Matrix4(); neck.position.set(.43, .78, 0);
     update = (time, distance, reduced) => {
       for (let i = 0; i < stops.length; i++) {
         const { p, at } = stops[i], hello = mountainGreeting(distance, at);
         const bounce = reduced ? 0 : hello * Math.max(0, Math.sin(time * 4.8 + i * .7));
         put(goats, i, p.x, p.y + .15 + bounce * .72, p.z, 1.4, 0, i % 2 ? Math.PI + .3 : -.3, bounce * .12);
+        neck.rotation.set(0, reduced ? 0 : (i % 2 ? 1 : -1) * hello * .5, reduced ? 0 : hello * Math.sin(time * 3.2 + i) * .22);
+        neck.updateMatrix(); headMatrix.multiplyMatrices(dummy.matrix, neck.matrix); heads.setMatrixAt(i, headMatrix);
         for (let j = 0; j < 3; j++) {
           const a = j * 2.1 + i + (reduced ? 0 : time * .75);
           put(sparks, i * 3 + j, p.x + Math.cos(a) * 1.35, p.y + 2.1 + j * .28, p.z + Math.sin(a) * .6,
             reduced ? .05 : .035 + hello * .13, 0, a, a);
         }
       }
-      goats.instanceMatrix.needsUpdate = true; sparks.instanceMatrix.needsUpdate = true;
+      goats.instanceMatrix.needsUpdate = true; heads.instanceMatrix.needsUpdate = true; sparks.instanceMatrix.needsUpdate = true;
     };
   } else if (section.kind === 'tunnel') {
     const pulley = instances(wheelGeometry(material, 1.25), 2);
     const glints = instances(diamond(), 12, lights);
+    const bellModel = new WorldModel();
+    bellModel.add(G.pole, '#e3ba72', [0, -.45, 0], [.55, .8, .55]);
+    bellModel.add(G.ring, '#f1d596', [0, -.83, 0], [.62, .62, .62], [Math.PI / 2, 0, 0]);
+    bellModel.add(G.round, '#9b815d', [0, -.96, 0], [.14, .16, .14]);
+    bellModel.add(G.box, '#76a79f', [0, .05, 0], [.14, .85, .14]);
+    const bells = instances(baked(bellModel, material), 2);
     const frame = section.sample(section.start + section.length / 2);
     const orientation = frame.rotation.clone(), center = frame.position.clone(); center.x -= section.origin.x; center.z -= section.origin.z;
     // Cache build-time heights. The owner applies later track-lift changes once.
     const world = (p: T.Vector3) => p.applyQuaternion(orientation).add(center);
     const stations = MOUNTAIN_CABLE_STATIONS.map(p => world(new T.Vector3(...p)));
+    const bellStops = [-1, 1].map(sign => ({ p: world(new T.Vector3(4.7, 6.9, sign * 14.6)), at: section.start + section.length / 2 + sign * 14 }));
     const crystals = Array.from({ length: 12 }, (_, i) => world(new T.Vector3(i % 2 ? -2.36 : 2.36, .55 + i % 3 * .15, -12 + i * 2.15)));
     for (let i = 0; i < glints.count; i++) glints.setColorAt(i, new T.Color(i % 2 ? '#bce9e2' : '#ead7a7'));
-    const local = new T.Quaternion(), base = new T.Quaternion().setFromEuler(new T.Euler(Math.PI / 2, 0, 0));
+    const local = new T.Quaternion(), bellAxis = new T.Vector3(0, 0, 1), base = new T.Quaternion().setFromEuler(new T.Euler(Math.PI / 2, 0, 0));
     update = (time, distance, reduced) => {
       const travel = reduced ? 0 : time * .85 + tunnelCableTravel(section, distance);
       for (let i = 0; i < stations.length; i++) {
@@ -126,11 +144,16 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
         const hello = mountainGreeting(distance, at);
         put(glints, i, p.x, p.y, p.z, reduced ? .09 : .1 + hello * (.04 + .03 * Math.sin(time * 3 + i)), 0, reduced ? 0 : time * .35, .25);
       }
-      pulley.instanceMatrix.needsUpdate = true; glints.instanceMatrix.needsUpdate = true;
+      for (const [i, { p, at }] of bellStops.entries()) {
+        dummy.position.copy(p); dummy.scale.setScalar(1);
+        local.setFromAxisAngle(bellAxis, reduced ? 0 : mountainGreeting(distance, at) * Math.sin(time * 6) * .52);
+        dummy.quaternion.copy(orientation).multiply(local); dummy.updateMatrix(); bells.setMatrixAt(i, dummy.matrix);
+      }
+      pulley.instanceMatrix.needsUpdate = true; glints.instanceMatrix.needsUpdate = true; bells.instanceMatrix.needsUpdate = true;
     };
   } else {
     const wheel = instances(wheelGeometry(material, 2.15, true), 1);
-    const drops = instances(diamond(), 16, lights), glints = instances(diamond(), 10, lights);
+    const drops = instances(diamond(), 24, lights), glints = instances(diamond(), 10, lights);
     const { x, z, height } = ravineWaterfall(section), middle = section.start + section.length / 2;
     for (let i = 0; i < drops.count; i++) drops.setColorAt(i, new T.Color(i % 2 ? '#d1efeb' : '#a4dce5'));
     for (let i = 0; i < glints.count; i++) glints.setColorAt(i, new T.Color(['#efb6a6', '#eee0b3', '#c5e1b9', '#b7dfeb', '#d0c9ed'][i % 5]));
@@ -139,6 +162,11 @@ export function createMountainPieceAnimation(section: MiniSection, material: T.M
       const push = reduced ? 0 : T.MathUtils.clamp(distance - section.start, 0, section.length) * .045;
       put(wheel, 0, x + 6.1, 2.7, z + 1.65, 1, 0, 0, -clock * .42 - push);
       for (let i = 0; i < drops.count; i++) {
+        if (i >= 16) {
+          const u = (clock * .33 + (i - 16) / 8) % 1;
+          put(drops, i, x + 2.2 + u * 3.9, height * .55 * (1 - u) + 5.02 * u, z + 1.65, .13 + hello * .035, 0, 0, 0);
+          continue;
+        }
         const fall = (clock * .36 + i / 8) % 1, lower = i >= 8;
         const y = lower ? height * .54 * (1 - fall * fall) : height * (.54 + .46 * (1 - fall * fall));
         put(drops, i, x - 1.1 + (i % 4) * .84 + (lower ? .6 : 0), .15 + y, z + (lower ? 1.38 : .3), .12 + i % 3 * .04, 0, i, 0);

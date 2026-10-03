@@ -55,6 +55,13 @@ test('goat greetings respond to each train while their platforms remain outside 
   const animation = createMountainPieceAnimation(s, material, lights)!;
   const goats = meshes(animation)[0], matrix = new Matrix4(), position = new Vector3(), scale = new Vector3(), rotation = new Quaternion();
   animation.update(.32, s.start + s.length * .5, false);
+  const heads = meshes(animation)[1], relativeHead = new Matrix4(), bodyInverse = new Matrix4();
+  goats.getMatrixAt(2, bodyInverse); bodyInverse.invert(); heads.getMatrixAt(2, relativeHead); relativeHead.premultiply(bodyInverse);
+  const greetingHead = relativeHead.clone();
+  animation.update(.32, s.start - 90, false);
+  goats.getMatrixAt(2, bodyInverse); bodyInverse.invert(); heads.getMatrixAt(2, relativeHead); relativeHead.premultiply(bodyInverse);
+  assert.ok(relativeHead.elements.some((v, i) => Math.abs(v - greetingHead.elements[i]) > .05), 'Heads turn independently of the jumping bodies');
+  animation.update(.32, s.start + s.length * .5, false);
   for (let i = 0; i < goats.count; i++) {
     goats.getMatrixAt(i, matrix); matrix.decompose(position, rotation, scale);
     const worldX = s.origin.x + position.x;

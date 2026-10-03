@@ -31,8 +31,8 @@ export class VariantBuilder implements PieceAnimation {
     }
     return result;
   }
-  place(pool:InstancePool,index:number,x:number,y:number,z:number,scale=1,rx=0,ry=0,rz=0) {
-    this.dummy.position.set(x,y,z);this.dummy.scale.setScalar(scale);this.dummy.rotation.set(rx,ry,rz);this.dummy.updateMatrix();
+  place(pool:InstancePool,index:number,x:number,y:number,z:number,scale=1,rx=0,ry=0,rz=0,order:T.EulerOrder='XYZ') {
+    this.dummy.position.set(x,y,z);this.dummy.scale.setScalar(scale);this.dummy.rotation.set(rx,ry,rz,order);this.dummy.updateMatrix();
     for(const mesh of pool)mesh.setMatrixAt(index,this.dummy.matrix);
   }
   animate(tick:PieceAnimation['update']){this.tick=tick;return this;}

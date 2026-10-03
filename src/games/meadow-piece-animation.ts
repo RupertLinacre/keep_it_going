@@ -16,7 +16,6 @@ const colors=['#efb381','#91c6bb','#e8c778','#d4b3cd'];
 function flowerModel() {
   const m=new WorldModel();
   m.add(G.pole,'#779b65',[0,.84,0],[.07,1.68,.07]);
-  for(const side of [-1,1])m.add(G.rock,'#8baa6b',[side*.27,.72,0],[.36,.13,.14],[0,0,side*.48]);
   for(let i=0;i<8;i++) {
     const a=i*TAU/8;m.add(G.rock,i%2?'#fff0c5':'#f5d88b',[Math.sin(a)*.47,1.8+Math.cos(a)*.47,0],[.28,.3,.14],[0,0,-a]);
   }
@@ -26,6 +25,12 @@ function flowerModel() {
     m.add(G.rock,'#e39b78',[side*.23,1.72,.208],[.07,.047,.023]);
   }
   m.add(G.rock,'#fff2c6',[0,1.66,.233],[.09,.045,.018]);return m;
+}
+function flowerArmModel() {
+  const m=new WorldModel();
+  m.beam('#86a36b',new T.Vector3(),new T.Vector3(.54,.18,0),.055);
+  m.add(G.rock,'#94b47b',[.48,.23,0],[.37,.16,.12],[0,0,.45]);
+  m.add(G.rock,'#b7cb8e',[.67,.37,.02],[.18,.23,.08],[0,0,-.3]);return m;
 }
 function butterflyModel() {
   const m=new WorldModel();
@@ -57,7 +62,14 @@ function boatModel() {
   const sail=new T.BufferGeometry();
   sail.setAttribute('position',new T.Float32BufferAttribute([.07,.65,0,.07,1.83,0,.85,.65,0,.85,.65,0,.07,1.83,0,.07,.65,0],3));sail.computeVertexNormals();
   m.add(sail,'#fff0ca',[0,0,0]);m.add(sail,'#eda887',[-.13,.2,0],[-.66,.7,1]);sail.dispose();
-  m.add(G.round,'#efc971',[0,1.94,0],[.09,.09,.09]);return m;
+  m.add(G.round,'#efc971',[0,1.94,0],[.09,.09,.09]);
+  // A small duck captain makes the craft read as a toy boat from either bank.
+  m.add(G.round,'#f2d38a',[-.62,.51,0],[.28,.25,.23]);
+  m.add(G.round,'#ffe1a0',[-.48,.8,0],[.21,.23,.2]);
+  m.add(G.round,'#dda974',[-.24,.77,0],[.17,.06,.12]);
+  m.add(G.pole,'#efedce',[-.48,1,0],[.24,.1,.24]);
+  m.add(G.box,'#79aead',[-.41,.97,.16],[.2,.055,.13]);
+  for(const side of [-1,1])m.add(G.rock,'#605e59',[-.39,.85,side*.16],[.04,.052,.035]);return m;
 }
 function rippleModel() {
   const m=new WorldModel(),ring=new T.TorusGeometry(1,.032,3,20);
@@ -79,8 +91,11 @@ function pinwheelModel() {
   }
   m.add(G.round,'#f7e6b2',[0,0,.07],[.16,.16,.1]);return m;
 }
-function grainModel() {
-  const m=new WorldModel();m.add(G.rock,'#edc76a',[0,0,0],[.065,.12,.045]);return m;
+function flourBagModel() {
+  const m=new WorldModel();m.add(G.round,'#f3e3b7',[0,.43,0],[.39,.48,.31]);
+  m.add(G.round,'#bb9b6e',[0,.87,0],[.19,.08,.16]);
+  m.add(G.box,'#93b6a7',[0,.46,.295],[.36,.34,.035]);
+  m.add(G.pole,'#f5d997',[0,.46,.32],[.105,.025,.105],[Math.PI/2,0,0]);return m;
 }
 
 /** Every section owns at most three fixed instanced draws; shared materials
@@ -100,15 +115,21 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
   };
   let update:(time:number,distance:number,reduced:boolean)=>void;
   if(section.kind==='sheepbank') {
-    const flowers=batch(flowerModel(),12),butterflies=batch(butterflyModel(),8);
+    const flowers=batch(flowerModel(),12),butterflies=batch(butterflyModel(),8),arms=batch(flowerArmModel(),24);
+    flowers.name="waving-flowers";arms.name="flower-arms";
     const sites=Array.from({length:12},(_,i)=>{
       const at=section.start+section.length*(.09+i*.075),p=section.sample(at).position,side=i%2?1:-1;
       return {at,x:p.x-section.origin.x,y:.22,z:p.z-section.origin.z+side*8.8,side};
     });
     update=(time,distance,reduced)=>{
       for(let i=0;i<sites.length;i++) {
-        const p=sites[i],greet=meadowArrival(distance,p.at,20),s=.8+(i%3)*.12;
-        put(flowers,i,p.x,p.y,p.z,0,0,reduced?0:Math.sin(time*4.2+i*.65)*(.035+greet*.26),s);
+        const p=sites[i],greet=meadowArrival(distance,p.at,20),s=1.2+(i%3)*.18;
+        const tilt=reduced?0:Math.sin(time*3.2+i*.65)*(.025+greet*.13);
+        put(flowers,i,p.x,p.y,p.z,0,0,tilt,s);
+        for(let j=0;j<2;j++) {
+          const side=j?1:-1,wave=reduced?.12:.12+greet*(.5+.35*Math.sin(time*5+i+j));
+          put(arms,i*2+j,p.x-Math.sin(tilt)*.8*s,p.y+Math.cos(tilt)*.8*s,p.z+.03,0,j?0:Math.PI,side*tilt+wave,s);
+        }
       }
       for(let i=0;i<8;i++) {
         const p=sites[i+2],greet=meadowArrival(distance,p.at,22),t=reduced?i:time*.7+i*1.7;
@@ -117,6 +138,7 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
     };
   } else if(section.kind==='pondbridge') {
     const wheel=batch(waterwheelModel(),1),boats=batch(boatModel(),3),ripples=batch(rippleModel(),9);
+    wheel.name="pond-waterwheel";boats.name="captain-boats";ripples.name="boat-wakes";
     const w=pondWaterwheel(section),z=section.hand*4;
     const mid=section.start+section.length*.5;
     const sites=[{x:section.span*.3,z:z-6.4,phase:0},{x:section.span*.62,z:z-8,phase:2.1},{x:section.span*.64,z:z+7,phase:4.2}];
@@ -125,31 +147,33 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
       put(wheel,0,w.x,w.y,w.z,0,0,reduced?0:-time*.12-travel*.075);
       for(let i=0;i<3;i++) {
         const p=sites[i],a=reduced?p.phase:time*.18+p.phase+travel*.035;
-        const bx=p.x+Math.cos(a)*(1.1+greeting*.55),bz=p.z+Math.sin(a)*.7;
-        put(boats,i,bx,.37+(reduced?0:Math.sin(time*1.5+i)*.035),bz,0,-a*.32,reduced?0:Math.sin(time*1.5+i)*.025,.88);
+        const radius=1.1+greeting*.55,bx=p.x+Math.cos(a)*radius,bz=p.z+Math.sin(a)*.7;
+        // The hull's bow is +X; yaw follows the ellipse tangent, not its phase.
+        const heading=Math.atan2(-.7*Math.cos(a),-radius*Math.sin(a));
+        put(boats,i,bx,.37+(reduced?0:Math.sin(time*1.5+i)*.035),bz,0,heading,reduced?0:Math.sin(time*1.5+i)*.025,1.3);
         for(let j=0;j<3;j++) {
           const progress=reduced?(j+1)/4:((time*.34+j/3+i*.14)%1),size=.45+progress*.95;
-          put(ripples,i*3+j,bx-.55-j*.26,.275+j*.003,bz,0,0,0,1,size,Math.max(.04,(1-progress)*.25),size*.68);
+          put(ripples,i*3+j,bx-Math.cos(heading)*(1.4+progress*1.3),.275+j*.003,bz+Math.sin(heading)*(1.4+progress*1.3),0,heading,0,1,size,Math.max(.04,(1-progress)*.25),size*.68);
         }
       }
     };
   } else {
-    const gears=batch(gearModel(),3),pinwheels=batch(pinwheelModel(),5),grain=batch(grainModel(),14);
+    const gears=batch(gearModel(),3),pinwheels=batch(pinwheelModel(),5),bags=batch(flourBagModel(),6);
+    gears.name="meshing-gears";bags.name="flour-conveyor";
     const x=section.width*.5,rotorZ=Math.min(0,section.shift)-2.8,size=section.amplitude*.22,z=rotorZ-3.4-.65-size*.045;
-    const at=section.start+section.length*.5;
     // Decorative gear teeth all sit below the existing rotor's swept volume.
-    const sites=[{x:x-1.25,y:3.55,z:rotorZ-1.52,s:.91},{x:x+.25,y:3.75,z:rotorZ-1.53,s:.61},{x:x+1.36,y:3.33,z:rotorZ-1.48,s:.75}];
+    const sites=[-1.8,0,1.8].map(dx=>({x:x+dx,y:3.9,z:rotorZ-1.52}));
     update=(time,distance,reduced)=>{
-      const greeting=meadowArrival(distance,at,section.length*.6),travel=T.MathUtils.clamp(distance-section.start,0,section.length+24);
+      const travel=T.MathUtils.clamp(distance-section.start,0,section.length+24);
       const angle=reduced?0:time*.2+travel*.075;
-      for(let i=0;i<sites.length;i++) {const p=sites[i];put(gears,i,p.x,p.y,p.z,0,0,(i%2?-1:1)*angle/p.s,p.s);}
+      for(let i=0;i<sites.length;i++) {const p=sites[i];put(gears,i,p.x,p.y,p.z,0,0,(i%2?-1:1)*angle+(i%2?Math.PI/12:0));}
       for(let i=0;i<5;i++) {
         const side=i%2?-1:1,px=x+side*(4+Math.floor(i/2)*.85),pz=z+1.25,py=2.1+(i%2)*.2;
         put(pinwheels,i,px,py,pz,0,0,reduced?i*.4:angle*1.7+i*.4,.66);
       }
-      for(let i=0;i<14;i++) {
-        const t=reduced?(i+.5)/14:((time*.48+i/14)%1),side=i%2?-1:1;
-        put(grain,i,x+side*(4+(i%3)*.14)+Math.sin(i*2.4)*t*.6,1.52+Math.sin(Math.PI*t)*(.2+greeting*.75),z+1.45+Math.cos(i*2.4)*t*.3,0,t*4,t*3,reduced?.001:.45+greeting*.55);
+      for(let i=0;i<6;i++) {
+        const a=(reduced?0:angle*.55)+i*TAU/6;
+        put(bags,i,x+Math.sin(a)*3.15,1.24,rotorZ-.5+Math.cos(a)*.47,0,-a,0,.88);
       }
     };
   }

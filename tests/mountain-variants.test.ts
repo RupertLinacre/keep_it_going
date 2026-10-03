@@ -62,3 +62,31 @@ test('dragon and mining alternatives have real, clear, enclosed bores and indepe
     design.dispose(); material.dispose(); lights.dispose();
   }
 });
+
+test('dragon wing deformation reuses its vertex buffer, replays exactly and honours reduced motion', () => {
+  const s = section('tunnel'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'b', material, lights)!;
+  const meshes = allMeshes(design).filter(m => !(m instanceof InstancedMesh));
+  const before = meshes.map(m => Array.from(m.geometry.getAttribute('position').array));
+  design.update(2, s.start + s.length * .5 - 12, false);
+  const moving = meshes.filter((m, i) => !Array.from(m.geometry.getAttribute('position').array).every((v, j) => v === before[i][j]));
+  assert.equal(moving.length, 1, 'Only the batched wing geometry flexes');
+  const attribute = moving[0].geometry.getAttribute('position'), buffer = attribute.array, pose = Array.from(buffer);
+  design.update(20, s.end + 60, false); design.update(2, s.start + s.length * .5 - 12, false);
+  assert.equal(attribute.array, buffer); assert.deepEqual(Array.from(buffer), pose);
+  design.update(0, s.start, true); const still = Array.from(buffer); design.update(40, s.end, true); assert.deepEqual(Array.from(buffer), still);
+  design.dispose(); material.dispose(); lights.dispose();
+});
+
+test('mountain and ice landscapes leave the full raised train envelope open', () => {
+  for (const kind of ['mountainpass', 'ravinebridge'] as const) for (const option of ['b', 'c'] as const) {
+    const s = section(kind), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, option, material, lights)!;
+    design.group.updateMatrixWorld(true);
+    for (let i = 2; i < 39; i++) for (const side of [-.85, 0, .85]) {
+      const frame = s.frames[Math.round(s.resolution * i / 40)], p = frame.position.clone().addScaledVector(frame.right, side);
+      p.x -= s.origin.x; p.z -= s.origin.z; p.y += .15;
+      const hits = new Raycaster(p, new Vector3(0, 1, 0), 0, 2.8).intersectObject(design.group, true);
+      assert.equal(hits.length, 0, `${kind}-${option} rail sample ${i} side ${side} stays open`);
+    }
+    design.dispose(); material.dispose(); lights.dispose();
+  }
+});

@@ -14,7 +14,7 @@ import './piece-review.css';
 const app=document.querySelector<HTMLDivElement>('#app')!;
 const params=new URLSearchParams(location.search);
 let index=Math.max(0,PIECE_REVIEW.findIndex(p=>p.kind===(params.get('piece')??'carouselhelix')));
-let elapsed=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,cutaway=false;
+let elapsed=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,cutaway=false,closeup=false;
 let mode:'both'|'before'|'after'=innerWidth<760?'after':'both';
 const options:DesignOption[]=['a','b','c'];
 let option:DesignOption=options.includes(params.get('option') as DesignOption)?params.get('option') as DesignOption:'a';
@@ -29,7 +29,7 @@ app.innerHTML=`<header><a href="./index.html"><img src="./images/keep-it-going-l
 <main><div class="intro"><div><p class="eyebrow">THE SPECIAL-PIECE WORKSHOP</p><h1>Three ways to play.</h1><p>Twelve rides. Thirty-six designs. Explore three different directions for every piece, then choose your favourites.</p></div><div class="branch-note">A is the first proposal.<br>B and C are new alternatives.<br>Your choices stay on this device.</div></div>
 <section class="comparison" aria-label="Before and after comparison"><div class="heading"><div><p id="world" class="eyebrow"></p><h2 id="name"></h2></div><div class="arrows"><button id="previous" aria-label="Previous piece">←</button><span id="number"></span><button id="next" aria-label="Next piece">→</button></div></div><p id="idea"></p>
 <div class="design-options" aria-label="Design options">${options.map(o=>`<button data-option="${o}"><span class="option-letter">${o.toUpperCase()}</span><span><strong></strong><small></small></span></button>`).join('')}</div>
-<div class="toolbar"><div class="segmented" aria-label="Comparison view"><button data-mode="both">Side by side</button><button data-mode="before">Reference</button><button data-mode="after">Selected design</button></div><div class="compare-picker"><label for="reference">Compare with</label><select id="reference"><option value="original">Original game</option><option value="a">Option A</option><option value="b">Option B</option><option value="c">Option C</option></select><button id="reset-view">Reset view</button><button id="cutaway" hidden>Inside tunnel</button></div></div>
+<div class="toolbar"><div class="segmented" aria-label="Comparison view"><button data-mode="both">Side by side</button><button data-mode="before">Reference</button><button data-mode="after">Selected design</button></div><div class="compare-picker"><label for="reference">Compare with</label><select id="reference"><option value="original">Original game</option><option value="a">Option A</option><option value="b">Option B</option><option value="c">Option C</option></select><button id="close-up" aria-pressed="false">Closer look</button><button id="reset-view">Reset view</button><button id="cutaway" hidden>Inside tunnel</button></div></div>
 <div id="stage"><div class="view-label before-label"><span></span><small></small></div><div class="view-label after-label"><span></span><small></small></div><div class="divider"></div><div class="orbit-hint">Drag to orbit · scroll to zoom</div></div>
 <div class="playback"><button id="play">Pause</button><button id="replay">↻ Replay</button><input id="timeline" type="range" min="0" max="1000" value="0" aria-label="Preview timeline"><span id="phase">Train approaching</span></div>
 <div class="decision"><span id="saved" role="status">Choose this piece’s version</span><div><button data-choice="original">Keep original</button><button id="choose-option">Choose A</button><button data-choice="">Decide later</button></div></div>
@@ -45,9 +45,12 @@ let bounds=new T.Box3(),duration=10,metrics:{calls:number;triangles:number}[]=[]
 let renderSamples:number[]=[];
 function fit(){
  if(!scenes.length)return;
- const center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());
- controls.target.copy(center);camera.position.copy(center).addScaledVector(new T.Vector3(-.45,.48,1).normalize(),size.length()+140);camera.up.set(0,1,0);camera.lookAt(center);camera.updateMatrixWorld();
- const projected=new T.Box3();for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])projected.expandByPoint(new T.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
+ const focused=mode==='both'?scenes[0].attractionBounds.clone().union(scenes[1].attractionBounds):scenes[mode==='before'?0:1].attractionBounds.clone();
+ const framing=closeup?focused.expandByScalar(2):bounds;
+ const center=framing.getCenter(new T.Vector3()),size=framing.getSize(new T.Vector3());
+ const facing=scenes[0].section.kind==='pumpkintunnel'?new T.Vector3(-1,.48,.8):new T.Vector3(-.45,.48,1);
+ controls.target.copy(center);camera.position.copy(center).addScaledVector(facing.normalize(),size.length()+140);camera.up.set(0,1,0);camera.lookAt(center);camera.updateMatrixWorld();
+ const projected=new T.Box3();for(const x of [framing.min.x,framing.max.x])for(const y of [framing.min.y,framing.max.y])for(const z of [framing.min.z,framing.max.z])projected.expandByPoint(new T.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
  const aspect=stage.clientWidth/(mode==='both'?2:1)/stage.clientHeight;
  const extent=Math.max((projected.max.y-projected.min.y)/2,(projected.max.x-projected.min.x)/2/aspect,8)*1.13;
  camera.left=-extent*aspect;camera.right=extent*aspect;camera.top=extent;camera.bottom=-extent;camera.zoom=1;camera.updateProjectionMatrix();controls.update();
@@ -113,7 +116,8 @@ app.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach(b=>b.onclick=()
 $('#choose-option').onclick=()=>choose(option);
 app.querySelectorAll<HTMLButtonElement>('[data-world]').forEach(b=>b.onclick=()=>{app.querySelectorAll<HTMLButtonElement>('[data-world]').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));app.querySelectorAll<HTMLButtonElement>('[data-world-kind]').forEach(c=>c.hidden=b.dataset.world!=='all'&&c.dataset.worldKind!==b.dataset.world);});
 $('#previous').onclick=()=>{index=(index+11)%12;rebuild();};$('#next').onclick=()=>{index=(index+1)%12;rebuild();};
-$('#reset-view').onclick=fit;$('#play').onclick=()=>playing=!playing;$('#replay').onclick=()=>{elapsed=0;playing=true;};
+$('#close-up').onclick=()=>{closeup=!closeup;$('#close-up').setAttribute('aria-pressed',String(closeup));fit();};
+$('#reset-view').onclick=()=>{closeup=false;$('#close-up').setAttribute('aria-pressed','false');fit();};$('#play').onclick=()=>playing=!playing;$('#replay').onclick=()=>{elapsed=0;playing=true;};
 $('#cutaway').onclick=()=>{cutaway=!cutaway;$('#cutaway').setAttribute('aria-pressed',String(cutaway));};
 $<HTMLInputElement>('#timeline').oninput=e=>{playing=false;elapsed=Number((e.target as HTMLInputElement).value)/1000*duration;};
 $<HTMLInputElement>('#timeline').onchange=()=>reviewAt(elapsed);

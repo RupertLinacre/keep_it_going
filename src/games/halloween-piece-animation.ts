@@ -18,8 +18,10 @@ class HalloweenPieceAnimation implements PieceAnimation {
   private lastTime=-1;
   private positions:T.Vector3[]=[];
   private portalCenter:T.Vector3;
+  private portalRotation:T.Quaternion;
   constructor(private section:MiniSection,material:T.Material){
-    this.portalCenter=section.sample(section.start+section.length/2).position.clone();
+    const portalFrame=section.sample(section.start+section.length/2);
+    this.portalCenter=portalFrame.position.clone();this.portalRotation=portalFrame.rotation.clone();
     this.portalCenter.x-=section.origin.x;this.portalCenter.z-=section.origin.z;
     const model=new WorldModel();
     if(section.kind==='witchhat'){
@@ -31,10 +33,20 @@ class HalloweenPieceAnimation implements PieceAnimation {
         model.add(G.round,'#564566',[.53,.37,s*.21],[.045,.07,.07]);
       }
       model.add(G.cone,'#8c6ea9',[.1,.78,0],[.38,.65,.37],[0,0,.3]);
+      model.add(G.pole,'#e7c488',[.1,.64,0],[.32,.08,.32]);
+      for(const side of [-1,1]){
+        model.add(G.round,'#ecaccb',[.48,.29,side*.23],[.07,.07,.08]);
+        model.add(G.round,'#d6c5f0',[.32,.06,side*.27],[.16,.13,.12]);
+      }
+      // A curled kitten tail and a ribbon make the flying silhouette readable.
+      let tail=new T.Vector3(-.2,.28,0);
+      for(let j=1;j<5;j++){const a=j*.5,p=new T.Vector3(-.2-Math.sin(a)*.38,.28+j*.11,0);model.beam('#d6c5f0',tail,p,.065);tail=p;}
+      model.add(G.box,'#ecaccb',[-.46,.31,.01],[.32,.15,.24],[0,0,-.3]);
       this.triggers=[section.start+section.length*.38];
     }else if(section.kind==='pumpkinhop'){
       model.add(G.pole,'#e4bc91',[0,0,0],[.09,2.2,.09]);
       model.add(G.round,'#c7f081',[0,-1.1,0],[.43,.38,.43]);
+      for(let j=0;j<4;j++)model.add(G.pole,j%2?'#f5dc9e':'#be83bc',[0,.12+j*.25,0],[.12,.12,.12]);
       for(let i=0;i<3;i++){
         const f=section.frames[Math.round(section.resolution*(i+.5)/3)];
         this.positions.push(new T.Vector3(f.position.x-section.origin.x,f.position.y+.1,f.position.z-section.origin.z));
@@ -70,6 +82,10 @@ class HalloweenPieceAnimation implements PieceAnimation {
         const r=Math.max(3,radius*.49),y=s.amplitude*.8+2;
         // Face along the orbit: radial broom tails reach into the banked train.
         this.put(this.mesh,new T.Vector3(x+Math.sin(angle)*r,y+(reduced?0:Math.sin(angle*2+i)*.65),z+Math.cos(angle)*r),1,0,angle,.09*Math.sin(angle));
+        if(!reduced)for(let j=0;j<6;j++){
+          const a=angle-.08*(j+1),trail=new T.Vector3(x+Math.sin(a)*r,y+Math.sin(a*2+i)*.65-.12*j,z+Math.cos(a)*r);
+          this.put(this.spark,trail,(1-j/7)*(.65+energy*.65),0,a,.5);
+        }
       }
       if(!reduced)for(let i=0;i<36;i++){
         const t=(time*.23+i/36)%1,a=t*Math.PI*5;
@@ -92,6 +108,11 @@ class HalloweenPieceAnimation implements PieceAnimation {
       }
     }else{
       const age=time-(this.fired[0]??-1e6);
+      if(reduced||this.fired[0]===undefined||age>3.2)for(let i=0;i<8;i++){
+        const side=i<4?-1:1,a=(i%4)*Math.PI/2+(reduced?0:time*.6),local=new T.Vector3(side*8.5+Math.sin(a)*1.6,4.45+Math.cos(a)*1.6,2.4);
+        local.applyQuaternion(this.portalRotation).add(this.portalCenter);
+        this.put(this.mesh,local,.75,0,0,a);
+      }
       if(!reduced&&age>=0&&age<3.2)for(let i=0;i<24;i++){
         const phi=i*2.39996,travel=(1-Math.exp(-age))*.85;
         const p=this.portalCenter.clone().add(new T.Vector3(Math.cos(phi)*(5+i%4)*travel,4+(5+i%4)*age-3.5*age*age,Math.sin(phi)*(6+i%3)*travel));

@@ -15,8 +15,9 @@ async page => {
  await page.locator('[data-option=c]').click();
  if(await page.locator('#choose-option').getAttribute('aria-pressed')==='true')throw Error('Browsing C must not change the saved B choice');
  await page.locator('#reference').selectOption('a');
+ await page.locator('#close-up').click();if(await page.locator('#close-up').getAttribute('aria-pressed')!=='true')throw Error('Closer look did not activate');
  await page.screenshot({path:'output/playwright/three-designs-mobile.png',fullPage:true});
- await page.setViewportSize({width:1600,height:1250});await page.locator('[data-mode=both]').click();
+ await page.setViewportSize({width:1600,height:1250});await page.locator('[data-mode=both]').click();await page.locator('#reset-view').click();if(await page.locator('#close-up').getAttribute('aria-pressed')!=='false')throw Error('Reset view did not restore full track');
  const cycles=await page.evaluate(async()=>{
   const m=await import('/src/review/piece-review.ts'),d=await import('/src/review/piece-review-data.ts'),runs=[];
   for(let j=0;j<3;j++){const r=[];for(const p of d.PIECE_REVIEW)for(const option of ['a','b','c']){

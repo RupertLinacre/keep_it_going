@@ -185,6 +185,15 @@ export function meadowWindmill(m: WorldModel, section: MiniSection) {
   m.add(G.pole,'#9c7652',[x,y,(axleBack+rotorZ)/2],[.23,rotorZ-axleBack,.23],[Math.PI/2,0,0]);
   m.add(G.round,'#9c7652',[x,y,rotorZ+.1],[.65,.65,.4]);
   m.add(G.round,'#edcb82',[x,y,rotorZ+.43],[.28,.28,.12]);
+  // A small oval packing belt connects the lower gears to visible moving bags.
+  const conveyorZ=rotorZ-.5;
+  m.add(G.box,'#9aa896',[x,1.1,conveyorZ],[6.3,.2,.94]);
+  for(const side of [-1,1]) {
+    m.add(G.pole,'#bda170',[x+side*3.15,1.1,conveyorZ],[.48,.2,.48]);
+    for(const dx of [-2.65,2.65])m.add(G.pole,'#ad8d65',[x+dx,.54,conveyorZ+side*.32],[.085,1.08,.085]);
+    m.beam('#d4b889',new T.Vector3(x-3,1.22,conveyorZ+side*.6),new T.Vector3(x+3,1.22,conveyorZ+side*.6),.05);
+  }
+  m.beam('#a68962',new T.Vector3(x,2.99,rotorZ-1.52),new T.Vector3(x,1.15,conveyorZ),.075);
   // Flour sacks and grain sheaves give the animated lower gears a purpose.
   for(const side of [-1,1]) {
     const sx=x+side*4.2,sz=z+1.25;

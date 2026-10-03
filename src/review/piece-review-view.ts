@@ -19,6 +19,7 @@ export class PieceReviewScene {
  readonly track=new MiniTrack(71,{generative:true});
  readonly attraction:AdventureScene|BeforeScene;
  readonly bounds=new T.Box3();
+ readonly attractionBounds=new T.Box3();
  private ground:T.Mesh;
  private staticGroup=new T.Group();
  private train:T.InstancedMesh[]=[];
@@ -64,7 +65,8 @@ export class PieceReviewScene {
    ...(version==='a'?{}:{pieceFactory:(s,m,l)=>createVariant(s,version,m,l)})});
   this.attraction.render(this.track,this.section.start-12,0,0,0);
   this.scene.updateMatrixWorld(true);
-  this.bounds.setFromObject(this.staticGroup).union(new T.Box3().setFromObject(this.attraction.group));
+  this.attractionBounds.setFromObject(this.attraction.group);
+  this.bounds.setFromObject(this.staticGroup).union(this.attractionBounds);
   const center=this.bounds.getCenter(new T.Vector3()),size=this.bounds.getSize(new T.Vector3());
   this.ground=new T.Mesh(new T.BoxGeometry(size.x+16,.65,size.z+16),material(world.ground));this.ground.position.set(center.x,-.4,center.z);this.staticGroup.add(this.ground);
  }
