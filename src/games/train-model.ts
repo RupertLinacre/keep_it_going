@@ -2,6 +2,8 @@ import * as THREE from "three";
 
 export const CART_COLORS = ["#e5ef93", "#e9a8a7", "#9fbddd", "#c6b0e5", "#eec987", "#a8dac7"].map(c => new THREE.Color(c));
 export type MiniModelMeshFactory = (geometry: THREE.BufferGeometry, color: string) => THREE.Mesh;
+/** The front of the shared train model is local -Z. */
+export const MINI_FUNNEL_OUTLET = new THREE.Vector3(0, 2.05, -.65);
 
 function defaultMeshFactory(): MiniModelMeshFactory {
   const materials = new Map<string, THREE.MeshStandardMaterial>();
@@ -15,6 +17,41 @@ function defaultMeshFactory(): MiniModelMeshFactory {
     mesh.castShadow = mesh.receiveShadow = true;
     return mesh;
   };
+}
+
+/** A separate engine detail: ordinary closed coaches keep their existing roof.
+ * Two material batches cover the cream socket and the brass bell, including
+ * its recessed, shaded throat. The outlet stays fixed as smoke expands. */
+export function createMiniFunnel(meshFactory: MiniModelMeshFactory = defaultMeshFactory()) {
+  const group = new THREE.Group();
+  group.name = "engine-funnel";
+  const socket = meshFactory(new THREE.CylinderGeometry(.15, .19, .1, 12), "#fff0ca");
+  socket.position.set(0, 1.65, MINI_FUNNEL_OUTLET.z);
+  const stem = meshFactory(new THREE.CylinderGeometry(.115, .125, .23, 12), "#fff0ca");
+  stem.position.set(0, 1.785, MINI_FUNNEL_OUTLET.z);
+  group.add(socket, stem);
+  const profile = [
+    [.105, 1.79], [.125, 1.88], [.25, 1.98], [.265, 2.025],
+    [.215, 2.025], [.18, 1.96], [.08, 1.8], [.105, 1.79],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const bellGeometry = new THREE.LatheGeometry(profile, 12);
+  const colors = new Float32Array(bellGeometry.getAttribute("position").count * 3);
+  for (let i = 0; i < colors.length / 3; i++) {
+    const row = i % profile.length;
+    const shade = row >= 6 ? .16 : row === 5 ? .46 : 1;
+    colors.set([shade, shade, shade], i * 3);
+  }
+  bellGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const bell = meshFactory(bellGeometry, "#c99b50");
+  for (const material of Array.isArray(bell.material) ? bell.material : [bell.material]) {
+    if (material instanceof THREE.MeshStandardMaterial) material.vertexColors = true;
+  }
+  bell.position.z = MINI_FUNNEL_OUTLET.z;
+  group.add(bell);
+  for (const part of group.children) {
+    part.castShadow = part.receiveShadow = false;
+  }
+  return group;
 }
 
 /** The same carriage geometry for the continuous ride and special attractions.

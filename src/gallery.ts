@@ -19,19 +19,24 @@ import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  honeyfactory: "Busy delivery bees fill jars of honey beneath a giant turning sunflower.",
+  pancakemill: "A giant smiling chef flips pancakes as the train loops past the pans.",
+  penguinplunge: "Penguins race along icy slides and ride a return conveyor beside the viaduct.",
+  bigtopjuggle: "A towering circus loop brings a colourful juggling show to life.",
+  silkspindle: "A friendly giant spider weaves glowing threads around the spiralling railway.",
   strengthtower: "A Starlight Carnival finale: climb for a height score, turn around, and return through the switch. Play it at tower.html.",
   sheepbank: "Sheep graze on three gentle crests, then leap safely onto the banks as your train approaches.",
-  pondbridge: "A curving timber bridge climbs gently above a pond of lilies and ducks.",
-  windmillloop: "A complete loop curls around the turning sails of a giant meadow windmill.",
-  ravinebridge: "An arched railway viaduct crosses a turquoise ravine beside a tumbling waterfall.",
+  pondbridge: "Duck boats race beneath a lily bridge; passing trains set the paddle wheels turning.",
+  windmillloop: "A storybook windmill mills flour as the train loops around its turning sails.",
+  ravinebridge: "The train turns a huge waterwheel beside a rainbow waterfall.",
   midwayloop: "A giant vertical loop outlined with chasing fairground bulbs and a star at its crown.",
-  carouselhelix: "The carousel matches your train turn for turn as you climb two glowing spirals around it.",
-  pumpkintunnel: "Smash through a tower of smiling pumpkins: they tumble away in a sparkling green burst.",
-  witchhat: "Climb to the tip of a giant crooked witch’s hat, then swirl down three turns around its brim.",
-  mountainpass: "A narrow railway ledge winds up a steep, snow-dusted gorge above a turquoise river.",
-  tunnel: "Your train pulls the gondolas up a snowy mountain as it passes through the glowing tunnel below.",
+  carouselhelix: "Climb around a multi-decker unicorn carousel that keeps spinning after the train passes.",
+  pumpkintunnel: "Burst through a candy castle full of flying pumpkins and green sparkles.",
+  witchhat: "Friendly witches practise their broomstick skills around a towering spiral.",
+  mountainpass: "Goats sing from a snowy alpine gorge as your train climbs past their perches.",
+  tunnel: "A glowing mountain tunnel powers a little gondola ropeway overhead.",
   lanternrun: "Rolling hills trace a parade of glowing lanterns.",
-  pumpkinhop: "Three playful little hops through the pumpkin patch.",
+  pumpkinhop: "Pumpkins beat their drums as the train bounces over three playful crests.",
   noninvertingloop:
     "A regular loop with a roll on the climb, putting the coach upright at the crown before it unwinds on the descent.",
   pretzelknot:

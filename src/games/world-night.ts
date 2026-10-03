@@ -29,6 +29,8 @@ export function lanternParade(m:WorldModel,section:MiniSection) {
   }
 }
 
+export const lanternDistance=(section:MiniSection,index:number)=>section.start+section.length*(.06+index*.146);
+
 const BULBS = ['#ffc876', '#ed97c6', '#9cdfd4', '#b8a3f5'];
 
 /** Keep a ribbon of reactive lamps beside the rails between signature rides. */
@@ -82,22 +84,25 @@ export function carouselRotation(section: MiniSection, distance: number) {
   const p=section.sample(T.MathUtils.clamp(distance,first,last)).position;
   return Math.atan2(p.x-section.origin.x-x,p.z-section.origin.z-z);
 }
-export function carouselClimb(m: WorldModel, section: MiniSection) {
-  const {x,z,radius}=carouselCenter(section);
-  m.add(G.pole,'#ac88a0',[x,1,z],[radius+1,2,radius+1]);
-  m.add(G.pole,'#dfc098',[x,1.9,z],[radius+1.1,.25,radius+1.1]);
-  m.add(G.pole,'#b2a6d2',[x,5.1,z],[.32,6.4,.32]);
-  // Alternating triangular canopy panels, rather than a single solid cone.
-  for(let i=0;i<12;i++){
-    const a=i*Math.PI/6,b=(i+1)*Math.PI/6,r=radius+1;
-    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute([0,10,0,Math.sin(a)*r,7,Math.cos(a)*r,Math.sin(b)*r,7,Math.cos(b)*r],3));g.computeVertexNormals();
-    m.add(g,i%2?'#dab392':'#ac6ca3',[x,0,z]);g.dispose();
-    m.add(G.round,BULBS[i%4],[x+Math.sin(a)*r,7,z+Math.cos(a)*r],[.23,.23,.23],[],true,i*.6);
+/** The helix drifts laterally, so its nominal radius is not its inner clearance. */
+export function carouselRideRadius(section:MiniSection) {
+  const {x,z}=carouselCenter(section);
+  let nearest=Infinity;
+  for(let i=Math.round(section.resolution*.1);i<=Math.round(section.resolution*.78);i++){
+    const p=section.frames[i].position;
+    nearest=Math.min(nearest,Math.hypot(p.x-section.origin.x-x,p.z-section.origin.z-z));
   }
-  star(m,x,11,z,1.1,'#ffe29c');
+  return Math.max(.6,nearest-1.8);
+}
+export function carouselClimb(m: WorldModel, section: MiniSection) {
+  const {x,z}=carouselCenter(section),radius=carouselRideRadius(section);
+  m.add(G.pole,'#ac88a0',[x,.8,z],[radius,1.6,radius]);
+  m.add(G.pole,'#dfc098',[x,1.55,z],[radius,.25,radius]);
+  // The three storeys, animals and roof belong to one bounded moving assembly.
+  // Its footprint leaves 1.8m between every rail centre and every spinning part.
   for(let i=0;i<70;i++){
     const f=section.sample(section.start+section.length*i/69),p=f.position.clone().addScaledVector(f.right,1.25).addScaledVector(f.up,-.25);
-    m.add(G.round,BULBS[Math.floor(i/5)%4],[p.x-section.origin.x,p.y,p.z-section.origin.z],[.17,.17,.17],[],true,i*.3);
+    m.add(i%2?G.rock:G.round,BULBS[Math.floor(i/5)%4],[p.x-section.origin.x,p.y,p.z-section.origin.z],[.19,.19,.19],[],true,i*.3);
   }
 }
 

@@ -23,12 +23,17 @@ export const CHALLENGES: readonly (readonly MiniKind[])[] = [
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  honeyfactory: "SUNFLOWER HONEY FACTORY",
+  pancakemill: "PANCAKE MILL",
+  penguinplunge: "PENGUIN PLUNGE",
+  bigtopjuggle: "BIG TOP JUGGLE LOOP",
+  silkspindle: "SPIDER SILK SPINDLE",
   strengthtower: "SKY STRIKER",
-  sheepbank: "SHEEP SHUFFLE", pondbridge: "LILY PAD BRIDGE", windmillloop: "WINDMILL LOOP",
-  ravinebridge: "WATERFALL VIADUCT",
-  midwayloop: "MARQUEE LOOP", carouselhelix: "CAROUSEL CLIMB",
-  pumpkintunnel: "PUMPKIN PORTAL", witchhat: "WITCH’S HAT",
-  mountainpass: "MOUNTAIN GORGE", tunnel: "GLOWSTONE TUNNEL", lanternrun: "RAINBOW MIDWAY", pumpkinhop: "PUMPKIN HOPS",
+  sheepbank: "SHEEP SHUFFLE", pondbridge: "LILY PAD REGATTA", windmillloop: "STORYBOOK FLOUR MILL",
+  ravinebridge: "WATERWHEEL RAINBOW",
+  midwayloop: "MARQUEE LOOP", carouselhelix: "UNICORN PALACE",
+  pumpkintunnel: "CANDY CASTLE PORTAL", witchhat: "BROOMSTICK ACADEMY",
+  mountainpass: "ALPINE GOAT CHORUS", tunnel: "GLOWSTONE ROPEWAY", lanternrun: "RAINBOW MIDWAY", pumpkinhop: "PUMPKIN DRUMLINE",
   noninvertingloop: "NON-INVERTING LOOP", pretzelknot: "PRETZEL KNOT", cobraroll: "COBRA ROLL",
   station: "BREATHER", firsthill: "FIRST DROP", hill: "AIRTIME HILL", skyhill: "SKY-HIGH CLIMB",
   dip: "VALLEY RUN", loop: "VERTICAL LOOP", corkscrew: "CORKSCREW", helix: "HELIX",

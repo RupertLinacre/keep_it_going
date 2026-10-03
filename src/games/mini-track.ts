@@ -1,3 +1,4 @@
+import { attractionRail, type AdditionalAttraction } from "./attraction-kinds";
 import { adventureAt, WORLD_ENCORES, WORLDS, WORLD_LAP } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
@@ -10,9 +11,9 @@ export type MiniKind =
   "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
   | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
-  | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
+  | AdditionalAttraction | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
 export const isHump = (kind: MiniKind) =>
-  ["sheepbank", "pondbridge", "ravinebridge", "witchhat", "mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(kind);
+  ["sheepbank", "pondbridge", "ravinebridge", "witchhat", "mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(attractionRail(kind));
 export interface MiniRail {
   metric?(distance: number): number;
   readonly startDistance?: number;
@@ -71,12 +72,13 @@ export class MiniSection implements MiniRail {
     readonly hand: number,
     readonly turns = kind === "triplehelix" ? 3 : 1,
   ) {
+    const railKind = attractionRail(kind);
     this.runout = 0;
-    const shape = kind === "windmillloop" || kind === "midwayloop" ? "loop"
-      : kind === "carouselhelix" ? "ascendinghelix" : kind === "witchhat" ? "triplehelix"
-      : kind === "pumpkintunnel" ? "tunnel" : kind;
+    const shape = railKind === "windmillloop" || railKind === "midwayloop" ? "loop"
+      : railKind === "carouselhelix" ? "ascendinghelix" : railKind === "witchhat" ? "triplehelix"
+      : railKind === "pumpkintunnel" ? "tunnel" : railKind;
     const special = specialElement(shape, width, amplitude, hand, turns);
-    this.resolution = Math.min(16384, Math.max(shape === "triplehelix" ? 1260 : kind === "verticalhill" ? 600 : special ? 840 : 420,
+    this.resolution = Math.min(16384, Math.max(shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
       shape === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
     const point = (t: number) => {
       if (special) return special.point(t).add(new THREE.Vector3(0, 0, shift * smooth(t))).add(origin);
@@ -85,48 +87,48 @@ export class MiniSection implements MiniRail {
       let x = this.span * t,
         y = 0,
         z = shift * ease;
-      if (kind === "firsthill" || kind === "hill" || kind === "skyhill" || kind === "invertedhill" || kind === "dip")
+      if (railKind === "firsthill" || railKind === "hill" || railKind === "skyhill" || railKind === "invertedhill" || railKind === "dip")
         y = amplitude * Math.sin(Math.PI * t) ** 4;
-      if (kind === "mountainpass") {
+      if (railKind === "mountainpass") {
         y = amplitude * Math.sin(Math.PI * t) ** 2;
         z += hand * width * .1 * Math.sin(Math.PI * t) ** 2 * Math.sin(2 * Math.PI * t);
       }
-      if (kind === "sheepbank") {
+      if (railKind === "sheepbank") {
         y = amplitude * Math.sin(Math.PI * t) ** 2 * (.65 + .35 * Math.cos(4 * Math.PI * t));
         z += hand * 4 * Math.sin(Math.PI * t) ** 2;
       }
-      if (kind === "pondbridge" || kind === "ravinebridge") {
+      if (railKind === "pondbridge" || railKind === "ravinebridge") {
         y = amplitude * Math.sin(Math.PI * t) ** 2;
         z += hand * 7 * Math.sin(Math.PI * t) ** 2;
       }
       if (shape === "tunnel") y = -amplitude * Math.sin(Math.PI * t) ** 4;
-      if (kind === "lanternrun") {
+      if (railKind === "lanternrun") {
         y = amplitude * Math.sin(Math.PI * t) ** 2 * (.62 + .38 * Math.cos(4 * Math.PI * t));
         z += hand * 3 * Math.sin(Math.PI * t) ** 2 * Math.sin(2 * Math.PI * t);
       }
-      if (kind === "pumpkinhop") {
+      if (railKind === "pumpkinhop") {
         const hop = Math.min(2, Math.floor(t * 3)), u = t * 3 - hop;
         y = amplitude * [.65, 1, .8][hop] * Math.sin(Math.PI * u) ** 4;
         z += hand * 3 * Math.sin(Math.PI * t) ** 2;
       }
-      if (kind === "splash")
+      if (railKind === "splash")
         y = -amplitude * smooth(Math.min(1, t / .24)) * smooth(Math.min(1, (1 - t) / .24));
-      if (kind === "jump") {
+      if (railKind === "jump") {
         // The middle is a virtual distance guide only: neither rails nor sleepers span the water.
         const takeoff = width * 0.2, landing = width * 0.64;
         if (x <= takeoff) y = amplitude * (x / takeoff) ** 2;
         else if (x < landing) y = amplitude * (1 - smooth((x - takeoff) / (landing - takeoff)));
       }
-      if (kind === "verticalhill") [x, y] = verticalHill(t, width, amplitude);
+      if (railKind === "verticalhill") [x, y] = verticalHill(t, width, amplitude);
       if (shape === "loop") {
         x = amplitude * Math.sin(theta) + width * ease;
         y = amplitude * (1 - Math.cos(theta));
       }
-      if (kind === "corkscrew") {
+      if (railKind === "corkscrew") {
         y = amplitude * Math.sin(theta);
         z += hand * amplitude * (1 - Math.cos(theta));
       }
-      if (kind === "helix") {
+      if (railKind === "helix") {
         // A full rising horizontal spiral, followed by a smooth exit ramp.
         // Separate entry/exit elevations keep the crossing rails apart.
         const coil = 0.76;
@@ -172,10 +174,10 @@ export class MiniSection implements MiniRail {
       const up =
         shape === "loop"
           ? new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0)
-          : kind === "corkscrew"
+          : railKind === "corkscrew"
             ? new THREE.Vector3(0, Math.cos(theta), hand * Math.sin(theta))
             : new THREE.Vector3(0, 1, 0);
-      if (kind === "helix" && t < 0.76) {
+      if (railKind === "helix" && t < 0.76) {
         const turn = Math.PI * 2 * t / 0.76;
         const bank = 0.95 * Math.sin(Math.PI * t / 0.76) ** 2;
         up.set(
@@ -190,11 +192,11 @@ export class MiniSection implements MiniRail {
         const bank = 0.95 * smooth(clamp(Math.min(u, 1 - u) / 0.08, 0, 1));
         up.set(-Math.sin(turn) * Math.sin(bank), Math.cos(bank), hand * Math.cos(turn) * Math.sin(bank));
       }
-      if (kind === "verticalhill") {
+      if (railKind === "verticalhill") {
         // A world-up projection collapses on vertical rail; the planar normal doesn't.
         up.set(-tangent.y, tangent.x, 0);
       }
-      if (kind === "invertedhill") {
+      if (railKind === "invertedhill") {
         const roll = Math.PI * smooth(clamp(Math.min(t - 0.06, 0.94 - t) / 0.22, 0, 1));
         up.set(-tangent.y, tangent.x, 0).normalize().applyAxisAngle(tangent, hand * roll);
       }
@@ -300,12 +302,13 @@ export class MiniSection implements MiniRail {
 }
 
 /** Shared piece factory for the game and the track gallery. */
-export function createMiniSection(kind: MiniKind, start: number, origin: THREE.Vector3,
+export function createMiniSection(requestedKind: MiniKind, start: number, origin: THREE.Vector3,
   generated: number, random: () => number, varied = false, multiplayer = false): MiniSection {
+    const kind = attractionRail(requestedKind);
     // The bonus controller supplies the uncapped vertical excursion. This
     // finite route connector reserves its entrance and exit in the real course.
     // Its fixed footprint does not grow with difficulty or consume random picks.
-    if (kind === "strengthtower") return new MiniSection(generated, kind, start, origin, 100, 0, 0, 1);
+    if (kind === "strengthtower") return new MiniSection(generated, requestedKind, start, origin, 100, 0, 0, 1);
     const r = (min: number, max: number) => min + random() * (max - min);
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
@@ -419,7 +422,7 @@ export function createMiniSection(kind: MiniKind, start: number, origin: THREE.V
       // footprint compact so opponents remain easy to compare.
       if(kind === "cobraroll" && amplitude > 15){width *= 15/amplitude; amplitude = 15;}
     }
-    return new MiniSection(generated, kind, start, origin, width, amplitude, shift, hand, turns);
+    return new MiniSection(generated, requestedKind, start, origin, width, amplitude, shift, hand, turns);
 }
 
 /** A sliding window of generated track. No finish, lap reset or cumulative descent. */
@@ -480,9 +483,16 @@ export class MiniTrack implements MiniRail {
   private append(kind: MiniKind) {
     if (this.options.multiplayer && kind === "pretzelknot") kind = "noninvertingloop";
     const previous = this.sections.at(-1);
-    this.sections.push(createMiniSection(kind, previous?.end ?? 0,
-      previous ? this.endOrigin(previous) : new THREE.Vector3(0, 4, 0),
-      this.generated++, this.random, !!this.options.generative, !!this.options.multiplayer));
+    const start = previous?.end ?? 0, origin = previous ? this.endOrigin(previous) : new THREE.Vector3(0, 4, 0);
+    let section = createMiniSection(kind, start, origin, this.generated++, this.random, !!this.options.generative, !!this.options.multiplayer);
+    if (this.options.generative && kind !== "strengthtower") {
+      const {world, lap} = adventureAt(start), boundary = lap * WORLD_LAP + world.end;
+      // A long compound inversion must not consume the next world's signature
+      // tour. Finish the world with a level connector when it would overshoot.
+      if (!world.pieces.includes(kind) && section.end > boundary)
+        section = new MiniSection(section.id, "station", start, origin, Math.max(.01, Math.min(24, boundary - start)), 0, this.options.multiplayer ? -origin.z : 0, 1);
+    }
+    this.sections.push(section);
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
@@ -520,7 +530,7 @@ export class MiniTrack implements MiniRail {
         }
         const sequence = challenges.flatMap((kind, i) => [recovery[i % recovery.length], kind]);
         if (newWorld) {
-          // A short tour guarantees the three signature attractions. Shuffle
+          // A short tour guarantees the selected signature attractions. Shuffle
           // the remaining bag afterwards, so they cannot be crowded out by a
           // long randomly chosen inversion just before the world boundary.
           sequence.unshift(...adventure.world.pieces.flatMap((kind, i) =>

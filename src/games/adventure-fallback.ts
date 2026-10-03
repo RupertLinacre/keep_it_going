@@ -1,3 +1,4 @@
+import { attractionRail } from "./attraction-kinds";
 import { Vector3 } from 'three';
 import type { MiniTrack, MiniSection } from './mini-track';
 import { AttractionDrive } from './attraction-drive';
@@ -105,8 +106,8 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       const a=project(new Vector3(section.origin.x,.1,section.origin.z)),b=project(new Vector3(section.origin.x+section.span,.1,section.origin.z));
       ctx.strokeStyle='#72c6d0';ctx.lineWidth=scale*.7;ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
     }
-    if(section.kind==='pondbridge'||section.kind==='ravinebridge'){
-      const p=section.frames[Math.round(section.resolution*.5)].position.clone(),bridge=section.kind==='ravinebridge';
+    if(section.kind==='pondbridge'||attractionRail(section.kind)==='ravinebridge'){
+      const p=section.frames[Math.round(section.resolution*.5)].position.clone(),bridge=attractionRail(section.kind)==='ravinebridge';
       const [x,y]=project(new Vector3(p.x,.1,p.z));ctx.save();ctx.translate(x,y);ctx.scale(scale,-scale);
       oval(0,0,section.width*.3,1.5,bridge?'#69bfcf':'#7bbfc1');
       if(bridge){rect(2,.3,3,p.y*.75,'#8bd6db');for(let i=0;i<6;i++)oval(2.5+(i%2)*1.7,.3+(1-(time*.7+i/6)%1)**2*p.y*.75,.1,.3,'#d8f0ed')}
@@ -115,20 +116,20 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
       ctx.strokeStyle='#c4a375';ctx.lineWidth=scale*.2;ctx.beginPath();
       for(let d=0;d<=section.length;d+=6){const p=section.sample(section.start+d).position;ctx.moveTo(...project(new Vector3(p.x,0,p.z)));ctx.lineTo(...project(p))}ctx.stroke();
     }
-    if(section.kind==='windmillloop'){
+    if(attractionRail(section.kind)==='windmillloop'){
       const y=section.origin.y+section.amplitude,[px,py]=project(new Vector3(section.origin.x+section.width*.5,y,section.origin.z));
       ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
       triangle(0,-y,2.7,y,'#e9d3a4');triangle(0,-1.5,3,3,'#d98d72');
       ctx.rotate(drive.angle);for(let i=0;i<4;i++){rect(-.5,0,1,section.amplitude*.57,'#fff0cc');ctx.rotate(Math.PI/2)}ctx.restore();
     }
-    if(section.kind==='witchhat'||section.kind==='carouselhelix'){
-      const hat=section.kind==='witchhat',c=hat?witchHatCenter(section):carouselCenter(section);
+    if(attractionRail(section.kind)==='witchhat'||section.kind==='carouselhelix'){
+      const hat=attractionRail(section.kind)==='witchhat',c=hat?witchHatCenter(section):carouselCenter(section);
       const [px,py]=project(new Vector3(section.origin.x+c.x,0,section.origin.z+c.z));ctx.save();ctx.translate(px,py);ctx.scale(scale,-scale);
       if(hat){oval(0,1.5,c.radius-.4,.45,'#b099bf');triangle(0,1.5,c.radius-2,section.amplitude,'#aa8cb8');rect(-2.3,3,4.6,.9,'#dcaf66');oval(0,11,.7,.85,'#ffe1a2')}
       else {rect(-c.radius,1,c.radius*2,1,'#c19bb7');triangle(0,7,c.radius+1,3,'#c896b9');for(let i=0;i<6;i++){const x=Math.sin((reducedMotion?.matches?0:carouselRotation(section,distance))+i*Math.PI/3)*c.radius*.7;rect(x,2,.08,5,'#dcc493');oval(x,4,.5,.25,'#e9d8c4')}}
       ctx.restore();
     }
-    if(world.id==='night'||['witchhat'].includes(section.kind)){
+    if(world.id==='night'||['witchhat'].includes(attractionRail(section.kind))){
       const colors=['#ffd298','#efa4ca','#b2e9d7','#c1aff0'];
       for(let i=0;i<65;i++){
         const f=section.sample(section.start+section.length*i/64),p=f.position.clone().addScaledVector(f.up,section.kind==='lanternrun'?4:-1);
