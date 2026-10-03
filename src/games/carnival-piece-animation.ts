@@ -35,6 +35,13 @@ function lanternMascot() {
     m.add(G.rock,'#fff0c8',[side*.22,-1.42,.22],[.15,.18,.14]);
   }
   m.add(G.box,'#aee0d4',[0,-1.76,.32],[.18,.35,.04]);
+  // A tiny star passenger peeps over the striped basket, so the floating bunny
+  // reads as a character carrying a friend rather than another round light.
+  for(const side of [-1,1]) {
+    m.add(G.rock,'#ffd891',[side*.2,-1.41,.28],[.13,.13,.12]);
+    m.add(G.rock,'#674f84',[side*.09,-1.42,.36],[.03,.04,.025]);
+  }
+  m.add(G.cone,'#ffd891',[0,-1.25,.24],[.23,.4,.12]);
   return m;
 }
 
@@ -56,6 +63,13 @@ function unicorn() {
   for (let i=0;i<3;i++) m.add(G.rock, COLORS[(i+1)%4], [-.77-i*.15,.12-i*.15,0], [.27,.22,.23], [0,0,-.4]);
   m.add(G.rock, '#a891d0', [-.12,.4,0], [.43,.12,.4]);
   m.add(G.rock, '#eac37e', [-.36,.5,0], [.13,.2,.38]);
+  // Sculpted Pegasus feathers make the carousel animals unmistakable at game
+  // scale. They sit inside the existing animal envelope and share its batch.
+  for(const side of [-1,1]) {
+    for(let feather=0;feather<4;feather++)m.add(G.rock,COLORS[(feather+2)%4],[-.16-feather*.14,.57+feather*.1,side*(.32+feather*.045)],[.35,.13,.11],[0,side*.15,.38]);
+    m.beam('#e0b477',new T.Vector3(.66,.93,side*.285),new T.Vector3(.93,.85,side*.29),.026);
+    m.add(G.rock,'#e4bd80',[-.2,.24,side*.36],[.22,.2,.045],[0,0,Math.PI/4]);
+  }
   return m;
 }
 
@@ -167,9 +181,10 @@ class CarnivalPieceAnimation implements PieceAnimation {
         rotor.rotation.y=motion.update(time,distance,reduced);
         for(let i=0;i<12;i++) {
           const level=Math.floor(i/4),a=(i%4)*Math.PI/2+level*Math.PI/4,gap=(distance-greetings[level]-(i%4)*1.3)/11;
-          const greeting=reduced?0:Math.exp(-gap*gap),bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.28+greeting*.32;
+          const greeting=reduced?0:Math.exp(-gap*gap),prepare=reduced?0:Math.exp(-((gap+1.55)**2)*5);
+          const bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.28+greeting*.39-prepare*.14;
           this.dummy.position.set(Math.sin(a)*animalRadius,floors[level]+1.65+bob,Math.cos(a)*animalRadius);
-          this.dummy.rotation.set(0,a,greeting*.13);this.dummy.scale.setScalar(size);place(animals,i);
+          this.dummy.rotation.set(0,a,greeting*.19-prepare*.06);this.dummy.scale.set(size,size*(1-prepare*.075),size);place(animals,i);
           bodyMatrix.copy(this.dummy.matrix);
           // Feet swing about their own hips: a cantering wave, not a rigid toy bob.
           for(let foot=0;foot<4;foot++) {
@@ -196,10 +211,13 @@ class CarnivalPieceAnimation implements PieceAnimation {
       for(const mesh of wings)mesh.name='lantern-butterfly-wings';
       this.tick=(time,distance,reduced)=>{
         for(let i=0;i<7;i++) {
-          const stop=stops[i],arrival=Math.exp(-(((distance-stop.distance)/10)**2)),bob=reduced?0:Math.sin(time*1.5+i)*.16+arrival*.85;
+          const stop=stops[i],arrival=Math.exp(-(((distance-stop.distance)/10)**2));
+          const anticipation=reduced?0:Math.exp(-(((distance-stop.distance+13)/5)**2));
+          const rebound=reduced?0:Math.exp(-(((distance-stop.distance-15)/8)**2));
+          const bob=reduced?0:Math.sin(time*1.5+i)*.16+arrival*.98-anticipation*.3+rebound*.32;
           this.dummy.position.copy(stop.position);this.dummy.position.y+=10+bob;
-          this.dummy.rotation.set(reduced?0:-arrival*.13,Math.sin(i*.8)*.35,reduced?0:Math.sin(time*1.8+i)*(.045+arrival*.12));
-          const size=.98+(reduced?0:arrival*.09);this.dummy.scale.set(size,size*(reduced?1:1+arrival*.08),size);place(meshes,i);
+          this.dummy.rotation.set(reduced?0:-arrival*.19+anticipation*.13,Math.sin(i*.8)*.35,reduced?0:Math.sin(time*1.8+i)*(.045+arrival*.12));
+          const size=.98+(reduced?0:arrival*.09);this.dummy.scale.set(size,size*(reduced?1:1+arrival*.12-anticipation*.12),size);place(meshes,i);
           bodyMatrix.copy(this.dummy.matrix);
           for(let side=0;side<2;side++){
             local.position.set(side===0?.54:-.54,0,-.28);local.scale.setScalar(1);
@@ -210,7 +228,10 @@ class CarnivalPieceAnimation implements PieceAnimation {
         }
       };
     } else {
-      const m=new WorldModel();star(m,0,0,0,.62,'#ffe3a2');
+      const m=new WorldModel();star(m,0,0,0,.83,'#ffe3a2');
+      // Little faces remain in the existing luminous star batch: no new draw.
+      for(const side of [-1,1])m.add(G.rock,'#6d547f',[side*.17,.08,.025],[.045,.068,.022],[],true);
+      m.add(G.rock,'#bd759a',[0,-.15,.025],[.11,.055,.022],[],true);
       const meshes=pool(m,12),top=section.frames[Math.round(section.resolution/2)].position;
       const x=top.x-section.origin.x,y=top.y+5.8,z=top.z-section.origin.z;
       const cheers=Array.from({length:6},(_,i)=>{
@@ -227,7 +248,11 @@ class CarnivalPieceAnimation implements PieceAnimation {
           this.dummy.position.set(x+Math.sin(a)*r,y+Math.cos(a)*r,z+.15);
           this.dummy.rotation.set(0,0,-a);this.dummy.scale.setScalar(.7+cheer*.25);place(meshes,i);
           const marker=cheers[i],gap=(distance-marker.stop)/8,pulse=Math.exp(-gap*gap);
-          this.dummy.position.copy(marker.p);this.dummy.rotation.set(0,0,reduced?0:pulse*Math.PI);
+          this.dummy.position.copy(marker.p);
+          // A bowed preparation followed by a cartwheel and a little landing
+          // gives each cheer a readable beginning, middle and end.
+          const hop=reduced?0:pulse*.8,turn=reduced?0:T.MathUtils.smoothstep(distance,marker.stop-9,marker.stop+9)*Math.PI*2;
+          this.dummy.position.y+=hop;this.dummy.rotation.set(0,0,turn);
           this.dummy.scale.setScalar(.9+(reduced?0:pulse*.85));place(meshes,i+6);
         }
         const apex=section.start+section.distances[Math.round(section.resolution*.5)],near=Math.exp(-(((distance-apex)/13)**2));

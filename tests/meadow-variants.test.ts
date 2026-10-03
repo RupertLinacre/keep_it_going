@@ -160,3 +160,57 @@ test('quacking duck beaks stay hinged while opening away from the fixed upper be
  }
  bath.dispose();material.dispose();lights.dispose();
 });
+
+test('trampoline sheep squash and stretch without changing volume or slipping through the bed',()=>{
+ const material=new T.MeshStandardMaterial(),lights=new FairgroundLights(),s=section('sheepbank',74,8,1),show=createMeadowVariant(s,'b',material,lights)!;
+ const sheep=show.group.getObjectByName('trampoline-sheep') as T.InstancedMesh,mats=show.group.getObjectByName('trampoline-mats') as T.InstancedMesh;
+ show.update(0,s.start-1,false);show.update(1,at(s,.18),false);
+ const launch=pose(sheep,0),center=new T.Vector3(0,-1,0).applyMatrix4(pose(mats,0));
+ assert.ok(Math.abs(location(launch).y-center.y)<1e-5);
+ const scales=[];
+ for(const age of [0,.12,.36,.6,.88,1.75,2.62]){
+  show.update(1+age,at(s,.18),false);const m=pose(sheep,0),scale=new T.Vector3().setFromMatrixScale(m);scales.push(scale.y);
+  assert.ok(Math.abs(scale.x*scale.y*scale.z-1.08**3)<1e-5);
+  assert.ok(location(m).y>=new T.Vector3(0,-1,0).applyMatrix4(pose(mats,0)).y-1e-5);
+ }
+ assert.ok(Math.max(...scales)-Math.min(...scales)>.2,'The bounce has a visible elastic silhouette');
+ show.dispose();material.dispose();lights.dispose();
+});
+
+test('the frog conductor wand stays in its moving hand throughout its croak',()=>{
+ const material=new T.MeshStandardMaterial(),lights=new FairgroundLights(),s=section('pondbridge',66,4,1),show=createMeadowVariant(s,'b',material,lights)!;
+ const frogs=show.group.getObjectByName('orchestra-frogs') as T.InstancedMesh,batons=show.group.getObjectByName('frog-batons') as T.InstancedMesh;
+ show.update(0,s.start-1,false);show.update(1,at(s,.5),false);
+ for(const age of [0,.2,.55,1,2.5,4]){
+  show.update(1+age,at(s,.5),false);
+  const hand=new T.Vector3(-.83,1.22,.89).applyMatrix4(pose(frogs,1));
+  assert.ok(hand.distanceTo(location(pose(batons,0)))<1e-5,'Swaying or hopping cannot detach the baton from the hand');
+ }
+ show.dispose();material.dispose();lights.dispose();
+});
+
+test('nectar couriers reach hive and sunflower heights with wings attached while banking',()=>{
+ const material=new T.MeshStandardMaterial(),lights=new FairgroundLights(),s=section('windmillloop',8,10,1),show=createMeadowVariant(s,'c',material,lights)!;
+ const bees=show.group.getObjectByName('honey-delivery-bees') as T.InstancedMesh,wings=show.group.getObjectByName('delivery-bee-wings') as T.InstancedMesh;
+ let lowest=Infinity,highest=-Infinity;
+ for(let frame=0;frame<=120;frame++){
+  show.update(frame/2,s.start,false);
+  for(let i=0;i<5;i++){
+   const body=pose(bees,i),position=location(body);lowest=Math.min(lowest,position.y);highest=Math.max(highest,position.y);
+   for(let j=0;j<2;j++){
+    const expected=new T.Vector3(-.13,.25,(j?1:-1)*.31).applyMatrix4(body);
+    assert.ok(expected.distanceTo(location(pose(wings,i*2+j)))<1e-5,'Wing roots remain attached through direction changes');
+   }
+  }
+ }
+ assert.ok(lowest<5.1&&lowest>=4.999,'Delivery descends to the hive roof without collision');
+ assert.ok(highest>s.origin.y+s.amplitude+1.8,'Bees return to the flower crown');
+ let previous:T.Quaternion[]=[];
+ for(let frame=0;frame<=1200;frame++){
+  show.update(frame/20,s.start,false);
+  const rotations=Array.from({length:5},(_,i)=>new T.Quaternion().setFromRotationMatrix(pose(bees,i).scale(new T.Vector3(1/.95,1/.95,1/.95))));
+  if(previous.length)rotations.forEach((q,i)=>assert.ok(q.angleTo(previous[i])<.1,'Banking couriers never snap their heading at turnarounds'));
+  previous=rotations;
+ }
+ show.dispose();material.dispose();lights.dispose();
+});

@@ -50,7 +50,10 @@ export function pumpkinHops(m:WorldModel,section:MiniSection,place:PumpkinPlacem
       for(const brace of [-1,1])m.beam('#c8a18f',new T.Vector3(x+brace*1.5,top-.45,dz),new T.Vector3(x,Math.max(.2,top-3),dz),.12);
       m.add(G.cone,'#f2d899',[x,top+.42,dz+1.29],[.16,.26,.055]);
       // A broad fan-shaped shell behind each drum reads as a tiny bandstand.
-      for(let j=0;j<5;j++){const a=(j-2)*.33;m.add(G.box,j%2?'#e9b077':'#bea2d4',[x+Math.sin(a)*1.8,top+2.25+Math.cos(a)*.25,dz-1.6],[.58,2.1,.18],[0,0,-a]);}
+      for(let j=0;j<7;j++){const a=(j-3)*.26;
+        m.add(G.box,j%2?'#e9b077':'#bea2d4',[x+Math.sin(a)*1.9,top+2.3+Math.cos(a)*.4,dz-1.6],[.6,2.2,.2],[0,0,-a]);
+        m.add(G.round,'#eed2a1',[x+Math.sin(a)*2.9,top+2.3+Math.cos(a)*1.4,dz-1.6],[.32,.35,.14]);
+      }
 
     }
     m.add(G.pole,'#a99a78',[x-2,1.5,z+1],[.1,3,.1]);
@@ -97,16 +100,16 @@ export function pumpkinPortalFrame(m:WorldModel,section:MiniSection){
     previous=p;
   }
   const p=place(0,10.1,0);
-  m.add(G.round,'#f6e4b5',p.toArray(),[1.15,1.15,.24],[],true);
-  for(const side of [-1,1])m.add(G.round,'#745c86',[p.x+side*.34,p.y+.1,p.z+.24],[.1,.16,.07]);
-  m.add(G.round,'#c790b2',[p.x,p.y-.38,p.z+.25],[.35,.12,.07]);
+  m.add(G.round,'#f6e4b5',p.toArray(),[1.15,1.15,.24],[rotation.x,rotation.y,rotation.z],true);
+  for(const side of [-1,1])m.add(G.round,'#745c86',place(side*.34,10.2,.24).toArray(),[.1,.16,.07],[rotation.x,rotation.y,rotation.z]);
+  m.add(G.round,'#c790b2',place(0,9.72,.25).toArray(),[.35,.12,.07],[rotation.x,rotation.y,rotation.z]);
 }
 
-export function ghostModel() {
+export function ghostModel(cloth=true) {
   const m=new WorldModel();
   m.add(G.round,'#ebdff5',[0,1.1,0],[.72,.9,.5]);
-  m.add(G.cone,'#ebdff5',[0,.5,0],[.9,1.6,.65]);
-  for(let i=0;i<5;i++)m.add(G.round,'#ebdff5',[(i-2)*.29,-.08,0],[.23,.22,.4]);
+  if(cloth){m.add(G.cone,'#ebdff5',[0,.5,0],[.9,1.6,.65]);
+  for(let i=0;i<5;i++)m.add(G.round,'#ebdff5',[(i-2)*.29,-.08,0],[.23,.22,.4]);}
   for(const side of [-1,1]){
     m.add(G.round,'#514a74',[side*.23,1.2,.44],[.09,.15,.055]);
     m.add(G.round,'#e7abc7',[side*.42,.94,.41],[.12,.07,.04]);
@@ -137,6 +140,17 @@ export function witchHat(m:WorldModel,section:MiniSection,place:PumpkinPlacement
   m.add(G.pole,'#b194bd',[x,1.5,z],[radius-.4,.5,radius-.4]);
   m.add(G.cone,'#a387b3',[x,height*.5+1.6,z],[radius-2,height,radius-2]);
   m.add(G.cone,'#b098bf',[x+1.2,height+1,z],[1.1,4,1.1],[0,0,-.8]);
+  // Broad cloth panels follow the cone instead of sitting like flat stickers.
+  // They read at the normal game scale; the existing small stitches finish seams.
+  for(let row=0;row<2;row++)for(let sector=0;sector<4;sector++){
+    const positions:number[]=[],a0=sector*Math.PI/2+.12,y0=1.6+height*(.13+row*.4),y1=y0+height*.25;
+    const vertex=(a:number,y:number)=>{const r=(radius-2)*(1-(y-1.6)/height)+.035;return [x+Math.sin(a)*r,y,z+Math.cos(a)*r];};
+    for(let j=0;j<4;j++){
+      const a=a0+j*.18,b=a+.18,p=vertex(a,y0),q=vertex(b,y0),r=vertex(a,y1),u=vertex(b,y1);positions.push(...p,...q,...r,...q,...u,...r);
+    }
+    const panel=new T.BufferGeometry();panel.setAttribute('position',new T.Float32BufferAttribute(positions,3));panel.computeVertexNormals();
+    m.add(panel,(row+sector)%2?'#bc9ec5':'#9986b4',[0,0,0]);panel.dispose();
+  }
   // Patchwork seams, stitched stars and an oversize twisted hat-band give the
   // old plain cone the character of a friendly storybook witch's workshop.
   for(let row=0;row<6;row++){

@@ -42,15 +42,17 @@ function potionHops(s:MiniSection,v:VariantBuilder){
    m.add(G.pole,gold,[x+side*3.7,y+2.4,z],[.63,.18,.63]);
   }
   // Copper pipework follows the outside of the hill, never through the rails.
-  m.beam(gold,new T.Vector3(x-3.7,y+2.3,z),new T.Vector3(x-3.7,y+4.7,z),.18);
-  m.beam(gold,new T.Vector3(x-3.7,y+4.7,z),new T.Vector3(x,y+4.7,z),.18);
+  m.beam(gold,new T.Vector3(x-3.7,y+1.8,z-.55),new T.Vector3(x-3.7,y+1.8,z-2.6),.18);
+  m.beam(gold,new T.Vector3(x-3.7,y+1.8,z-2.6),new T.Vector3(x-3.7,y+4.7,z-2.6),.18);
+  m.beam(gold,new T.Vector3(x-3.7,y+4.7,z-2.6),new T.Vector3(x,y+4.7,z-2.6),.18);
   star(m,x,y+5.9,z,.8);
-  gauge(m,x+3.65,y+4.6,z,1.12);
+  gauge(m,x+3.65,y+4.6,z-2.6,1.12);
   m.add(G.pole,gold,[x+5.45,y-1.16,z],[1.05,.2,1.05]);
   m.beam(gold,new T.Vector3(x+5.45,y-.3,z),new T.Vector3(x+3.7,y-.3,z),.24);
   m.beam(gold,new T.Vector3(x+5.45,y-1.16,z),new T.Vector3(x+2.5,y-1.6,z),.18);
-  m.beam(gold,new T.Vector3(x+3.65,y+2.3,z),new T.Vector3(x+3.65,y+3.5,z),.18);
-  for(let j=0;j<4;j++)m.add(G.box,j%2?pink:gold,[x+3.65,y+2.8+j*.18,z],[.6,.12,.4]);
+  m.beam(gold,new T.Vector3(x+3.65,y+1.8,z-.55),new T.Vector3(x+3.65,y+1.8,z-2.6),.18);
+  m.beam(gold,new T.Vector3(x+3.65,y+1.8,z-2.6),new T.Vector3(x+3.65,y+3.5,z-2.6),.18);
+  for(let j=0;j<4;j++)m.add(G.box,j%2?pink:gold,[x+3.65,y+2.8+j*.18,z-2.6],[.6,.12,.4]);
   // Broad riveted feet and curved drain taps make this a connected machine.
   for(const side of [-1,1])m.add(G.box,gold,[x+side*1.8,y-1.1,z],[.7,.9,1.7]);
   m.beam(gold,new T.Vector3(x,y,z+2.5),new T.Vector3(x,y,z+3.2),.26);
@@ -60,7 +62,7 @@ function potionHops(s:MiniSection,v:VariantBuilder){
   let previous:T.Vector3|undefined;
   for(let j=0;j<=12;j++){const f=(i-.5+j/12)/3,p=point(s,f);p.z-=10.2;p.y-=1.4;if(previous)m.beam(gold,previous,p,.2);previous=p;}
  }
- v.batch(m);
+ v.batch(m).name='potion-laboratory-body';
  const needleModel=gaugeNeedle(),needles=v.pool(needleModel,3);
  // A piston beside each vat makes the pressure build-up visible before a pop.
  const pumpModel=new WorldModel();
@@ -69,13 +71,17 @@ function potionHops(s:MiniSection,v:VariantBuilder){
  const pumps=v.pool(pumpModel,3),pumpDummy=new T.Object3D();
  pumps.forEach(mesh=>mesh.name='potion-pressure-bellows');
  const spoon=new WorldModel();spoon.add(G.pole,gold,[0,0,0],[.12,4,.12]);spoon.add(G.round,purple,[0,-1.65,0],[.52,.7,.18]);
- const stir=v.pool(spoon,3),bubbles=v.pool(orb(),45),corks=v.pool((()=>{const n=new WorldModel();n.add(G.pole,'#b9916e',[0,0,0],[.56,.7,.56]);n.add(G.box,cream,[0,.37,0],[.6,.04,.3]);return n;})(),6);
+ const stir=v.pool(spoon,3),bubbles=v.pool(orb(),45),corks=v.pool((()=>{const n=new WorldModel();n.add(G.pole,'#b9916e',[0,0,0],[.56,.7,.56]);n.add(G.box,cream,[0,.37,0],[.6,.04,.3]);
+ n.add(G.round,green,[0,.65,0],[.6,.43,.45]);
+ for(const side of [-1,1]){n.add(G.round,green,[side*.33,.96,.12],[.25,.26,.23]);n.add(G.round,cream,[side*.33,1,.31],[.16,.17,.07]);n.add(G.round,dark,[side*.33,1,.38],[.075,.11,.03]);n.add(G.round,green,[side*.5,.38,.2],[.28,.12,.32]);}
+ n.add(G.round,pink,[0,.51,.43],[.23,.06,.045]);return n;})(),6);
+ corks.forEach(mesh=>mesh.name='potion-frog-stoppers');
  const pulses=new CrossingPulses(stops);
  v.animate((t,d,reduced)=>{
   pulses.update(t,d);
   for(let i=0;i<3;i++){
    const p=sites[i],age=pulses.age(i,t),hello=arrival(d,stops[i],15),clock=reduced?0:t*.6+hello;
-   v.place(needles,i,p.x+3.65,p.y+3.6,p.z-6.44,1,0,0,1.7-hello*3.3);
+   v.place(needles,i,p.x+3.65,p.y+3.6,p.z-9.04,1,0,0,1.7-hello*3.3);
    const pump=reduced?0:hello*(.5+.5*Math.sin(t*8+i));
    pumpDummy.position.set(p.x+5.45,p.y-2.08,p.z-6.7);pumpDummy.scale.set(1,1-pump*.55,1);pumpDummy.updateMatrix();
    for(const mesh of pumps)mesh.setMatrixAt(i,pumpDummy.matrix);
@@ -86,8 +92,9 @@ function potionHops(s:MiniSection,v:VariantBuilder){
     v.place(bubbles,i*15+j,p.x+Math.sin(a)*(active?u*.9:1.5),p.y+1.3+height,p.z-6.7+Math.cos(a)*(active?u*.9:1.5),active?Math.max(.02,.38*(1-u/3.5)):.18+.06*(j%3));
    }
    for(let j=0;j<2;j++){
-    const corkAge=age-j*.17,hop=!reduced&&corkAge>=0&&corkAge<2?Math.sin(corkAge/2*Math.PI)*(4.5+j):0;
-    v.place(corks,i*2+j,p.x+(j?1:-1)*3.7,p.y+1.9+hop,p.z-6.7,1,hop*.25,hop*.3,hop*.2);
+    const corkAge=age-j*.23,u=T.MathUtils.clamp(corkAge/2.15,0,1),f=u*u*(3-2*u),hop=!reduced&&corkAge>=0&&corkAge<2.15?Math.sin(u*Math.PI)*(4.5+j):0;
+    // A complete somersault returns each frog's cork squarely to its bottle.
+    v.place(corks,i*2+j,p.x+(j?1:-1)*3.7,p.y+1.9+hop,p.z-6.7,1,reduced?0:(j?1:-1)*f*Math.PI*2,0,0);
    }
   }
  });
@@ -120,7 +127,10 @@ function ghostLaundry(s:MiniSection,v:VariantBuilder){
   m.add(G.box,cream,[p.x+2.6,y-1.42,z+1.7],[.9,.07,.55]);
  }
  v.batch(m);
- const g=ghostModel(),ghosts=v.pool(g,6),wash=new WorldModel();ghosts.forEach(m=>m.name='laundry-ghosts');
+ const g=ghostModel(false),ghosts=v.pool(g,6),wash=new WorldModel();
+ const clothModel=new WorldModel();clothModel.add(G.cone,'#ebdff5',[0,-.8,0],[.9,1.6,.65]);
+ for(let j=0;j<5;j++)clothModel.add(G.round,'#ebdff5',[(j-2)*.29,-1.38,0],[.23,.22,.4]);
+ const cloth=v.pool(clothModel,6),clothDummy=new T.Object3D(),ghostMatrix=new T.Matrix4();cloth.forEach(mesh=>mesh.name='laundry-fluttering-sheets');ghosts.forEach(m=>m.name='laundry-ghosts');
  for(let i=0;i<3;i++){const a=i*Math.PI*2/3;wash.add(G.round,cream,[Math.sin(a)*.67,Math.cos(a)*.67,0],[.34,.43,.12]);}
  const doorModel=new WorldModel();
  doorModel.add(G.ring,gold,[1.35,0,0],[1.4,1.4,1.4]);
@@ -141,6 +151,10 @@ function ghostLaundry(s:MiniSection,v:VariantBuilder){
     const u=reduced?1:T.MathUtils.clamp((age-j*.22)/2.5,0,1),f=u*u*(3-2*u),side=j?1:-1;
     const resting=age<0||reduced,travel=reduced?1:age<0?0:f;
     v.place(ghosts,i*2+j,p.x+side*(.63+2.37*travel),p.y-.7+travel*3.8+(!resting?Math.sin(u*Math.PI)*1.6:0),p.z+8.25-travel*1.95,.85,0,0,reduced?0:(!resting&&u<1?side*Math.sin(u*Math.PI)*.65:Math.sin(t*1.5+j)*.09));
+    ghosts[0].getMatrixAt(i*2+j,ghostMatrix);
+    const flutter=reduced?0:Math.sin(t*4+i+j)*(.025+travel*.16),billow=1+(reduced?0:Math.sin(u*Math.PI)*.2);
+    clothDummy.position.set(0,1.3,0);clothDummy.rotation.set(flutter,0,flutter*.4);clothDummy.scale.set(billow,1,1);clothDummy.updateMatrix();ghostMatrix.multiply(clothDummy.matrix);
+    for(const mesh of cloth)mesh.setMatrixAt(i*2+j,ghostMatrix);
    }
    for(let j=0;j<10;j++){const u=reduced?j/10:(t*.19+j/10)%1;v.place(bubbles,i*10+j,p.x+Math.sin(j*2.4)*2.2,p.y+1+u*5,p.z+6.5+Math.cos(j)*1.2,.12+.18*Math.sin(u*Math.PI));}
   }
@@ -176,13 +190,21 @@ function monsterPortal(s:MiniSection,v:VariantBuilder){
  const paw=new WorldModel();paw.add(G.round,'#bad890',[0,-1.1,0],[.65,1.8,.85]);paw.add(G.round,'#c0dc9e',[0,.55,0],[1.1,1.25,.6]);
  for(let j=0;j<3;j++){paw.add(G.round,'#c0dc9e',[(j-1)*.7,1.4,0],[.36,.7,.4]);paw.add(G.round,pink,[(j-1)*.62,.7,.55],[.2,.24,.07]);}
  const paws=v.pool(paw,2,root);
+ const lidModel=new WorldModel();lidModel.add(G.round,'#c4df9e',[0,0,0],[1.07,1.19,.17]);
+ lidModel.add(G.box,purple,[0,-.85,.16],[1.32,.07,.07]);
+ const lids=v.pool(lidModel,4,jaw),lidDummy=new T.Object3D();lids.forEach(mesh=>mesh.name='monster-winking-lids');
  const sweets=v.pool(candy(),24,root),pulses=new CrossingPulses([s.start+s.length/2]);
  v.animate((t,d,reduced)=>{
   pulses.update(t,d);const hello=arrival(d,s.start+s.length/2,30),age=pulses.age(0,t);
   const burp=!reduced&&age>0&&age<2?Math.sin(age*8)*Math.exp(-age*2):0;
   // A gentle cross-eyed glance follows the approaching train into the mouth.
   const look=reduced?0:Math.tanh((d-(s.start+s.length/2))/18)*.35;
-  for(let i=0;i<4;i++){const side=i<2?-1:1,face=i%2?1:-1;v.place(pupils,i,side*2.65+look,2.16-hello*.2,face*1.9,1,0,face<0?Math.PI:0,0);}
+  for(let i=0;i<4;i++){
+   const side=i<2?-1:1,face=i%2?1:-1;v.place(pupils,i,side*2.65+look,2.16-hello*.2,face*1.9,1,0,face<0?Math.PI:0,0);
+   const idle=Math.max(0,1-Math.abs((t+i*.02)%5.4-4.8)/.16),wink=age>=0?Math.max(0,1-Math.abs(age-(side<0?.45:.68))/.2):0;
+   const shut=reduced?0:Math.max(idle*(1-hello),wink);
+   lidDummy.position.set(side*2.65,3.39-shut*1.19,face*2.11);lidDummy.rotation.set(0,face<0?Math.PI:0,0);lidDummy.scale.set(1,Math.max(.012,shut),1);lidDummy.updateMatrix();for(const mesh of lids)mesh.setMatrixAt(i,lidDummy.matrix);
+  }
   jaw.position.y=7+(reduced?2:hello*2)+burp*.35;jaw.rotation.z=reduced?0:Math.sin(t)*.025*(1-hello);
   for(let i=0;i<2;i++){const side=i?1:-1;v.place(paws,i,side*7.2,4.8,1.4,1,0,0,side*(.25+(reduced?0:hello*.4+Math.sin(t*6+i)*hello*.23)));}
   for(let i=0;i<24;i++){
@@ -219,7 +241,9 @@ function puppetPortal(s:MiniSection,v:VariantBuilder){
  for(let x=0;x<8;x++)for(let z=0;z<3;z++)m.add(G.box,(x+z)%2?cream:purple,[(x-3.5)*1.9,-.57,(z-1)*1.5],[1.85,.05,1.45]);
  v.batch(m,root);
  const curtain=new WorldModel();for(let j=0;j<6;j++)curtain.add(G.pole,j%2?'#bd7dac':'#a96d9a',[(j-2.5)*.35,0,0],[.27,7.4,.32]);
- curtain.add(G.box,gold,[0,-.9,.35],[2.1,.2,.15]);const drapes=v.pool(curtain,2,root);
+ curtain.add(G.box,gold,[0,-.9,.35],[2.1,.2,.15]);
+ for(let j=0;j<6;j++)curtain.add(G.cone,gold,[(j-2.5)*.35,-3.85,.1],[.15,.4,.16],[0,0,Math.PI]);
+ const drapes=v.pool(curtain,2,root),drapeDummy=new T.Object3D();drapes.forEach(mesh=>mesh.name='gathering-theatre-curtains');
  const puppet=new WorldModel();puppet.add(G.round,cream,[0,1.45,0],[.65,.7,.45]);eyes(puppet,0,1.48,.4,.8);
  puppet.add(G.pole,cream,[0,.45,0],[.11,1.1,.11]);
  for(let j=0;j<3;j++)puppet.add(G.box,cream,[0,.65-j*.3,0],[.95-j*.12,.12,.19]);
@@ -228,6 +252,9 @@ function puppetPortal(s:MiniSection,v:VariantBuilder){
 
  }
  puppet.add(G.box,gold,[0,3.2,0],[2.2,.12,.15]);puppet.add(G.cone,pink,[0,2.32,0],[.55,1.1,.45]);
+ puppet.add(G.round,green,[0,2.9,0],[.19,.19,.19]);
+ for(const side of [-1,1])puppet.add(G.cone,pink,[side*.19,.94,.16],[.19,.35,.11],[0,0,side*Math.PI/2]);
+ puppet.add(G.round,gold,[0,.94,.24],[.1,.1,.07]);
  const puppets=v.pool(puppet,3,root);
  const stringModel=new WorldModel();stringModel.add(G.pole,'#aaa29c',[0,0,0],[.018,1,.018]);
  const strings=v.pool(stringModel,12,root),stringDummy=new T.Object3D(),stringStart=new T.Vector3(),stringEnd=new T.Vector3(),stringAxis=new T.Vector3(0,1,0),stringDelta=new T.Vector3(),stringRotation=new T.Euler();
@@ -239,21 +266,24 @@ function puppetPortal(s:MiniSection,v:VariantBuilder){
  arms.forEach(mesh=>mesh.name='puppet-arms');legs.forEach(mesh=>mesh.name='puppet-legs');
  v.animate((t,d,reduced)=>{
   const hello=arrival(d,s.start+s.length/2,24),clock=reduced?0:t;
-  for(let i=0;i<2;i++)v.place(drapes,i,(i?1:-1)*(4.7+hello*1.15),3.8,1.2,1,0,0,0);
+  for(let i=0;i<2;i++){
+   const width=2-hello,side=i?1:-1;
+   drapeDummy.position.set(side*(6.8-width*1.145),3.8,1.2);drapeDummy.scale.set(width,1,1);drapeDummy.updateMatrix();for(const mesh of drapes)mesh.setMatrixAt(i,drapeDummy.matrix);
+  }
   for(let i=0;i<3;i++){
-   const x=i===1?0:(i-1)*7.9,size=i===1?1:1.25;
+   const x=i===1?0:(i-1)*7.9,size=i===1?1:1.25,perform=arrival(d,s.start+s.length/2+(i-1)*13,11);
    // Ground the lowest boot on its platform before adding the deliberate hop.
    // A pitched shoe projects farther down than its unrotated height.
    let footLow=0;
    for(let j=0;j<2;j++){
-    const side=j?1:-1,swing=reduced?0:Math.sin(clock*5+i+j*Math.PI)*hello,rx=swing*.35,rz=side*.16+swing*.3;
+    const side=j?1:-1,swing=reduced?0:Math.sin(clock*5+i+j*Math.PI)*perform,rx=swing*.35,rz=side*.16+swing*.3;
     const cy=Math.cos(rx)*Math.cos(rz),cx=Math.cos(rx)*Math.sin(rz),cz=-Math.sin(rx);
     footLow=Math.min(footLow,(-.94*cy+.16*cz-Math.abs(cx)*.19-Math.abs(cy)*.11-Math.abs(cz)*.3)*size);
    }
-   const y=(i===1?6.31:1.11)-footLow+(reduced?0:hello*Math.max(0,Math.sin(clock*4+i))*.65);
+   const y=(i===1?6.31:1.11)-footLow+(reduced?0:perform*Math.max(0,Math.sin(clock*4+i))*.65);
    v.place(puppets,i,x,y,2.1,size,0,0,0);
-   for(let j=0;j<2;j++){const side=j?1:-1,swing=reduced?0:Math.sin(clock*5+i+j*Math.PI)*hello;
-    const armAngle=side*(.65+hello*.4)+swing*.5,legAngle=side*.16+swing*.3,legPitch=swing*.35;
+   for(let j=0;j<2;j++){const side=j?1:-1,swing=reduced?0:Math.sin(clock*5+i+j*Math.PI)*perform;
+    const armAngle=side*(.65+perform*.4)+swing*.5,legAngle=side*.16+swing*.3,legPitch=swing*.35;
     v.place(arms,i*2+j,x+side*.44*size,y+.8*size,2.1,size,0,0,armAngle);
     v.place(legs,i*2+j,x+side*.25*size,y,2.1,size,legPitch,0,legAngle);
     stringStart.set(x+side*.85*size,y+3.2*size,2.1);
@@ -287,20 +317,26 @@ function potionTower(s:MiniSection,v:VariantBuilder){
  m.add(G.pole,purple,[c.x,height*.94-1,c.z],[r*.44,.7,r*.44]);
  for(let j=0;j<6;j++){const a=j*Math.PI/3;m.add(G.box,gold,[c.x+Math.sin(a)*r*.43,height*.94-.7,c.z+Math.cos(a)*r*.43],[.15,1.1,.25],[0,a,0]);}
  v.batch(m);
- const spoon=new WorldModel();spoon.add(G.box,gold,[0,0,0],[r*1.55,.2,.3]);spoon.add(G.round,cream,[r*.7,0,0],[.4,.12,.5]);
+ const spoon=new WorldModel();
+ for(let j=0;j<3;j++){const a=j*Math.PI*2/3;spoon.add(G.box,gold,[Math.sin(a)*r*.37,0,Math.cos(a)*r*.37],[.22,.2,r*.78],[0,a,0]);spoon.add(G.round,cream,[Math.sin(a)*r*.72,0,Math.cos(a)*r*.72],[.35,.12,.35]);}
+ spoon.add(G.pole,purple,[0,.13,0],[.36,.32,.36]);
  const spoons=v.pool(spoon,3),bubble=v.pool(orb(),36),rocket=new WorldModel();
  rocket.add(G.pole,'#c4a17b',[0,0,0],[r*.32,1.3,r*.32]);rocket.add(G.cone,pink,[0,1.15,0],[r*.39,1.6,r*.39]);eyes(rocket,0,.2,r*.3,.6);
  for(let j=0;j<3;j++){const a=j*Math.PI*2/3;rocket.add(G.cone,gold,[Math.sin(a)*r*.32,-.5,Math.cos(a)*r*.32],[.4,1,.4],[0,a,-.25]);}
  rocket.add(G.ring,gold,[0,.35,r*.32],[.35,.35,.2]);rocket.add(G.round,'#bce7c4',[0,.35,r*.32+.07],[.23,.23,.05]);
  const cork=v.pool(rocket,1),needles=v.pool(gaugeNeedle(),3),pulses=new CrossingPulses([at(s,.4)]);
+ cork.forEach(mesh=>mesh.name='potion-rocket');const chargeStops=[.2,.28,.36].map(f=>at(s,f));
  v.animate((t,d,reduced)=>{
   pulses.update(t,d);const age=pulses.age(0,t),hello=arrival(d,at(s,.4),40),u=T.MathUtils.clamp(age/4,0,1),jump=!reduced&&age>=0&&age<4?Math.sin(u*Math.PI)**1.2*9:0;
   const charge=!reduced&&age<0?hello*Math.sin(t*22)*.07:0;
   for(let i=0;i<3;i++){
-   v.place(spoons,i,c.x,levels[i]+height*.12,c.z,1,0,reduced?0:t*.5+i+hello,0);
-   v.place(needles,i,c.x+r*.63,levels[i]+height*.07,c.z+r*.65+.25,.56,0,0,1.5-hello*2.8);
+   const chargeLevel=arrival(d,chargeStops[i],18);
+   v.place(spoons,i,c.x,levels[i]+height*.12,c.z,1,0,reduced?0:t*.5+i+chargeLevel*2.2,0);
+   v.place(needles,i,c.x+r*.63,levels[i]+height*.07,c.z+r*.65+.25,.56,0,0,1.5-chargeLevel*2.8);
   }
-  v.place(cork,0,c.x+charge,height*.94+jump,c.z,1,0,reduced?0:jump*.35,charge*.3);
+  const landed=!reduced&&age>=4&&age<5.2?Math.abs(Math.sin((age-4)*Math.PI/.6))*Math.exp(-(age-4)*3.2)*.7:0;
+  const turn=reduced?0:u*u*(3-2*u)*Math.PI*2;
+  v.place(cork,0,c.x+charge,height*.94+jump+landed,c.z,1,0,turn,charge*.3);
   for(let i=0;i<36;i++){
    const q=reduced?i/36:(t*.22+i/36)%1,a=i*2.4,exhaust=i>=24&&jump>.1;
    v.place(bubble,i,c.x+Math.sin(a)*(exhaust?.5:r*.5),exhaust?height*.94+jump-1-q*5:2+q*height,c.z+Math.cos(a)*(exhaust?.5:r*.5),exhaust?(.2+.45*q)*Math.min(1,jump):(.1+Math.sin(q*Math.PI)*.17)*(1+hello*.3));
@@ -328,7 +364,9 @@ function moonConservatory(s:MiniSection,v:VariantBuilder){
  // leaving floating flower heads inside the greenhouse.
  for(let crown=0;crown<3;crown++){
   const y=height*(.7-crown*.22)+3;
-  m.add(G.round,gold,[c.x,y+.12,c.z],[.7,.28,.7]);
+  m.add(G.round,cream,[c.x,y+.3,c.z],[.72,.53,.67]);
+  eyes(m,c.x,y+.46,c.z+.61,.65);
+  m.add(G.round,pink,[c.x,y+.15,c.z+.66],[.17,.09,.07]);
   for(let j=0;j<6;j++){const a=j*Math.PI/3;m.add(G.round,'#7eaa8c',[c.x+Math.sin(a)*.8,y-.3,c.z+Math.cos(a)*.8],[.34,.19,1.1],[0,a,0]);}
  }
  // Floating moon canopy sits above the centre, clear of the rising track.
@@ -354,9 +392,13 @@ function moonConservatory(s:MiniSection,v:VariantBuilder){
    const crown=i%3,age=blooms.age(crown,t),visit=!reduced&&age>=0?Math.sin(Math.min(1,age/6)*Math.PI):0;
    const a=i*2.399+clock*.25,rad=r*.49*(1-visit*.32),x=c.x+Math.sin(a)*rad,y=(6+i*height*.12)*(1-visit)+(height*(.7-crown*.22)+4)*visit+Math.sin(clock+i)*.35,z=c.z+Math.cos(a)*rad;
    v.place(moths,i,x,y,z,1,0,a,0);
-   for(let j=0;j<2;j++){const flap=reduced?.3:.3+Math.sin(clock*5+i)*.45;v.place(wings,i*2+j,x,y,z,1,0,a+(j?Math.PI-flap:flap),0);}
+   for(let j=0;j<2;j++){const flap=reduced?.3:.3+Math.sin(clock*5+i)*(.45-visit*.3);v.place(wings,i*2+j,x,y,z,1,0,a+(j?Math.PI-flap:flap),0);}
   }
-  for(let i=0;i<18;i++){const u=reduced?i/18:(clock*.09+i/18)%1,a=i*2.399;v.place(spark,i,c.x+Math.sin(a)*r*.83,3+u*height,c.z+Math.cos(a)*r*.83,.08+hello*.09);}
+  for(let i=0;i<18;i++){
+   const crown=Math.floor(i/6),age=blooms.age(crown,t),u=reduced?(i%6)/6:(clock*.24+(i%6)/6)%1,a=i*2.399+u*2;
+   const energy=!reduced&&age>=0?Math.exp(-age*.25):0;
+   v.place(spark,i,c.x+Math.sin(a)*(.8+u*.7),height*(.7-crown*.22)+3.5+u*2,c.z+Math.cos(a)*(.8+u*.7),(.07+energy*.16)*Math.sin(u*Math.PI));
+  }
  });
 }
 

@@ -61,9 +61,21 @@ function boatModel() {
   m.add(G.round,'#d6a776',[0,.1,0],[1.15,.29,.48]);
   m.add(G.round,'#79aead',[0,.27,0],[1.02,.12,.39]);
   m.add(G.pole,'#d0b082',[0,1.05,0],[.04,1.7,.04]);
-  const sail=new T.BufferGeometry();
-  sail.setAttribute('position',new T.Float32BufferAttribute([.07,.65,0,.07,1.83,0,.85,.65,0,.85,.65,0,.07,1.83,0,.07,.65,0],3));sail.computeVertexNormals();
-  m.add(sail,'#fff0ca',[0,0,0]);m.add(sail,'#eda887',[-.13,.2,0],[-.66,.7,1]);sail.dispose();
+  // Sewn panels bulge like a real toy sail, with a large cream/coral stripe.
+  // The double-sided triangles are baked into the existing boat draw.
+  for(let row=0;row<4;row++) {
+    const vertices:number[]=[],v0=row/4,v1=(row+1)/4;
+    const sailPoint=(u:number,v:number)=>[.08+u*(.94-v*.9),.64+v*1.26,Math.sin(u*Math.PI)*Math.sin(v*Math.PI)*.24];
+    for(let col=0;col<3;col++) {
+      const a=sailPoint(col/3,v0),b=sailPoint((col+1)/3,v0),c=sailPoint(col/3,v1),d=sailPoint((col+1)/3,v1);
+      vertices.push(...a,...b,...c,...b,...d,...c,...c,...b,...a,...c,...d,...b);
+    }
+    const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute(vertices,3));sail.computeVertexNormals();
+    m.add(sail,row===1?'#e69b83':'#fff0ca',[0,0,0]);sail.dispose();
+  }
+  m.beam('#b49165',new T.Vector3(.08,.64,0),new T.Vector3(1.02,.64,0),.035);
+  // Broad twin runners keep the tiny captain's vessel looking buoyant.
+  for(const side of [-1,1])m.add(G.round,'#8bbdb4',[.06,.14,side*.44],[1.04,.18,.17]);
   m.add(G.round,'#efc971',[0,1.94,0],[.09,.09,.09]);
   // A small duck captain makes the craft read as a toy boat from either bank.
   m.add(G.round,'#f2d38a',[-.62,.51,0],[.28,.25,.23]);
@@ -108,6 +120,8 @@ function flourBagModel() {
   const m=new WorldModel();m.add(G.round,'#f3e3b7',[0,.43,0],[.39,.48,.31]);
   m.add(G.round,'#bb9b6e',[0,.87,0],[.19,.08,.16]);
   m.add(G.box,'#93b6a7',[0,.46,.295],[.36,.34,.035]);
+  for(const side of [-1,1])m.add(G.rock,'#706d59',[side*.07,.55,.325],[.023,.026,.013]);
+  m.add(G.rock,'#fff0cb',[0,.41,.328],[.045,.025,.015]);
   m.add(G.pole,'#f5d997',[0,.46,.32],[.105,.025,.105],[Math.PI/2,0,0]);return m;
 }
 
@@ -137,19 +151,21 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
     update=(time,distance,reduced)=>{
       for(let i=0;i<sites.length;i++) {
         const p=sites[i],greet=meadowArrival(distance,p.at,20),s=1.4+(i%3)*.18;
-        const bow=reduced?0:greet*Math.sin(time*4+i*.5)*.1;
-        const tilt=reduced?0:Math.sin(time*3.2+i*.65)*(.025+greet*.13)+bow;
-        const stretch=reduced?1:1+greet*.12*(.5+.5*Math.sin(time*4+i*.5));
+        // A clear travelling cheer: flowers lean towards the approaching train,
+        // stretch at its arrival, then bow after it passes instead of jittering.
+        const passing=T.MathUtils.clamp((distance-p.at)/16,-1,1);
+        const tilt=reduced?0:Math.sin(time*2.4+i*.65)*.024-greet*passing*.24;
+        const stretch=reduced?1:1+greet*(.23-.08*Math.max(0,passing));
         put(flowers,i,p.x,p.y,p.z,0,0,tilt,s,s/Math.sqrt(stretch),s*stretch,s);
 
         for(let j=0;j<2;j++) {
-          const side=j?1:-1,wave=reduced?.12:.12+greet*(.5+.35*Math.sin(time*5+i+j));
+          const side=j?1:-1,wave=reduced?.12:.12+greet*(.88+.19*Math.sin(time*4.2+i+j));
           put(arms,i*2+j,p.x-Math.sin(tilt)*.8*s*stretch,p.y+Math.cos(tilt)*.8*s*stretch,p.z+.03,0,j?0:Math.PI,side*tilt+wave,s);
         }
       }
       for(let i=0;i<8;i++) {
         const p=sites[i+2],greet=meadowArrival(distance,p.at,22),t=reduced?i:time*.7+i*1.7;
-        put(butterflies,i,p.x+Math.sin(t)*.65,2.3+Math.cos(t*1.5)*.25+(reduced?0:greet*.85),p.z+.7+Math.cos(t)*.4,0,Math.sin(t)*.3,Math.sin(t*2)*.2,.68,.68*(reduced?1:.55+Math.abs(Math.sin(time*7+i))*.45),.68,.68);
+        put(butterflies,i,p.x+Math.sin(t)*(.65+greet*.8),2.3+Math.sin(t*2)*.25+(reduced?0:greet*1.4),p.z+.7+Math.cos(t)*.4,0,Math.sin(t)*.3,Math.sin(t*2)*.2,.68,.68*(reduced?1:.55+Math.abs(Math.sin(time*7+i))*.45),.68,.68);
       }
     };
   } else if(section.kind==='pondbridge') {
@@ -167,7 +183,7 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
         const radius=1.1+greeting*.55,bx=p.x+Math.cos(a)*radius,bz=p.z+Math.sin(a)*.7;
         // The hull's bow is +X; yaw follows the ellipse tangent, not its phase.
         const heading=Math.atan2(-.7*Math.cos(a),-radius*Math.sin(a));
-        const bob=reduced?0:Math.sin(time*1.5+i)*.035,roll=reduced?0:Math.sin(time*1.5+i)*.025;
+        const bob=reduced?0:Math.sin(time*1.5+i)*(.035+greeting*.055),roll=reduced?0:Math.sin(time*1.5+i)*(.025+greeting*.055);
         put(boats,i,bx,.37+bob,bz,0,heading,roll,1.65);
         for(let j=0;j<2;j++){
           const side=j?1:-1,lx=(-.28*Math.cos(roll)-.13*Math.sin(roll))*1.65,ly=(-.28*Math.sin(roll)+.13*Math.cos(roll))*1.65,lz=side*.54*1.65;
@@ -196,12 +212,14 @@ export function createMeadowPieceAnimation(section:MiniSection,material:T.Materi
       }
       for(let i=0;i<6;i++) {
         const a=(reduced?0:angle*.55)+i*TAU/6;
-        put(bags,i,x+Math.sin(a)*3.15,1.24,rotorZ-.5+Math.cos(a)*.47,0,-a,0,.88);
+        const underPress=Math.pow(Math.max(0,Math.cos(a*2)),32),tap=Math.pow(Math.max(0,Math.cos(angle*.55*6)),18);
+        const squash=reduced?1:1-underPress*tap*.18;
+        put(bags,i,x+Math.sin(a)*3.15,1.24,rotorZ-.5+Math.cos(a)*.47,0,-a,0,.88,.88/Math.sqrt(squash),.88*squash,.88/Math.sqrt(squash));
       }
       for(let j=0;j<2;j++){
         // Presses meet only bags centred beneath them, with a quick soft tap.
         const phase=(reduced?0:angle*.55)*6,hit=Math.pow(Math.max(0,Math.cos(phase)),18);
-        put(presses,j,x,2.45-hit*.33,rotorZ-.5+(j?-1:1)*.47,0,0,0,.85);
+        put(presses,j,x,2.45-hit*.47,rotorZ-.5+(j?-1:1)*.47,0,0,0,.85);
       }
     };
   }

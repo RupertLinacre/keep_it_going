@@ -131,13 +131,13 @@ class HalloweenPieceAnimation implements PieceAnimation {
       }
     }else if(s.kind==='pumpkinhop'){
       for(let i=0;i<3;i++)for(const side of [-1,1]){
-        const age=time-(this.fired[i]??-1e6),beat=!reduced&&age>=0&&age<2?Math.max(0,Math.sin(age*17))*Math.exp(-age*1.5):0;
+        const age=time-(this.fired[i]??-1e6),strokeAge=age-(side>0?Math.PI/17:0),beat=!reduced&&strokeAge>=0&&strokeAge<2?Math.max(0,Math.sin(strokeAge*17))*Math.exp(-strokeAge*1.5):0;
         // The green head is below the raised handle pivot. Its first downstroke
         // meets the drum skin; the whole handle stays above that surface.
         const p=this.position.copy(this.positions[i]);p.z+=side*4.8;p.y+=2.67;
         this.put(this.mesh,p,1,side*.72*(1-beat),0,0);
-        const noteAge=age-(side>0?.13:0),note=!reduced&&noteAge>=0&&noteAge<2.1;
-        if(note){this.position.copy(this.positions[i]);this.position.z+=side*(4.8+noteAge*.4);this.position.x+=Math.sin(noteAge*3+i)*.7;this.position.y+=3+Math.sin(noteAge/2.1*Math.PI)*2.5;this.put(this.accent,this.position,Math.sin(noteAge/2.1*Math.PI)*.9,0,side*.2,Math.sin(noteAge*5)*.25);}
+        const noteAge=strokeAge,note=!reduced&&noteAge>=0&&noteAge<2.1;
+        if(note){this.position.copy(this.positions[i]);this.position.z+=side*(4.8+noteAge*.4);this.position.x+=Math.sin(noteAge*3+i)*.7;this.position.y+=3+Math.sin(noteAge/2.1*Math.PI)*2.5;this.put(this.accent,this.position,Math.sin(noteAge/2.1*Math.PI)*1.1,0,side*.2,Math.sin(noteAge*5)*.25);}
         if(!reduced&&age>=0&&age<2.2)for(let j=0;j<12;j++){
           const phi=j*2.39996,t=age;
           const bit=this.position.copy(this.positions[i]);bit.z+=side*(4.8+t*(1.5+j%3));bit.x+=Math.cos(phi)*t*2;
@@ -148,20 +148,24 @@ class HalloweenPieceAnimation implements PieceAnimation {
     }else{
       const age=time-(this.fired[0]??-1e6);
       for(const side of [-1,1]){
-        const cheer=!reduced&&age>=0?Math.exp(-age*.45):0;
-        this.dummy.position.set(side*6.1,10.2,0);this.dummy.rotation.set(0,(side<0?Math.PI:0)+(reduced?0:Math.sin(time*(2+cheer*3))*(.12+cheer*.35)),side*.07,'XYZ');this.dummy.scale.setScalar(1);this.dummy.updateMatrix();
+        const cheer=!reduced&&age>=0?(1-Math.exp(-age*8))*Math.exp(-age*.45):0;
+        const phase=time*2+(!reduced&&age>=0?2*(1-Math.exp(-age*1.5)):0);
+        this.dummy.position.set(side*6.1,10.2,0);this.dummy.rotation.set(0,(side<0?Math.PI:0)+(reduced?0:Math.sin(phase)*(.12+cheer*.35)),side*.07,'XYZ');this.dummy.scale.setScalar(1);this.dummy.updateMatrix();
         this.bookMatrix.compose(this.portalCenter,this.portalRotation,this.bookScale).multiply(this.dummy.matrix);this.accent.setMatrixAt(this.accent.count++,this.bookMatrix);
       }
       if(reduced||this.fired[0]===undefined||age>3.2)for(let i=0;i<8;i++){
         const side=i<4?-1:1,a=(i%4)*Math.PI/2+(reduced?0:time*.6),local=this.position.set(side*8.5+Math.sin(a)*1.6,4.45+Math.cos(a)*1.6,2.4);
         local.applyQuaternion(this.portalRotation).add(this.portalCenter);
-        this.put(this.mesh,local,.75,0,0,a);
+        const refill=reduced||this.fired[0]===undefined?1:Math.min(1,(age-3.2)*2);this.put(this.mesh,local,.75*refill,0,0,a);
       }
       if(!reduced&&age>=0&&age<3.2)for(let i=0;i<24;i++){
-        const phi=i*2.39996,travel=(1-Math.exp(-age))*.85;
-        const p=this.position.set(Math.cos(phi)*(5+i%4)*travel,4+(5+i%4)*age-3.5*age*age,Math.sin(phi)*(6+i%3)*travel).add(this.portalCenter);
-        p.y=Math.max(.3,p.y);
-        this.put(this.mesh,p,Math.max(0,1-age/3.2),age*2,phi,age*3);
+        const side=i%8<4?-1:1,ring=i%4,delay=Math.floor(i/8)*.16,flight=age-delay;
+        if(flight<0)continue;
+        const initialAngle=ring*Math.PI/2+(this.fired[0]+delay)*.6;
+        const u=flight,travel=1-Math.exp(-u*1.2),phi=i*2.39996;
+        const local=this.position.set(side*8.5+Math.sin(initialAngle)*1.6-side*travel*(3+i%3),4.45+Math.cos(initialAngle)*1.6+(4+i%3)*u-3.5*u*u,2.4+Math.cos(phi)*travel*4);
+        local.applyQuaternion(this.portalRotation).add(this.portalCenter);local.y=Math.max(.3,local.y);
+        const appear=i<8?1:Math.min(1,u/.08);this.put(this.mesh,local,.75*appear*Math.max(0,1-u/(3.2-delay)),u*2,phi*u,initialAngle+u*3);
       }
     }
     for(const mesh of [this.mesh,this.spark,this.accent]){mesh.visible=mesh.count>0;if(mesh.visible)mesh.instanceMatrix.needsUpdate=true;}

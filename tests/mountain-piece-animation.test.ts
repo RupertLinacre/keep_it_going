@@ -97,3 +97,33 @@ test('goat greeting is a continuous crouch, high hop and smaller landing skip', 
   assert.ok(tallest > 1.1);
   assert.ok(goatGreetingHop(stop + 11, stop).height < .37);
 });
+
+test('goat hooves tuck during a hop while all hip joints stay attached to the squashing body', () => {
+  const s = section('mountainpass'), material = new MeshStandardMaterial(), lights = new FairgroundLights();
+  const animation = createMountainPieceAnimation(s, material, lights)!;
+  const bodies = animation.group.getObjectByName('gorge-goat-bodies') as InstancedMesh;
+  const feet = animation.group.getObjectByName('gorge-goat-hooves') as InstancedMesh;
+  const body = new Matrix4(), foot = new Matrix4();
+  for (const distance of [s.start - 10, s.start + s.length * .5 + 1, s.end]) {
+    animation.update(2, distance, false);
+    for (let goat = 0; goat < bodies.count; goat++) for (let leg = 0; leg < 4; leg++) {
+      bodies.getMatrixAt(goat, body); feet.getMatrixAt(goat * 4 + leg, foot);
+      foot.premultiply(body.invert());
+      assert.ok(new Vector3().setFromMatrixPosition(foot).distanceTo(new Vector3(leg >= 2 ? .39 : -.38, .47, leg % 2 ? .23 : -.23)) < 1e-4);
+    }
+  }
+  animation.update(2, s.start + s.length * .5 + 1, false); bodies.getMatrixAt(2, body); feet.getMatrixAt(10, foot); foot.premultiply(body.invert());
+  assert.ok(Math.abs(foot.elements[1]) > .5, 'Airborne front hoof folds forwards');
+  animation.dispose(); material.dispose(); lights.dispose();
+});
+
+test('portal bell and clapper share a hinge but swing independently to make a visible strike', () => {
+  const s = section('tunnel'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), animation = createMountainPieceAnimation(s, material, lights)!;
+  const bells = animation.group.getObjectByName('mountain-portal-bells') as InstancedMesh;
+  const clappers = animation.group.getObjectByName('mountain-bell-clappers') as InstancedMesh;
+  const a = new Matrix4(), c = new Matrix4();
+  animation.update(.2, s.start + s.length / 2 - 14, false); bells.getMatrixAt(0, a); clappers.getMatrixAt(0, c);
+  assert.ok(new Vector3().setFromMatrixPosition(a).distanceTo(new Vector3().setFromMatrixPosition(c)) < 1e-7);
+  assert.ok(a.elements.some((value, i) => Math.abs(value - c.elements[i]) > .2));
+  animation.dispose(); material.dispose(); lights.dispose();
+});

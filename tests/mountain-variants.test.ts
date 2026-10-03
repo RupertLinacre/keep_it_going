@@ -152,3 +152,30 @@ test('marmot paws press down onto the keyboard instead of waving above it', () =
   assert.ok(pressed.z > platform.z + 8.475 && pressed.z < platform.z + 9.325);
   design.dispose(); material.dispose(); lights.dispose();
 });
+
+test('penguins ease between belly sliding and upright conveyor riding without snapping', () => {
+  const s = section('ravinebridge'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'c', material, lights)!;
+  const body = design.group.getObjectByName('penguin-riders') as InstancedMesh, wings = design.group.getObjectByName('penguin-flippers') as InstancedMesh;
+  const matrix = new Matrix4();
+  const pose = (u: number, mesh: InstancedMesh) => { design.update(u / .075, s.start - 100, false); mesh.getMatrixAt(0, matrix); return matrix.clone(); };
+  for (const join of [.6, .7, .9]) for (const mesh of [body, wings]) {
+    const a = pose(join - 1e-6, mesh), b = pose(join + 1e-6, mesh);
+    assert.ok(a.elements.every((v, i) => Math.abs(v - b.elements[i]) < .005), `Continuous ${mesh.name} at ${join}`);
+  }
+  const finish = pose(1 - 1e-6, body), start = pose(0, body);
+  assert.ok(finish.elements.every((v, i) => Math.abs(v - start.elements[i]) < .005));
+  design.dispose(); material.dispose(); lights.dispose();
+});
+
+test('the mine sorter rotates both its tooth positions and normals in its existing batch', () => {
+  const s = section('tunnel'), material = new MeshStandardMaterial(), lights = new FairgroundLights(), design = createMountainVariant(s, 'c', material, lights)!;
+  const geometry = (design.group.getObjectByName('mine-sorting-screw') as Mesh).geometry;
+  const positions = geometry.getAttribute('position'), normals = geometry.getAttribute('normal');
+  design.update(0, s.start - 100, false); const rest = Array.from(positions.array), restNormals = Array.from(normals.array), buffer = positions.array;
+  design.update(2, s.start - 100, false);
+  assert.notDeepEqual(Array.from(positions.array), rest); assert.notDeepEqual(Array.from(normals.array), restNormals);
+  assert.equal(positions.array, buffer);
+  for (let i = 0; i < normals.count; i++) assert.ok(Math.abs(Math.hypot(normals.getX(i), normals.getY(i), normals.getZ(i)) - 1) < 1e-4);
+  design.update(0, s.start - 100, false); assert.deepEqual(Array.from(positions.array), rest); assert.deepEqual(Array.from(normals.array), restNormals);
+  design.dispose(); material.dispose(); lights.dispose();
+});

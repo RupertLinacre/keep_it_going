@@ -8,6 +8,7 @@ import { railGeometries } from '../games/mini-mesh';
 import { createMiniCar, createMiniParcel } from '../games/train-model';
 import { WorldModel, WORLD_SHAPES as G } from '../games/world-models';
 import { createVariant } from './variants';
+import { carouselCenter,carouselRideRadius } from '../games/world-night';
 import type { DesignOption } from './variants/variant-kit';
 export type ReviewVersion = 'original' | DesignOption;
 
@@ -66,6 +67,16 @@ export class PieceReviewScene {
   this.attraction.render(this.track,this.section.start-12,0,0,0);
   this.scene.updateMatrixWorld(true);
   this.attractionBounds.setFromObject(this.attraction.group);
+  if(kind==='carouselhelix'){
+   // Decorative bulbs follow the long exit rail. They must not stop Closer
+   // look from actually framing the palace, tea party or planetary decks.
+   const rotor=this.attraction.group.getObjectByName('carousel-rotor');
+   if(rotor)this.attractionBounds.setFromObject(rotor).expandByScalar(1.2);
+   else{
+    const center=carouselCenter(this.section),r=carouselRideRadius(this.section)+2;
+    this.attractionBounds.set(new T.Vector3(center.x-r,0,center.z-r),new T.Vector3(center.x+r,this.section.origin.y+this.section.amplitude*.84+8,center.z+r));
+   }
+  }
   // Some attractions have a deliberate launch above their resting silhouette.
   // Reserve that space once, so the camera does not crop or chase the rocket.
   let headroom=0;this.attraction.group.traverse(o=>{headroom=Math.max(headroom,Number(o.userData.reviewHeadroom)||0);});

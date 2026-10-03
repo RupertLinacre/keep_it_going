@@ -264,3 +264,77 @@ Raw local measurements: `output/playwright/round3-performance.json` (ignored,
 not a shipped asset). These warmed local samples support no sustained frame
 rate regression; they do not promise 60 fps on every device. No merge or deploy
 is part of this refinement pass.
+
+## Fourth refinement pass
+
+This pass gives each of the 36 alternatives a clearer performance: preparation,
+contact, a playful reaction and a controlled return. Most changes reuse the
+existing character geometry or animation pools rather than filling the scene
+with extra decoration. Names and saved choice identifiers remain unchanged.
+
+| Ride | A refinement | B refinement | C refinement |
+| --- | --- | --- | --- |
+| Sheep Shuffle | Travelling flower cheer wave and rising butterfly escorts | Volume-preserving squash and stretch, with star applause around the trampoline somersault | Woolly loom face and scarf-model sheep bows |
+| Lily Pad Bridge | Curved striped catamaran sails and more playful rocking | Fuller croaks and a conductor wand attached to its moving hand | Sequential duck dips, quacks and flaps, with rising soap bubbles |
+| Windmill Loop | Cheerful flour sacks squash beneath precisely timed packing heads | A mouse rides the cheese pendulum; cuckoo gives a head-cocking greeting | Bees deliver between sunflower and hives along smooth banked circuits |
+| Mountain Pass | Articulated hooves tuck, kick and extend for landing | Brass organ valves pop in sequence with the marmot players | Cheering mittened snowmen and a ringing snowball finish bell |
+| Glowstone Tunnel | Travelling portal crystal lights and independently swinging bell clappers | Puffed cheeks, sneeze anticipation, recoil and wing stretch | Toothed gem-sorting machinery turns with the bucket conveyor |
+| Waterfall Viaduct | Waterwheel spray and small wakes behind the ducks | Candy-striped windsocks visibly inflate beside the pressure tanks | Tall ice hoops and continuous belly-slide/standing transitions |
+| Lantern Parade | Bunny anticipation crouch, stronger spring, settling bounce and star passengers | Banking rockets with flame and star exhaust attached to their nozzles | Contracting jellyfish bells and clams that lift pearls only after opening |
+| Marquee Loop | Smiling cheer stars perform complete hopping cartwheels | Rolling mouse pinball makes cat bumpers recoil and tilt | More expressive fairy costume and a closing bow from her slippers |
+| Carousel Climb | Feathered unicorns prepare, crouch and rear | Staggered teacup toasts and a curved tea stream landing in a receiving cup | Saucers have landing feet and launch in a banking ripple around each deck |
+| Pumpkin Hops | Alternating drum strokes, larger notes and scalloped bandstands | Frog stoppers somersault and land upright in their bottles | Attached ghost skirts billow in flight and flutter on the line |
+| Pumpkin Portal | Sweets launch continuously from the lollipop orbits, then refill gently | Moving lids give the monster a playful wink | Tasselled curtains gather as three puppets take turns dancing |
+| Witch's Hat | Broad fitted patchwork panels on the academy roof | Vats charge in sequence; the rocket completes a turn and bounces on landing | Smiling flower centres, local pollen sparkles and moths that slow their wings while visiting |
+
+Two visual passes per world inspect the nine individual designs at different
+animation times and camera angles, including the mountain tunnel cutaways.
+Reviews and regression checks address these specific details:
+
+- Bee delivery routes have a depth offset so headings turn continuously at the
+  top and bottom of their circuits. Their wing roots follow the banking bodies.
+- Packing-head contact keeps sacks on their belt and preserves their volume;
+  trampoline deformation also keeps the sheep and mat in contact at take-off.
+- The snowball starting snowman stands on its glacier instead of intersecting
+  it. Organ valve caps rest on their rims, sorter normals follow the rotating
+  geometry, and penguin bodies and flippers share continuous transitions.
+- Rocket exhaust follows the nozzle; clam pearls wait for the shells to open;
+  the tea stream reaches its receiving cup, and the fairy bow preserves her
+  pedestal clearance.
+- Potion bottle pipework and gauges move behind the frog launch shafts so the
+  stoppers have an unobstructed flight. Ghost cloth keeps a fixed shoulder hinge;
+  gathering curtains retain their outer anchors; puppet strings and shoes use
+  the same limb transforms as the sequential dances.
+- The carousel's **Closer look** bounds now frame the attraction itself rather
+  than its long line of exit-track bulbs. The full-track view remains available.
+
+Animations use bounded instance pools and shared geometry, with no per-frame
+object spawning, extra shadow passes or new realtime lights. B/C attractions
+remain capped at seven draw batches. Articulated mountain hooves and bell
+clappers use a fourth fixed animation batch; existing Meadow and Carnival draw
+counts do not increase. The jellyfish revision reduces its geometry again,
+from 25,048 to 23,328 triangles. The original reference, track physics, carousel
+train matching and decaying coasting remain intact.
+
+Final validation: **295 tests pass**, along with the production build. The
+gallery passes at 390px with no horizontal overflow, saved choices persist,
+and three full tours of all 36 options retain stable GPU geometry/texture
+counts. No browser errors were reported. Separate close-up inspection confirms
+the new carousel framing for A, B and C.
+
+The fourth-round 48-case comparison uses the actual game renderer at a
+3840×2160 viewport, with its normal resolution cap producing a 3401×1763
+framebuffer. It covers all 36 designs plus two-track scenes for four pieces,
+using the same warmed, synthetic-opponent procedure described above:
+
+| Design | Frame median | Frame p95 range | CPU submission p95 range | Frames above 25 ms |
+| --- | --- | --- | --- | --- |
+| A | 16.7 ms | 17.5–18.5 ms | 3.9–4.5 ms | 0 |
+| B | 16.7 ms | 17.3–18.7 ms | 4.1–4.5 ms | 0 |
+| C | 16.7 ms | 17.6–18.5 ms | 4.0–4.7 ms | 0 |
+
+Across 4,272 sampled frames the maximum interval was 18.8 ms, with no browser
+errors. Raw local results are `output/playwright/round4-performance.json`
+(ignored). These samples show no sustained regression on this machine; they
+do not establish performance on every device or under real network load.
+The refinement remains on the workshop branch, with no merge or deployment.

@@ -142,7 +142,7 @@ function circus(s:MiniSection,material:T.Material,lights:FairgroundLights){
  }
  const bedGeometry=new T.BufferGeometry();bedGeometry.setAttribute('position',new T.Float32BufferAttribute(matVertices,3));bedGeometry.computeVertexNormals();mat.add(bedGeometry,'#bbaacb',[0,0,0]);bedGeometry.dispose();
  const mats=v.pool(mat,3),lambs=v.pool(sheep('circus'),3),stars=v.pool(star(),6),pulses=new CrossingPulses(sites.map(p=>p.at));mats[0].name="trampoline-mats";lambs[0].name="trampoline-sheep";v.batch(m);
- const matPose=new T.Object3D();
+ const matPose=new T.Object3D(),sheepPose=new T.Object3D();
  v.animate((time,distance,reduced)=>{
   pulses.update(time,distance);
   sites.forEach((p,i)=>{
@@ -152,8 +152,13 @@ function circus(s:MiniSection,material:T.Material,lights:FairgroundLights){
    // One crisp somersault on the first rebound; subsequent bounces settle.
    const flip=!reduced&&age>0&&age<Math.PI/3.6?TAU*smooth(age/(Math.PI/3.6)):0;
    const lean=flip||(reduced?0:Math.sin(age>0?age*3.6:0)*bounce*.045),size=1.08;
-   v.place(lambs,i,p.x+Math.sin(reduced?0:time*2+i)*bounce*.12+Math.sin(lean)*size,p.y+.275-compression+bounce+size*(1-Math.cos(lean)),p.z+.28,size,0,0,lean);
-   for(let j=0;j<2;j++)v.place(stars,i*2+j,p.x+(j?1:-1)*3.15,p.y+7.15,p.z-.25,.63,0,reduced?0:time*.5+bounce*.3,(j?1:-1)*.15);
+   // Stretch on take-off, tuck in flight and softly squash on touchdown.
+   // Feet and trampoline share the same baseline at every contact.
+   const stretch=reduced?1:active?1+.2*Math.sin(age*7.2)*Math.exp(-age*.5)-compression*.8:1;
+   sheepPose.position.set(p.x+Math.sin(reduced?0:time*2+i)*bounce*.12+Math.sin(lean)*size*stretch,p.y+.275-compression+bounce+size*stretch*(1-Math.cos(lean)),p.z+.28);
+   sheepPose.rotation.set(0,0,lean);sheepPose.scale.set(size/Math.sqrt(stretch),size*stretch,size/Math.sqrt(stretch));sheepPose.updateMatrix();
+   for(const mesh of lambs)mesh.setMatrixAt(i,sheepPose.matrix);
+   for(let j=0;j<2;j++)v.place(stars,i*2+j,p.x+(j?1:-1)*(3.15+bounce*.14),p.y+7.15+(active?Math.sin(age*5)*bounce*.08:0),p.z-.25,.63+(active?bounce*.055:0),0,reduced?0:time*.5+bounce*.3,(j?1:-1)*(.15+bounce*.12));
   });
  });return finish(v,s);
 }
@@ -182,7 +187,15 @@ function knitting(s:MiniSection,material:T.Material,lights:FairgroundLights){
  }
  for(const y of [1,10.5])m.add(G.box,'#c6a376',[x,y,z],[12.8,.5,.75]);
  for(let j=0;j<13;j++)m.add(G.pole,'#eed6ac',[x+(j-6)*.78,5.6,z+.1],[.022,9.2,.022]);
- for(let i=0;i<6;i++)m.add(G.round,palette[i%4],[x+(i-2.5)*1.5,11.2,z],[.44,.48,.44]);
+ // A big woolly face turns the loom itself into the sheep's proud maker.
+ for(let i=0;i<7;i++)m.add(G.round,'#f8ebcc',[x+(i-3)*.84,11.55+Math.sin(i/6*Math.PI)*.5,z],[.8,.77,.52]);
+ m.add(G.round,'#b6a0ae',[x,11.45,z+.54],[1.02,.7,.36]);
+ for(const side of [-1,1]){
+  m.add(G.rock,'#cdb7c5',[x+side*1.25,11.65,z+.2],[.8,.34,.27],[0,0,side*.25]);
+  m.add(G.round,'#fff4d8',[x+side*.38,11.62,z+.83],[.21,.25,.1]);
+  m.add(G.round,'#655c6b',[x+side*.38,11.62,z+.92],[.08,.13,.035]);
+ }
+ m.add(G.round,'#e5b4b4',[x,11.15,z+.9],[.26,.14,.06]);
  const patch=new WorldModel();
  for(let i=0;i<3;i++){
   patch.add(G.box,palette[i],[0,(i-1)*.33,0],[2.08,.33,.16]);
@@ -194,7 +207,7 @@ function knitting(s:MiniSection,material:T.Material,lights:FairgroundLights){
  for(let j=0;j<12;j++){const a=j*TAU/12;roller.add(G.box,palette[j%3],[0,Math.sin(a)*1.17,Math.cos(a)*1.17],[7.25,.13,.23],[a,0,0]);}
  const shuttle=new WorldModel();shuttle.add(G.round,'#cba273',[0,0,0],[1.3,.25,.35]);shuttle.add(G.round,'#eac5d4',[0,.17,0],[.65,.23,.26]);shuttle.add(G.pole,'#9a9e91',[0,.23,0],[.075,1.95,.075],[0,0,Math.PI/2]);
  const reels=v.pool(reel(),2),cloth=v.pool(patch,21),needles=v.pool(needle,2),lambs=v.pool(sheep('scarf'),2),rollers=v.pool(roller,1),shuttles=v.pool(shuttle,1);
- reels[0].name="scarf-spools";cloth[0].name="woven-scarf";shuttles[0].name="loom-shuttle";
+ reels[0].name="scarf-spools";cloth[0].name="woven-scarf";shuttles[0].name="loom-shuttle";lambs[0].name="scarf-model-sheep";
  // Threads visibly feed the working warp; scarf fringes finish the output.
  for(const side of [-1,1])for(let i=0;i<3;i++)m.beam(palette[i],new T.Vector3(x+side*9.6,5.5,z+1+i*.14),new T.Vector3(x+side*(2.3+i*.75),10.45,z+.14),.035);
  for(let i=0;i<14;i++)m.add(G.pole,palette[i%3],[x+(i-6.5)*.43,.3,rollZ+1.45],[.055,.5,.055],[Math.PI/2,0,0]);
@@ -209,7 +222,12 @@ function knitting(s:MiniSection,material:T.Material,lights:FairgroundLights){
    v.place(cloth,i,x+(i%3-1)*2.08,y,z+.26,1);
   }
   for(let i=0;i<2;i++)v.place(needles,i,x+(i?1:-1)*4.25,2.3,z+.65,1,0,0,(i?1:-1)*(.12+(reduced?0:Math.sin(time*5)*(.035+greet*.12))));
-  for(let i=0;i<2;i++)v.place(lambs,i,s.span*(i?.82:.18),.3+(reduced?0:Math.abs(Math.sin(time*3+i))*greet*.45),center.z+8.4,1.4,0,i?Math.PI:0,reduced?0:(i?1:-1)*Math.sin(time*3+i)*greet*.08);
+  for(let i=0;i<2;i++){
+   const applaud=reduced?0:arrival(distance,at(s,i?.72:.26),26),bow=applaud*Math.max(0,Math.sin(time*3+i))*.22;
+   // The models bow to show their oversized scarves, with planted front feet.
+   const lean=(i?1:-1)*bow,localPivot=.8,scale=1.4;
+   v.place(lambs,i,s.span*(i?.82:.18)+(i?-1:1)*localPivot*scale*(1-Math.cos(bow)),.3+localPivot*scale*Math.sin(bow),center.z+8.4,scale,0,i?Math.PI:0,lean);
+  }
  });return finish(v,s);
 }
 
@@ -257,9 +275,10 @@ function orchestra(s:MiniSection,material:T.Material,lights:FairgroundLights){
  for(let i=0;i<8;i++)m.add(G.box,palette[i%4],[drummer.x+(i-3.5)*.43,1.43,drummer.z+1.85],[.36,.15,1.45-i*.09]);
  for(const side of [-1,1])m.add(G.box,'#c4a57b',[drummer.x+side*1.55,.71,drummer.z+1.85],[.16,1.12,.9]);
  const baton=new WorldModel();baton.add(G.pole,'#dcc9a0',[0,.68,0],[.055,1.35,.055]);baton.add(G.round,'#fff1c3',[0,1.4,0],[.13,.13,.13]);
- const cheek=new WorldModel();cheek.add(G.round,'#d9e6a1',[0,0,0],[.76,.4,.39]);cheek.add(G.round,'#729869',[0,.26,.3],[.38,.055,.03]);
+ const cheek=new WorldModel();cheek.add(G.round,'#d9e6a1',[0,0,0],[.92,.58,.48]);cheek.add(G.round,'#729869',[0,.35,.39],[.4,.065,.035]);
+ for(const side of [-1,1])cheek.add(G.rock,'#edf3bc',[side*.48,.22,.36],[.16,.08,.04]);
  const throats=v.pool(cheek,3);throats[0].name="frog-throats";
- const frogs=v.pool(frog(),3),batons=v.pool(baton,3),notes=v.pool(musicNote(),12),pulses=new CrossingPulses([.23,.5,.76].map(t=>at(s,t)));batons[0].name="frog-batons";v.batch(m);
+ const frogs=v.pool(frog(),3),batons=v.pool(baton,3),notes=v.pool(musicNote(),12),pulses=new CrossingPulses([.23,.5,.76].map(t=>at(s,t)));batons[0].name="frog-batons";frogs[0].name="orchestra-frogs";v.batch(m);
  v.animate((time,distance,reduced)=>{
   pulses.update(time,distance);
   sites.forEach((p,i)=>{
@@ -268,7 +287,10 @@ function orchestra(s:MiniSection,material:T.Material,lights:FairgroundLights){
    v.place(frogs,i,p.x,p.y+bob,p.z,p.size,0,0,lean);
    const puff=reduced?0:song*(.25+.75*Math.max(0,Math.sin(time*6+i)));
    v.place(throats,i,p.x-Math.sin(lean)*1.57*p.size,p.y+bob+Math.cos(lean)*1.57*p.size,p.z+.84*p.size,p.size*(.42+puff*.7),0,0,lean);
-   if(i===1)v.place(batons,0,p.x-1.15*p.size,p.y+1.3*p.size+bob,p.z+.95,1.2,0,0,-.4+(reduced?0:Math.sin(time*7)*song*.8));
+   if(i===1){
+    const handX=(-.83*Math.cos(lean)-1.22*Math.sin(lean))*p.size,handY=(-.83*Math.sin(lean)+1.22*Math.cos(lean))*p.size;
+    v.place(batons,0,p.x+handX,p.y+bob+handY,p.z+.89*p.size,1.2,0,0,lean-.4+(reduced?0:Math.sin(time*7)*song*.8));
+   }
    if(i===2)for(let j=0;j<2;j++) {
     const strike=reduced?0:Math.max(0,Math.sin(time*9+j*Math.PI))*song;
     v.place(batons,j+1,p.x+(j?1:-1)*.95,1.505+1.53*.7,p.z+1.85,.7,0,0,Math.PI-(1-strike)*.66);
@@ -319,19 +341,21 @@ function bath(s:MiniSection,material:T.Material,lights:FairgroundLights){
  v.animate((time,distance,reduced)=>{
   const greet=arrival(distance,stop,s.length*.55),travel=clamp(distance-s.start,0,s.length+35),turn=reduced?0:time*.15+travel*.055;
   for(let i=0;i<4;i++){
-   const p=sites[i],px=p.x+(reduced?0:Math.sin(turn+i)*.8),py=2.02+(reduced?0:Math.sin(time*2+i)*(.05+greet*.13)),yaw=(i%2?Math.PI:0)+(reduced?0:Math.sin(turn+i)*.2),roll=reduced?0:Math.sin(time*2.5+i)*greet*.06;
+   const p=sites[i],wave=arrival(distance,at(s,[.23,.45,.69,.77][i]),24),dip=reduced?0:wave*Math.pow(Math.max(0,Math.sin(time*3.2+i)),2);
+   const px=p.x+(reduced?0:Math.sin(turn+i)*.8),py=2.02+(reduced?0:Math.sin(time*2+i)*.05)-dip*.28,yaw=(i%2?Math.PI:0)+(reduced?0:Math.sin(turn+i)*.2),roll=reduced?0:Math.sin(time*2.5+i)*wave*.04-dip*.2;
    v.place(ducks,i,px,py,p.z,p.size,0,yaw,roll);
-   const chirp=reduced?0:greet*Math.pow(Math.max(0,Math.sin(time*8+i*1.6)),3)*.4;
+   const chirp=reduced?0:wave*Math.pow(Math.max(0,Math.sin(time*8+i*1.6)),3)*.4;
    const jawX=(.95*Math.cos(roll)-1.34*Math.sin(roll))*p.size,jawY=(.95*Math.sin(roll)+1.34*Math.cos(roll))*p.size;
    v.place(jaws,i,px+jawX*Math.cos(yaw),py+jawY,p.z-jawX*Math.sin(yaw),p.size,0,yaw,roll-chirp,'YXZ');
    for(let j=0;j<2;j++){
-    const side=j?1:-1,lx=(-.12*Math.cos(roll)-Math.sin(roll))*p.size,ly=(-.12*Math.sin(roll)+Math.cos(roll))*p.size,lz=side*.68*p.size,flap=reduced?0:(.2+.6*greet)*(.5+.5*Math.sin(time*7+i));
+    const side=j?1:-1,lx=(-.12*Math.cos(roll)-Math.sin(roll))*p.size,ly=(-.12*Math.sin(roll)+Math.cos(roll))*p.size,lz=side*.68*p.size,flap=reduced?0:(.2+.85*wave)*(.5+.5*Math.sin(time*7+i));
     placeWing(v,wings,i*2+j,px+lx*Math.cos(yaw)+lz*Math.sin(yaw),py+ly,p.z-lx*Math.sin(yaw)+lz*Math.cos(yaw),p.size,yaw,roll,-side*flap);
    }
   }
   for(let i=0;i<18;i++){
    const t=reduced?(i%6)/6:(time*.16+i/18)%1,p=sites[i%4];
-   v.place(bubbles,i,p.x+Math.sin(i*2.4)*1.6,2.2+t*(2.3+greet*1.8),p.z+Math.cos(i*2.4)*1.2,(.3+(i%3)*.2)*(1-t*.45));
+   const wave=arrival(distance,at(s,[.23,.45,.69,.77][i%4]),24);
+   v.place(bubbles,i,p.x+Math.sin(i*2.4+t)*1.6,2.2+t*(2.3+wave*2.7),p.z+Math.cos(i*2.4+t)*1.2,(.3+(i%3)*.2)*(1-t*.45));
   }
   for(let i=0;i<9;i++){const t=reduced?i/9:(time*.65+i/9)%1;v.place(drops,i,tx+3+Math.sin(t*7)*.08,5.34-t*3.3,tz+3,.75+greet*.35);}
   for(let i=0;i<2;i++)v.place(knobs,i,tx+(i?1:-1)*.95,3.2,tz+.42,.7,0,0,(i?1:-1)*turn);
@@ -372,17 +396,30 @@ function cuckoo(s:MiniSection,material:T.Material,lights:FairgroundLights){
  }
  const hand=new WorldModel();hand.add(G.box,'#8fa9a3',[0,1.25,0],[.18,2.5,.13]);hand.add(G.rock,'#cb9bab',[0,2.55,0],[.36,.47,.16]);hand.add(G.round,'#c7a278',[0,0,.1],[.24,.24,.1]);
  const pendulum=new WorldModel();pendulum.add(G.pole,'#e3bd79',[0,-2.5,0],[.08,5,.08]);pendulum.add(G.pole,'#e8ca89',[0,-5,0],[.93,.27,.93],[Math.PI/2,0,0]);pendulum.add(G.round,'#f5dfaa',[0,-5,.18],[.45,.45,.12]);
+ // The clock's pendulum is a cheese swing with a mouse riding it.
+ for(const [dx,dy]of [[-.35,-.13],[.24,.3],[.23,-.37]])pendulum.add(G.round,'#c8a36c',[dx,-5+dy,.22],[.13,.13,.035]);
+ pendulum.add(G.round,'#b9a7b0',[0,-4.1,.35],[.48,.5,.34]);pendulum.add(G.round,'#d5bcc5',[0,-3.68,.45],[.39,.37,.3]);
+ for(const side of [-1,1]){
+  pendulum.add(G.round,'#cfb5c0',[side*.34,-3.43,.42],[.25,.28,.13]);pendulum.add(G.round,'#edc8c5',[side*.34,-3.43,.54],[.15,.17,.05]);
+  pendulum.add(G.round,'#655c68',[side*.15,-3.65,.71],[.048,.065,.025]);pendulum.add(G.round,'#dcc3c8',[side*.23,-4.51,.53],[.18,.09,.19]);
+ }
+ pendulum.add(G.round,'#e8b0af',[0,-3.78,.76],[.12,.085,.07]);
+ pendulum.beam('#c5aab8',new T.Vector3(.4,-4.21,.35),new T.Vector3(.82,-4.5,.32),.045);
  const door=new WorldModel();door.add(G.box,'#dfafaa',[.47,0,0],[.94,1.78,.15]);for(const y of [-.42,.42])door.add(G.box,'#efcfac',[.47,y,.1],[.8,.055,.055]);door.add(G.round,'#f5dfa5',[.78,-.05,.14],[.08,.08,.04]);
  const wing=new WorldModel();wing.add(G.rock,'#81aeb1',[0,-.3,0],[.3,.52,.3]);wing.add(G.rock,'#acd0c1',[0,-.55,.1],[.26,.2,.17]);
- const wings=v.pool(wing,2),hands=v.pool(hand,2),pendulums=v.pool(pendulum,1),birds=v.pool(cuckooBird(),1),doors=v.pool(door,2),notes=v.pool(musicNote(),5),pulse=new CrossingPulses([at(s,.43)]);hands[0].name="clock-hands";birds[0].name="cuckoo-bird";doors[0].name="cuckoo-doors";v.batch(m);
+ const wings=v.pool(wing,2),hands=v.pool(hand,2),pendulums=v.pool(pendulum,1),birds=v.pool(cuckooBird(),1),doors=v.pool(door,2),notes=v.pool(musicNote(),5),pulse=new CrossingPulses([at(s,.43)]);hands[0].name="clock-hands";birds[0].name="cuckoo-bird";doors[0].name="cuckoo-doors";pendulums[0].name="mouse-pendulum";v.batch(m);
  v.animate((time,distance,reduced)=>{
   pulse.update(time,distance);const age=pulse.age(0,time),active=!reduced&&age>=0&&age<4,open=active?smooth(age/.35)*(1-smooth((age-3.15)/.6)):0;
   const travel=clamp(distance-s.start,0,s.length+30),turn=reduced?0:time*.16+travel*.09;
   v.place(hands,0,x,cy,z+2.35,1,0,0,-Math.PI/3-turn);v.place(hands,1,x,cy,z+2.47,.7,0,0,Math.PI/3-Math.PI/36-turn/12);
   v.place(pendulums,0,x,Math.max(6,doorY-.35),z+2.2,1,0,0,reduced?0:Math.sin(time*2.1)*(.22+arrival(distance,at(s,.5),35)*.28));
   const emerge=active?smooth((age-.38)/.42)*(1-smooth((age-2.7)/.4)):0,birdY=doorY-.26+(active?Math.max(0,Math.sin((age-.7)*8))*emerge*.22:0),birdZ=z+.6+emerge*2.3;
-  v.place(birds,0,x,birdY,birdZ,.93);
-  for(let j=0;j<2;j++){const side=j?1:-1;v.place(wings,j,x+side*.52*.93,birdY+.82*.93,birdZ,.93,0,0,side*(.22+(reduced?0:Math.sin(time*12)*emerge*.65)));}
+  const cock=reduced?0:emerge*Math.sin(time*4)*.15;
+  v.place(birds,0,x,birdY,birdZ,.93,0,0,cock);
+  for(let j=0;j<2;j++){
+   const side=j?1:-1,lx=side*.52,ly=.82;
+   v.place(wings,j,x+(lx*Math.cos(cock)-ly*Math.sin(cock))*.93,birdY+(lx*Math.sin(cock)+ly*Math.cos(cock))*.93,birdZ,.93,0,0,cock+side*(.22+(reduced?0:Math.sin(time*12)*emerge*.65)));
+  }
   v.place(doors,0,x-1.01,doorY+.73,z+1.95,1,0,-open*1.55);v.place(doors,1,x+1.01,doorY+.73,z+1.95,1,0,Math.PI+open*1.55);
   for(let i=0;i<5;i++){const t=age-.3-i*.25,active=!reduced&&t>=0&&t<2.2;v.place(notes,i,x+Math.sin(i*1.8)*1.3,doorY+2+(active?t*1.6:0),z+2.6,active?.38*(1-t/2.2):.001,0,0,active?Math.sin(t*2)*.2:0);}
  });return finish(v,s);
@@ -423,17 +460,23 @@ function honeyFactory(s:MiniSection,material:T.Material,lights:FairgroundLights)
  for(const side of [-1,1]){m.add(G.pole,'#a9b5a2',[x+side*6,.17,z+3.8],[2.6,.28,1.8]);for(const dx of [-1.9,1.9])m.add(G.pole,'#c2a573',[x+side*6+dx,.16,z+3.8],[.12,.32,.12]);}
  const drop=new WorldModel();drop.add(G.round,'#f2cc74',[0,0,0],[.16,.3,.16]);
  const flowers=v.pool(petals,1),bees=v.pool(bee(),5),jars=v.pool(jar,6),drops=v.pool(drop,12),wings=v.pool(wing,10),fills=v.pool(fill,6);
- jars[0].name="indexed-honey-jars";drops[0].name="honey-streams";fills[0].name="honey-fill-levels";v.batch(m);
+ bees[0].name="honey-delivery-bees";wings[0].name="delivery-bee-wings";jars[0].name="indexed-honey-jars";drops[0].name="honey-streams";fills[0].name="honey-fill-levels";v.batch(m);
  const stop=at(s,.5);
  v.animate((time,distance,reduced)=>{
   const greet=arrival(distance,stop,s.length*.5),travel=clamp(distance-s.start,0,s.length+30),turn=reduced?0:time*.15+travel*.028;
   v.place(flowers,0,x,cy,z-.22,1+(reduced?0:greet*.045*Math.sin(time*3)),0,0,turn*.6);
   for(let i=0;i<5;i++){
-   const a=i*TAU/5+turn,r=5.5+(reduced?0:Math.sin(time*.9+i)*(.2+greet*.65));
-   const bx=x+Math.sin(a)*r,by=cy+Math.cos(a)*r,bz=z+1.05;v.place(bees,i,bx,by,bz,.85,0,0,-a);
+   const side=i%2?-1:1,phase=i*TAU/5+turn*.9,a=phase+.28*Math.sin(phase);
+   // Nectar couriers make tall delivery circuits from flower to hive roof;
+   // their shallow lower arc slows naturally for the drop-off.
+   const bx=x+side*(6+Math.sin(a)*2.4),by=5+(cy-3)*(.5+.5*Math.cos(a)),bz=z+2.2+Math.sin(a+.8)*1.15;
+   // Depth is phase-shifted so a courier can smoothly turn at the top and
+   // bottom, instead of abruptly flipping its yaw at a vertical tangent.
+   const dx=side*2.4*Math.cos(a),dy=-(cy-3)*.5*Math.sin(a),dz=1.15*Math.cos(a+.8),yaw=Math.atan2(-dz,dx),roll=Math.atan2(dy,Math.hypot(dx,dz))*.48;
+   v.place(bees,i,bx,by,bz,.95,0,yaw,roll);
    for(let j=0;j<2;j++){
-    const side=j?1:-1,flap=reduced?.25:.25+.6*Math.sin(time*18+i);
-    placeWing(v,wings,i*2+j,bx+(-.13*Math.cos(a)+.25*Math.sin(a))*.85,by+(.13*Math.sin(a)+.25*Math.cos(a))*.85,bz+side*.31*.85,.85,0,-a,side*flap);
+    const wingSide=j?1:-1,flap=reduced?.25:.25+.6*Math.sin(time*18+i),lx=(-.13*Math.cos(roll)-.25*Math.sin(roll))*.95,ly=(-.13*Math.sin(roll)+.25*Math.cos(roll))*.95,lz=wingSide*.31*.95;
+    placeWing(v,wings,i*2+j,bx+lx*Math.cos(yaw)+lz*Math.sin(yaw),by+ly,bz-lx*Math.sin(yaw)+lz*Math.cos(yaw),.95,yaw,roll,wingSide*flap);
    }
   }
   // A three-position indexing table dwells under each tap, then advances.

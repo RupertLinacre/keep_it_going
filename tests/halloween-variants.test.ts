@@ -134,3 +134,57 @@ test('dancing marionette boots land on top of their platforms without clipping',
  }
  v.dispose();material.dispose();lights.dispose();
 });
+
+test('frog stoppers somersault back to the same bottle seats',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkinhop',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'b',material,lights)!;
+ const mesh=v.group.getObjectByName('potion-frog-stoppers') as T.InstancedMesh,matrix=new T.Matrix4(),first=new T.Matrix4();
+ const hit=s.start+s.distances[Math.round(s.resolution/6)];
+ v.update(0,hit-.1,false);mesh.getMatrixAt(0,first);v.update(.01,hit+.1,false);v.update(1.085,hit+10,false);mesh.getMatrixAt(0,matrix);
+ assert.ok(new T.Vector3(0,1,0).transformDirection(matrix).y<-.999,'The frog turns fully upside down in midair');
+ assert.ok(matrix.elements[13]>first.elements[13]+4,'The stopper makes a readable hop');
+ v.update(2.6,hit+20,false);mesh.getMatrixAt(0,matrix);
+ matrix.elements.forEach((n,i)=>assert.ok(Math.abs(n-first.elements[i])<1e-5,'Stopper returns upright to its original seat'));
+ v.dispose();material.dispose();lights.dispose();
+});
+
+test('potion pipes and gauges leave both frog launch shafts clear',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkinhop',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'b',material,lights)!;
+ const frogs=v.group.getObjectByName('potion-frog-stoppers') as T.InstancedMesh,body=v.group.getObjectByName('potion-laboratory-body')!,matrix=new T.Matrix4(),point=new T.Vector3();
+ v.update(0,s.start,false);body.updateMatrixWorld(true);
+ for(let i=0;i<6;i++){
+  frogs.getMatrixAt(i,matrix);const seat=new T.Vector3().setFromMatrixPosition(matrix);
+  body.traverse(o=>{if(!(o instanceof T.Mesh))return;const positions=o.geometry.getAttribute('position');
+   for(let j=0;j<positions.count;j++){
+    point.fromBufferAttribute(positions,j).applyMatrix4(o.matrixWorld).sub(seat);
+    assert.ok(!(Math.abs(point.x)<.8&&Math.abs(point.z)<1.45&&point.y>.6&&point.y<7),'Overhead plumbing must not obstruct a somersaulting frog');
+   }
+  });
+ }
+ v.dispose();material.dispose();lights.dispose();
+});
+
+test('laundry sheet skirts remain attached to their ghosts while fluttering',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkinhop',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'c',material,lights)!;
+ const ghosts=v.group.getObjectByName('laundry-ghosts') as T.InstancedMesh,cloth=v.group.getObjectByName('laundry-fluttering-sheets') as T.InstancedMesh,matrix=new T.Matrix4(),sheet=new T.Matrix4();
+ const hit=s.start+s.distances[Math.round(s.resolution/6)];v.update(0,hit-.1,false);v.update(.01,hit+.1,false);
+ for(let t=.1;t<6;t+=.17){
+  v.update(t,hit+t*15,false);
+  for(let i=0;i<6;i++){ghosts.getMatrixAt(i,matrix);cloth.getMatrixAt(i,sheet);const shoulder=new T.Vector3(0,1.3,0).applyMatrix4(matrix),hinge=new T.Vector3().setFromMatrixPosition(sheet);assert.ok(shoulder.distanceTo(hinge)<1e-5);assert.ok(sheet.determinant()>0);}
+ }
+ v.dispose();material.dispose();lights.dispose();
+});
+
+test('monster wink lids close from a fixed eyebrow without moving their top edge',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const s=createMiniSection('pumpkintunnel',0,new T.Vector3(0,4,0),0,seededRandom(71)),v=createHalloweenVariant(s,'b',material,lights)!;
+ const lids=v.group.getObjectByName('monster-winking-lids') as T.InstancedMesh,matrix=new T.Matrix4(),hit=s.start+s.length/2;
+ v.update(0,hit-.1,false);v.update(.01,hit+.1,false);
+ for(const t of [.36,.4,.46,.53,.61]){v.update(t,hit+8,false);lids.getMatrixAt(0,matrix);const top=new T.Vector3(0,1.19,0).applyMatrix4(matrix);assert.ok(Math.abs(top.y-3.39)<.016,'Upper edge stays fixed at the brow');}
+ v.update(.46,hit+8,false); // Replay consistently through the crossing for the fully shut pose.
+ v.update(0,hit-.1,false);v.update(.01,hit+.1,false);v.update(.46,hit+8,false);lids.getMatrixAt(0,matrix);
+ assert.ok(new T.Vector3(0,-1.19,0).applyMatrix4(matrix).y<1.02,'Closed lid covers the bottom of the eye');
+ v.dispose();material.dispose();lights.dispose();
+});

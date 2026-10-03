@@ -33,6 +33,10 @@ function rocketModel() {
   m.add(G.ring,GOLD,[0,.3,.78],[.52,.52,.52]);
   m.add(G.round,'#7d91d0',[0,.3,.8],[.43,.43,.12],[],true);
   m.add(G.round,'#b9e5ab',[0,.25,.93],[.28,.28,.08]);face(m,0,.29,1,.36);
+  for(const side of [-1,1]) {
+    m.beam('#b9e5ab',v(side*.12,.43,.94),v(side*.2,.61,.94),.035);
+    m.add(G.rock,GOLD,[side*.2,.62,.94],[.055,.055,.03],[],true);
+  }
   for(const side of [-1,1])m.add(G.rock,GOLD,[side*.33,1.2,.7],[.09,.09,.07],[],true);
   return m;
 }
@@ -95,14 +99,19 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
   for(const mesh of countdown)mesh.name='launch-countdown';
   const lampColors=['#f3a5c5','#ffe29b','#a3e4cd'].map(color=>new T.Color(color));
   for(const mesh of countdown)for(let i=0;i<15;i++)mesh.setColorAt(i,lampColors[i%3]);
+  const rocketPose=new T.Object3D(),nozzle=new T.Vector3(),exhaustPoint=new T.Vector3();
+  for(const mesh of rockets)mesh.name='rally-rockets';
   b.animate((time,distance,reduced)=>{
     pulses.update(time,distance);
     for(let i=0;i<stops.length;i++) {
       const {p}=stops[i],age=pulses.age(i,time),active=!reduced&&age>=0&&age<6;
       const lift=active?11*smooth(age/2.5)*(1-smooth((age-4.2)/1.8)):0;
-      const bank=active?Math.sin(age*1.4)*.08:0;
-      b.place(rockets,i,p.x,3.5+lift,p.z,1.12,0,.2*Math.sin(i),bank);
-      b.place(flames,i,p.x,1.44+lift,p.z,active&&lift>.3?.85+.12*Math.sin(time*14+i):0);
+      const bank=active?Math.sin(age*Math.PI/3)*.18*stops[i].side:0;
+      const drift=active?Math.sin(age*Math.PI/6)**2*1.6*stops[i].side:0;
+      b.place(rockets,i,p.x+drift,3.5+lift,p.z,1.12,0,.2*Math.sin(i),bank);
+      rocketPose.position.set(p.x+drift,3.5+lift,p.z);rocketPose.rotation.set(0,.2*Math.sin(i),bank);rocketPose.scale.setScalar(1.12);rocketPose.updateMatrix();
+      nozzle.set(0,-1.93,0).applyMatrix4(rocketPose.matrix);
+      b.place(flames,i,nozzle.x,nozzle.y,nozzle.z,active&&lift>.3?.85+.12*Math.sin(time*14+i):0,0,.2*Math.sin(i),bank);
       const gap=stops[i].distance-distance;
       // Gantries release before ignition, remain clear in flight, and close on landing.
       const release=reduced?0:Math.max(1-smooth((gap-1)/9),active?1:0)*(active?1-smooth((age-5.5)/.5):gap>0?1:0);
@@ -113,7 +122,8 @@ function rocketRally(s:MiniSection,b:VariantBuilder) {
       }
       for(let j=0;j<7;j++) {
         const progress=active?(age*1.6+j/7)%1:0;
-        b.place(exhaust,15+i*7+j,p.x+Math.sin(j*2.4+(active?age:0))*progress*.9,1.55+lift-progress*2.1,p.z+Math.cos(j*2.4)*progress*.9,
+        exhaustPoint.set(Math.sin(j*2.4+(active?age:0))*progress*.8,-1.9-progress*2.1,Math.cos(j*2.4)*progress*.8).applyMatrix4(rocketPose.matrix);
+        b.place(exhaust,15+i*7+j,exhaustPoint.x,exhaustPoint.y,exhaustPoint.z,
           active&&lift>.6?(1-progress)*1.25:0,0,0,j+(reduced?0:time));
       }
     }
@@ -154,7 +164,7 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
     }
     // An open clam and its luminous pearl anchor the floating jellyfish forest.
     scenery.add(G.round,'#d1a5cb',[p.x+side*1.4,.65,p.z+.9],[.85,.24,.65]);
-    scenery.add(G.round,GOLD,[p.x+side*1.4,.95,p.z+.94],[.28,.28,.28],[],true,i*.3);
+
     clams.push({p:v(p.x+side*1.4,.7,p.z+.65),distance:at(s,f)});
     for(let j=0;j<5;j++) {
       const a=(j-2)*.33;
@@ -164,7 +174,7 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
   b.batch(scenery);
   const jellies=b.pool(jellyModel(),7),bubble=new WorldModel();
   bubble.add(G.rock,'#c4f1e9',[0,0,0],[.24,.31,.24],[],true);
-  const bubbles=b.pool(bubble,308);for(const mesh of bubbles)mesh.name='jellyfish-pearl-fringe';
+  const bubbles=b.pool(bubble,262);for(const mesh of bubbles)mesh.name='jellyfish-pearl-fringe';
   const shell=new WorldModel();shell.add(G.round,'#e9bfd8',[0,.68,0],[.93,.77,.17]);
   for(let j=0;j<5;j++)shell.beam('#f4d7bd',v(0,0,.14),v((j-2)*.31,1.23-Math.abs(j-2)*.09,.14),.04);
   const lids=b.pool(shell,10),fish=new WorldModel();
@@ -173,16 +183,21 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
   for(const side of [-1,1])fish.add(G.rock,INK,[.38,.06,side*.22],[.085,.1,.06]);
   const fishPool=b.pool(fish,7);
   for(const mesh of lids)mesh.name='pearl-clam-lids';
+  for(const mesh of jellies)mesh.name='breathing-jellyfish-bells';
+  const bellMatrix=new T.Matrix4(),bellScale=new T.Vector3();
   b.animate((time,distance,reduced)=>{
     for(let i=0;i<7;i++) {
       const stop=stops[i],near=arrival(distance,stop.distance,12),bob=reduced?0:Math.sin(time*1.25+i)*.22+near*.65;
       const size=1+(reduced?0:near*.08);
       b.place(jellies,i,stop.p.x,stop.p.y+bob,stop.p.z,size);
-      for(let strand=0;strand<8;strand++)for(let pearl=0;pearl<5;pearl++) {
-        const a=strand*Math.PI/4,t=(pearl+1)/5;
+      const breathe=reduced?0:Math.sin(time*2.2+i)*(.035+near*.1);
+      bellScale.set(1+breathe,1-breathe*1.7,1+breathe);
+      for(const mesh of jellies){mesh.getMatrixAt(i,bellMatrix);bellMatrix.scale(bellScale);mesh.setMatrixAt(i,bellMatrix);}
+      for(let strand=0;strand<8;strand++)for(let pearl=0;pearl<4;pearl++) {
+        const a=strand*Math.PI/4,t=(pearl+1)/4;
         const curl=reduced?0:Math.sin(time*2.2+i+strand*.7-t*1.8)*(.12+near*.48)*t;
-        const radius=1.42+curl,drop=.24+(pearl+.5)*.48;
-        b.place(bubbles,28+i*40+strand*5+pearl,stop.p.x+Math.sin(a)*radius*size,stop.p.y+bob-drop*size,stop.p.z+Math.cos(a)*radius*size,.86*size,0,a,0);
+        const radius=1.42*(1+breathe)+curl,drop=.26+(pearl+.5)*.58;
+        b.place(bubbles,28+i*32+strand*4+pearl,stop.p.x+Math.sin(a)*radius*size,stop.p.y+bob-drop*size,stop.p.z+Math.cos(a)*radius*size,.86*size,0,a,0);
       }
       const swim=(reduced?0:time*.6+near*.8)+i*.8;
       b.place(fishPool,i,stop.p.x+Math.sin(swim)*2.9,stop.p.y+1.35+Math.cos(swim)*.3,stop.p.z+Math.cos(swim)*2.9,.78,0,swim);
@@ -195,6 +210,10 @@ function jellyfishDreamway(s:MiniSection,b:VariantBuilder) {
     for(let i=0;i<clams.length;i++){
       const clam=clams[i],open=reduced?0:arrival(distance,clam.distance,10);
       b.place(lids,i,clam.p.x,clam.p.y,clam.p.z,1,1.3-open*1.17);
+      // The shell gets out of the way before presenting its treasure. Using
+      // the existing pearl pool keeps this extra interaction at zero new draws.
+      const reveal=Math.max(0,(open-.35)/.65);
+      b.place(bubbles,252+i,clam.p.x,clam.p.y+.25+reveal*.95,clam.p.z+.29,1.2+reveal*.28,0,0,reveal*.25);
     }
   });
 }
@@ -248,7 +267,14 @@ function pinballParade(s:MiniSection,b:VariantBuilder) {
   flipper.add(G.box,'#f6ca87',[1.5,0,0],[3,.75,.55]);flipper.add(G.round,'#ffddb0',[3,0,0],[.5,.4,.3]);
   flipper.add(G.pole,'#99d3ce',[0,0,0],[.55,.7,.55],[Math.PI/2,0,0]);
   const flips=b.pool(flipper,2),ball=new WorldModel();ball.add(G.round,'#d1e5e6',[0,0,0],[.82,.82,.82]);
-  ball.add(G.rock,CREAM,[-.28,.33,.65],[.22,.19,.07]);const balls=b.pool(ball,1);
+  ball.add(G.rock,CREAM,[-.28,.33,.65],[.22,.19,.07]);
+  for(const side of [-1,1]) {
+    ball.add(G.round,'#f0bcce',[side*.56,.59,.1],[.28,.28,.13]);
+    ball.add(G.rock,INK,[side*.23,.13,.75],[.075,.1,.055]);
+    ball.beam('#f8dfc4',v(side*.23,-.12,.77),v(side*.64,-.03,.77),.02);
+  }
+  ball.add(G.round,'#e7a0bc',[0,-.1,.84],[.14,.1,.09]);
+  const balls=b.pool(ball,1);
   const segment=new WorldModel();segment.add(G.box,GOLD,[0,0,0],[.16,.73,.1],[],true);
   const digits=b.pool(segment,45),patterns=[0b0111111,0b0000110,0b1011011,0b1001111,0b1100110,0b1101101,0b1111101,0b0000111,0b1111111,0b1101111];
   for(const mesh of digits)mesh.name='pinball-display-and-rays';
@@ -262,10 +288,10 @@ function pinballParade(s:MiniSection,b:VariantBuilder) {
     const progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1);
     let i=0;while(i<3&&distance>ballStops[i+1])i++;
     const blend=T.MathUtils.clamp((distance-ballStops[i])/(ballStops[i+1]-ballStops[i]),0,1),p=ballRoute[i],q=ballRoute[i+1];
-    b.place(balls,0,p.x+(q.x-p.x)*blend,p.y+(q.y-p.y)*blend,p.z+(q.z-p.z)*blend);
+    b.place(balls,0,p.x+(q.x-p.x)*blend,p.y+(q.y-p.y)*blend,p.z+(q.z-p.z)*blend,1,0,0,reduced?0:(distance-s.start)*.55);
     for(let j=0;j<3;j++) {
       const age=impacts.age(j,time),pop=!reduced&&age>=0&&age<1.5?Math.exp(-age*3.2)*Math.abs(Math.sin(age*13)):0,p=bumpers[j];
-      b.place(caps,j,p.x,p.y,p.z+.42+pop*.35,1+pop*.18);
+      b.place(caps,j,p.x,p.y,p.z+.42+pop*.35,1+pop*.18,0,0,(reduced?0:pop*.19)*(j===1?-1:1));
       for(let ray=0;ray<8;ray++) {
         const a=ray*Math.PI/4,r=2.35+pop*.7;
         b.place(digits,21+j*8+ray,p.x+Math.sin(a)*r,p.y+Math.cos(a)*r,p.z+.48,pop*.9,0,0,-a);
@@ -299,6 +325,13 @@ function fairyAutomaton() {
     m.add(G.pole,'#dbb780',[side*.34,.13,0],[.12,1,.12]);
   }
   for(let j=0;j<5;j++)m.add(G.cone,GOLD,[(j-2)*.23,4.23,.1],[.16,.5+(j===2?.2:0),.16]);
+  m.add(G.round,'#a98bab',[0,3.83,-.49],[.68,.52,.34]);
+  m.add(G.round,'#b69bc5',[0,4.2,-.46],[.38,.35,.3]);
+  for(let j=0;j<10;j++) {
+    const a=j*Math.PI/5;
+    m.add(G.rock,CANDY[j%4],[Math.sin(a)*1.3,.78,Math.cos(a)*1.3],[.35,.23,.22],[0,a,0]);
+    m.beam(GOLD,v(Math.sin(a)*.27,1.78,Math.cos(a)*.27),v(Math.sin(a)*1.38,.73,Math.cos(a)*1.38),.025);
+  }
   star(m,1.6,3.9,.2,.35,GOLD);m.beam(GOLD,v(1.45,3.05,.2),v(1.6,3.9,.2),.04);
   return m;
 }
@@ -341,6 +374,7 @@ function windupWonderland(s:MiniSection,b:VariantBuilder) {
   }
   star(m,cx,top+6,back,.95,GOLD);b.batch(m);
   const fairy=b.pool(fairyAutomaton(),1),notes=b.pool(musicNote(),16),key=new WorldModel();
+  for(const mesh of fairy)mesh.name='music-box-dancer';
   key.add(G.box,'#ecc797',[0,0,0],[2.6,.28,.25]);
   for(const side of [-1,1])key.add(G.ring,'#ecc797',[side*.58,.55,0],[.55,.6,.55]);
   key.add(G.pole,'#caa37d',[-3.55,0,0],[.48,6.5,.48],[0,0,Math.PI/2]);
@@ -355,7 +389,10 @@ function windupWonderland(s:MiniSection,b:VariantBuilder) {
   b.animate((time,distance,reduced)=>{
     const on=arrival(distance,(s.start+s.end)/2,s.length*.55),progress=T.MathUtils.clamp((distance-s.start)/s.length,0,1);
     const beat=reduced?0:Math.sin(progress*Math.PI*16)*on;
-    b.place(fairy,0,cx,fairyY+Math.max(0,beat)*.16,back+1,1.9,0,reduced?0:progress*Math.PI*4,beat*.035);
+    const curtsy=reduced?0:arrival(distance,at(s,.87),11);
+    // She finishes her pirouettes with a bow about her slippers. The foot
+    // pivot stays on the pedestal rather than sinking through it.
+    b.place(fairy,0,cx,fairyY+.4+Math.max(0,beat)*.16+curtsy*.035,back+1,1.9,curtsy*.21,reduced?0:progress*Math.PI*4,beat*.035);
     b.place(keys,0,right+3.8,3.1,back+1.6,1,reduced?0:progress*Math.PI*8,0,0);
     for(let j=0;j<16;j++) {
       const a=j*Math.PI*2/16,rx=width*.5+2.6,ry=(top-s.origin.y)*.5+2.8;
@@ -439,26 +476,27 @@ function teaParty(s:MiniSection,b:VariantBuilder) {
   m.add(G.ring,GOLD,[0,potY-2.52,0],[r*.86,r*.86,r*.86],[Math.PI/2,0,0]);
   b.batch(m,rotor);
   const pouringPot=new T.Group(),pot=new WorldModel();pouringPot.name='pouring-teapot';pouringPot.position.y=potY;rotor.add(pouringPot);teapot(pot,0,r);b.batch(pot,pouringPot);
-  const cups=b.pool(teacupModel(),12,rotor),steam=new WorldModel();
+  const cups=b.pool(teacupModel(),13,rotor),steam=new WorldModel();
   steam.add(G.rock,'#d9e7dd',[0,0,0],[.3,.42,.3],[],true);const steamPool=b.pool(steam,22,rotor),motion=new CarouselMotion(s);
   for(const mesh of steamPool){mesh.name='teapot-steam-and-pour';for(let i=0;i<22;i++)mesh.setColorAt(i,new T.Color(i<10?'#ffffff':'#e6b676'));}
-  const teaLip=new T.Vector3(),potSize=r/3.15;
+  const teaLip=new T.Vector3(),teaTarget=new T.Vector3(r*.58+.3,potY-1.05,0),potSize=r/3.15;
   for(const mesh of cups)mesh.name='toasting-teacups';
   const greetings=[.2,.42,.65].map(t=>at(s,t));
   b.animate((time,distance,reduced)=>{
     rotor.rotation.y=motion.update(time,distance,reduced);
     pouringPot.rotation.z=reduced?0:-arrival(distance,at(s,.7),16)*.16;
     for(let i=0;i<12;i++) {
-      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,spin=reduced?0:rotor.rotation.y*.7,toast=reduced?0:arrival(distance,greetings[level]+i%4,11);
+      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,spin=reduced?0:rotor.rotation.y*.7,toast=reduced?0:arrival(distance,greetings[level]+i%4*3.5,11);
       b.place(cups,i,Math.sin(a)*r*.61,floors[level]+.81+(reduced?0:Math.sin(rotor.rotation.y*2+a)*.1)+toast*.4,Math.cos(a)*r*.61,
         Math.min(.94,r*.27),0,a+spin,toast*.08*Math.sin(a));
     }
     pouringPot.updateMatrix();teaLip.set(2.55*potSize,1.15*potSize,0).applyMatrix4(pouringPot.matrix);
     const pour=reduced?0:arrival(distance,at(s,.7),16);
     for(let i=0;i<12;i++){
-      const t=reduced?i/12:(time*1.1+i/12)%1,spread=t*.35;
-      b.place(steamPool,10+i,teaLip.x+spread,teaLip.y-t*2.6,teaLip.z,.24*pour*(1-t*.4));
+      const t=reduced?i/12:(time*1.1+i/12)%1;
+      b.place(steamPool,10+i,teaLip.x+(teaTarget.x-teaLip.x)*t,teaLip.y+(teaTarget.y-teaLip.y)*t*t,teaLip.z,.24*pour*(1-t*.4));
     }
+    b.place(cups,12,teaTarget.x-.3,teaTarget.y-.25,teaTarget.z,.5,0,-Math.PI/2,reduced?0:pour*.04);
     for(let i=0;i<10;i++) {
       const rise=reduced?i*.26:(time*.65+i*.28)%2.8;
       b.place(steamPool,i,Math.sin(rise*2.4)*.38-Math.sin(pouringPot.rotation.z)*r/3.15*1.9,potY+r/3.15*1.9+rise,Math.cos(rise*2.4)*.2,(1-rise/3.4)*.9);
@@ -475,6 +513,11 @@ function saucerModel() {
     m.add(G.rock,GOLD,[side*.32,.98,.1],[.1,.1,.1],[],true);
   }
   for(let j=0;j<6;j++){const a=j*Math.PI/3;m.add(G.rock,CANDY[j%4],[Math.sin(a)*.83,-.03,Math.cos(a)*.83],[.12,.12,.12],[],true,j*.5);}
+  for(let j=0;j<3;j++) {
+    const a=j*Math.PI*2/3;
+    m.beam('#98a9c3',v(Math.sin(a)*.48,-.14,Math.cos(a)*.48),v(Math.sin(a)*.7,-.5,Math.cos(a)*.7),.04);
+    m.add(G.rock,'#e1bfab',[Math.sin(a)*.7,-.53,Math.cos(a)*.7],[.2,.075,.17]);
+  }
   m.add(G.cone,'#9cdbdf',[0,-.36,0],[.38,.5,.38],[0,0,Math.PI],true);return m;
 }
 
@@ -525,8 +568,10 @@ function planetParade(s:MiniSection,b:VariantBuilder) {
       b.place(planets,level,0,floors[level]+3.45,0,r*.43,0,reduced?0:time*.35+level*.7,cheer*.2);
     }
     for(let i=0;i<12;i++) {
-      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14+arrival(distance,greetings[level]+i%4,12)*.8;
-      b.place(ufos,i,Math.sin(a)*r*.64,floors[level]+.85+bob,Math.cos(a)*r*.64,Math.min(1.06,r*.3),0,a,bob*.05);
+      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,launch=reduced?0:arrival(distance,greetings[level]+i%4*5.5,10);
+      const bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14+launch*.95;
+      const angle=a+launch*.11,radius=r*.64+launch*.12;
+      b.place(ufos,i,Math.sin(angle)*radius,floors[level]+.85+bob,Math.cos(angle)*radius,Math.min(1.06,r*.3),0,a,launch*.16);
     }
     for(let i=0;i<24;i++) {
       const level=Math.floor(i/8),a=(i%8)*.14+(reduced?0:time*.65)+level*1.8;
@@ -534,8 +579,8 @@ function planetParade(s:MiniSection,b:VariantBuilder) {
       b.place(comets,i,Math.sin(a)*r*.87,floors[level]+step-1,Math.cos(a)*r*.87,(1-(i%8)*.055)*(1+cheer*.75),0,a);
     }
     for(let i=0;i<12;i++){
-      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,launch=reduced?0:arrival(distance,greetings[level]+i%4,12),bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14;
-      b.place(comets,24+i,Math.sin(a)*r*.64,floors[level]+.25+bob+launch*.8,Math.cos(a)*r*.64,launch*1.15,0,0,-Math.PI/2);
+      const level=Math.floor(i/4),a=(i%4)*Math.PI/2,launch=reduced?0:arrival(distance,greetings[level]+i%4*5.5,10),bob=reduced?0:Math.sin(rotor.rotation.y*2+a)*.14;
+      b.place(comets,24+i,Math.sin(a+launch*.11)*(r*.64+launch*.12),floors[level]+.25+bob+launch*.95,Math.cos(a+launch*.11)*(r*.64+launch*.12),launch*1.15,0,0,-Math.PI/2);
     }
   });
 }

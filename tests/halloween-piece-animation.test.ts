@@ -5,6 +5,7 @@ import { MiniSection, createMiniSection } from '../src/games/mini-track';
 import { createHalloweenPieceAnimation } from '../src/games/halloween-piece-animation';
 import { FairgroundLights } from '../src/games/world-lighting';
 import { seededRandom } from '../src/games/mini-rail';
+import { portalHitDistance } from '../src/games/pumpkin-portal';
 
 test('Halloween interactions use fixed buffers, replay cleanly and release their own geometry',()=>{
  const solid=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
@@ -42,8 +43,9 @@ test('pumpkin mallet heads touch the drum skin while handles stay above it',()=>
   const frame=Math.round(section.resolution*(crest+.5)/3),hit=section.start+section.distances[frame],skin=section.frames[frame].position.y+1.31;
   effect.update(0,hit-.1,false);
   for(let side=0;side<2;side++)assert.ok(bottom(crest*2+side,true)>skin+.18,'Mallet is raised before the train arrives');
-  effect.update(.01,hit+.1,false);effect.update(.01+Math.PI/34,hit+.1,false);
+  effect.update(.01,hit+.1,false);
   for(let side=0;side<2;side++){
+   effect.update(.01+Math.PI/34+side*Math.PI/17,hit+.1,false);
    assert.ok(Math.abs(bottom(crest*2+side,true)-skin)<.03,'Green head reaches the drum surface on the first beat');
    assert.ok(bottom(crest*2+side,false)>skin+.2,'Handle does not pass through the drum');
   }
@@ -92,5 +94,16 @@ test('spellbook pages stay attached to broom riders with positive instance trans
    for(let page=0;page<2;page++){pages.getMatrixAt(i*2+page,book);assert.ok(book.determinant()>0,'Instancing does not support reflected scales');assert.ok(new T.Vector3().setFromMatrixPosition(book).distanceTo(spine)<1e-5);}
   }
  }
+ effect.dispose();material.dispose();lights.dispose();
+});
+
+test('castle sweets start their burst at their visible lollipop orbit',()=>{
+ const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
+ const section=createMiniSection('pumpkintunnel',0,new T.Vector3(0,4,0),0,seededRandom(71)),effect=createHalloweenPieceAnimation(section,material,lights)!;
+ const mesh=effect.group.children[0] as T.InstancedMesh,matrix=new T.Matrix4();
+ // The portal interaction uses the geometry's exact hit distance.
+ const hit=portalHitDistance(section),before:T.Vector3[]=[];
+ effect.update(100,hit-.01,false);for(let i=0;i<8;i++){mesh.getMatrixAt(i,matrix);before.push(new T.Vector3().setFromMatrixPosition(matrix));}
+ effect.update(100.001,hit+.01,false);for(let i=0;i<8;i++){mesh.getMatrixAt(i,matrix);assert.ok(new T.Vector3().setFromMatrixPosition(matrix).distanceTo(before[i])<.01,'Candy does not teleport to the centre of the arch');}
  effect.dispose();material.dispose();lights.dispose();
 });

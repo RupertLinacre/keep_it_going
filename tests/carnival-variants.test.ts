@@ -221,3 +221,58 @@ test('teapot droplets originate at its rotating spout and stop after the greetin
   ride.update(20,s.end+200,false);assert.ok(size(instance(ride,'teapot-steam-and-pour',10))<.001);
   ride.dispose();material.dispose();lights.dispose();
 });
+
+test('banking rockets keep their flames on the engine nozzle through the launch and return',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('lanternrun'),ride=createCarnivalVariant(s,'b',material,lights)!,stop=at(s,.09);
+  ride.update(0,stop-1,false);ride.update(.1,stop+1,false);
+  for(const time of [.8,1.7,3.4,4.8,5.4]) {
+    ride.update(time,stop+time*24,false);
+    const rocket=instance(ride,'rally-rockets'),nozzle=new Vector3(0,-1.93,0).applyMatrix4(rocket);
+    const flame=instance(ride,'rocket-flames'),actual=new Vector3().setFromMatrixPosition(flame);
+    assert.ok(nozzle.distanceTo(actual)<1e-5,'The flame never hangs beside the tilted rocket');
+    assert.ok(new Vector3(0,1,0).transformDirection(rocket).distanceTo(new Vector3(0,1,0).transformDirection(flame))<1e-5);
+  }
+  ride.dispose();material.dispose();lights.dispose();
+});
+
+test('jellyfish pearls rise only after their clam lids open and settle when the train leaves',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('lanternrun'),ride=createCarnivalVariant(s,'c',material,lights)!,stop=at(s,.035);
+  ride.update(1,stop-40,false);const resting=instance(ride,'jellyfish-pearl-fringe',252).elements[13];
+  ride.update(2,stop-14,false);assert.ok(Math.abs(instance(ride,'jellyfish-pearl-fringe',252).elements[13]-resting)<1e-6,'Treasure stays inside when the lid is still mostly closed');
+  ride.update(3,stop,false);assert.ok(instance(ride,'jellyfish-pearl-fringe',252).elements[13]-resting>.9);
+  ride.update(4,stop+40,false);assert.ok(Math.abs(instance(ride,'jellyfish-pearl-fringe',252).elements[13]-resting)<1e-6);
+  ride.dispose();material.dispose();lights.dispose();
+});
+
+test('jellyfish umbrella pulses keep their origin anchored while changing shape',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('lanternrun'),ride=createCarnivalVariant(s,'c',material,lights)!,stop=at(s,.06);
+  const ratios:number[]=[];
+  for(const time of [1,1.7,2.4]) {
+    ride.update(time,stop,false);const matrix=instance(ride,'breathing-jellyfish-bells'),scale=new Vector3().setFromMatrixScale(matrix);
+    ratios.push(scale.y/scale.x);
+    assert.ok(Math.abs(scale.z-scale.x)<1e-5,'The umbrella keeps a round rim while breathing');
+  }
+  assert.ok(Math.max(...ratios)-Math.min(...ratios)>.25,'The silhouette contracts and opens visibly');
+  ride.dispose();material.dispose();lights.dispose();
+});
+
+test('the tea-party pour reaches the receiving cup rather than evaporating in the air',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('carouselhelix'),ride=createCarnivalVariant(s,'b',material,lights)!;
+  ride.update(10,at(s,.7),false);
+  const cup=instance(ride,'toasting-teacups',12),rim=new Vector3(0,.5,0).applyMatrix4(cup);
+  const last=new Vector3().setFromMatrixPosition(instance(ride,'teapot-steam-and-pour',21));
+  assert.ok(last.x-rim.x<.46&&last.x-rim.x>.2,'The droplets land beside the little rabbit, inside the cup rim');
+  assert.ok(last.y>rim.y&&last.y-rim.y<.45,'The final visible droplet is almost at the rim');
+  ride.dispose();material.dispose();lights.dispose();
+});
+
+
+test('the music-box dancer bows from her slippers instead of sinking through the pedestal',()=>{
+  const material=new MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights(),s=section('midwayloop'),ride=createCarnivalVariant(s,'c',material,lights)!;
+  const feet=new Vector3(0,-.37,0);
+  ride.update(1,s.start-30,false);const resting=feet.clone().applyMatrix4(instance(ride,'music-box-dancer')).y;
+  ride.update(2,at(s,.87),false);const bow=instance(ride,'music-box-dancer');
+  assert.ok(Math.abs(bow.elements[6])>.35,'The final bow is visibly different from a pirouette');
+  assert.ok(feet.clone().applyMatrix4(bow).y>=resting-.02,'The slippers stay above the platform');
+  ride.dispose();material.dispose();lights.dispose();
+});

@@ -65,3 +65,18 @@ test('boat paddle wheels stay attached to their hulls throughout steering and ro
  }
  dispose();
 });
+
+test('packing heads squash only their waiting sacks without pushing them through the belt',()=>{
+ const {section:s,animation:a,dispose}=setup('windmillloop');
+ const bags=a.group.getObjectByName('flour-conveyor') as T.InstancedMesh,presses=a.group.getObjectByName('flour-packing-presses') as T.InstancedMesh;
+ a.update(0,s.start,false);
+ const compressed=pose(bags,0),scale=new T.Vector3().setFromMatrixScale(compressed);
+ assert.ok(scale.y<.75&&scale.x>.9,'The packed sack visibly widens and squashes');
+ assert.ok(Math.abs(scale.x*scale.y*scale.z-.88**3)<1e-6,'Packing preserves the sack volume');
+ const sackTop=new T.Vector3(0,.95,0).applyMatrix4(compressed).y;
+ const pressBottom=new T.Vector3(0,-.045,0).applyMatrix4(pose(presses,0)).y;
+ assert.ok(pressBottom>=sackTop-.025&&pressBottom-sackTop<.055,'The head gently meets the compressed sack');
+ const resting=new T.Vector3().setFromMatrixScale(pose(bags,1));assert.ok(resting.y>.87,'Neighbouring sacks keep their shape');
+ assert.ok(Math.abs(origin(compressed).y-1.24)<1e-5,'Squashing keeps the sack seated on the belt');
+ dispose();
+});
