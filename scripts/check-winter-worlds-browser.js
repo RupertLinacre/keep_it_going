@@ -3,7 +3,7 @@
 async page => {
   const errors=[],report=[];page.on('pageerror',e=>errors.push(e.message));
   async function start(world) {
-    await page.goto('http://localhost:5198/?mode=remix&world='+world+'&seed=42');
+    await page.goto('http://localhost:5198/?mode=remix&world='+world+'&seed=42&christmas=1');
     await page.evaluate(async()=>{
       const url=performance.getEntriesByType('resource').find(e=>e.name.includes('/src/games/mini.ts')).name;
       const {Mini}=await import(url);window.winterStep=Mini.prototype.update;
@@ -62,7 +62,7 @@ async page => {
     if(g.ended||!['halloween','lapland','winterfair','meadow'].every(w=>seen.some(s=>s.world===w))||!seen.some(s=>s.tower))throw Error('Journey failed: '+JSON.stringify(seen));
     return seen;
   });
-  await page.goto('http://localhost:5198/tracks.html?world=lapland&element=hill');
+  await page.goto('http://localhost:5198/tracks.html?christmas=1&world=lapland&element=hill');
   if(await page.locator('#element option').count()!==6)throw Error('Empty winter collection');
   await page.locator('#collection').selectOption('winterfair');if(await page.locator('#element option').count()!==6)throw Error('Empty winter fair collection');
   if(errors.length)throw Error(errors.join('\n'));const result={report,transitions,errors};await page.evaluate(result=>window.winterValidation=result,result);return result;

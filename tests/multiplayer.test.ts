@@ -259,3 +259,16 @@ test('victory messages require a current round, valid result and a supported cho
   assert.equal(parseWire({kind:'victory-choice',round:'x',choice:'revive'}),undefined);
   assert.equal(parseWire({kind:'victory',round:'x',result:{distance:NaN}}),undefined);
 });
+
+test('the host pins the season even if the guest chooses the opposite override',async()=>{
+ for(const christmas of [false,true]){
+  const {factory}=peers(),a=new RaceSession(factory),b=new RaceSession(factory);
+  try{
+   await a.open('host','Parent',[7],'','normal',{remixMode:true,seed:42,christmas});await until(()=>a.phase==='waiting');
+   await b.open('guest','Child',[2],a.code,'easy',{remixMode:true,christmas:!christmas});await until(()=>b.phase==='ready');
+   assert.equal(b.christmas,christmas);
+   a.on('prepare',()=>a.ready());b.on('prepare',()=>b.ready());a.start();await until(()=>b.phase==='countdown');
+   assert.equal(a.round!.christmas,christmas);assert.deepEqual(a.round,b.round);
+  }finally{a.close();b.close();}
+ }
+});

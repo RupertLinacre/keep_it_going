@@ -14,7 +14,7 @@ import { POWERUPS } from "../games/ride-powerups";
 
 /** A small software-rendered two-lane view keeps the race playable without WebGL. */
 export function drawRaceFallback(game: Mini, ctx: CanvasRenderingContext2D) {
-  const world=game.remixMode?adventureAt(game.track.sectionAt(game.physics.distance).start).world:undefined;
+  const world=game.remixMode?adventureAt(game.track.sectionAt(game.physics.distance).start,game.track.worlds).world:undefined;
   gradient(ctx, world?.sky ?? "#e5eee6", world?.ground ?? "#f3efd9");
   const lead = game.physics.sample(game.physics.distance).position;
   const local = snapshotRide(game, 0), remote = game.opponent?.sample();

@@ -24,9 +24,9 @@ function defaultFactory(): MiniModelMeshFactory {
 
 /** Switch the entire train at the same section boundary as the scenery. Each
  * racer resolves their own distance, including when their worlds differ. */
-export function christmasTrainAt(track: Pick<MiniTrack, "options" | "sectionAt">, distance: number) {
+export function christmasTrainAt(track: Pick<MiniTrack, "options" | "sectionAt"> & Partial<Pick<MiniTrack,"worlds">>, distance: number) {
   if (!track.options.generative || track.options.towerDemo) return false;
-  const world = adventureAt(Math.max(0, track.sectionAt(distance).start)).world.id;
+  const world = adventureAt(Math.max(0, track.sectionAt(distance).start),track.worlds).world.id;
   return world === "lapland" || world === "winterfair";
 }
 

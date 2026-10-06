@@ -9,7 +9,7 @@ function ride(demo = false) {
   const finishes: Result[] = [];
   const host: Host = { difficulty: "normal", stage: {} as HTMLElement,
     panel() {}, stats() {}, feedback() {}, sound() {}, finish(result) { finishes.push(result); } };
-  return { game: new Headless(host, 42, { remixMode: true, towerDemo: demo }), finishes };
+  return { game: new Headless(host, 42, { remixMode: true, christmas:true, towerDemo: demo }), finishes };
 }
 function answer(game: Mini) { for (const digit of String(game.a * game.b)) game.key(digit); }
 

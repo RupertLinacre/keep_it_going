@@ -3,7 +3,7 @@ async page => {
   const errors=[],base=new URL("/",page.url()).href;
   page.on('pageerror',e=>errors.push(e.message));
   await page.setViewportSize({width:1440,height:900});
-  await page.goto(base+'?mode=remix&seed=42');
+  await page.goto(base+'?mode=remix&christmas=1&seed=42');
   await page.evaluate(async()=>{
     const url=performance.getEntriesByType('resource').find(e=>e.name.includes('/src/games/mini.ts')).name;
     const {Mini}=await import(url);

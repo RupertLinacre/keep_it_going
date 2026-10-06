@@ -4,8 +4,8 @@ import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
 import type { HeightState } from "../games/height-track";
 
-// Six-world seeded courses include the Christmas and Frosty Lake attractions.
-export const PROTOCOL = 11;
+// The host pins the seasonal world selection for both racers.
+export const PROTOCOL = 12;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];
@@ -23,10 +23,10 @@ export type RideState = {
 };
 export type RaceResult = { distance: number; correct: number; score: number; water: boolean };
 export type RaceMode = "classic" | "remix";
-export type Round = { id: string; seed: number; questionSeed: number; tables: number[]; difficulty: Difficulty; guestDifficulty: Difficulty; mode?: RaceMode };
+export type Round = { id: string; seed: number; questionSeed: number; tables: number[]; difficulty: Difficulty; guestDifficulty: Difficulty; mode?: RaceMode; christmas:boolean };
 export type Wire =
   | { kind: "hello"; version: number; name: string; difficulty: Difficulty }
-  | { kind: "lobby"; name: string; tables: number[]; difficulty: Difficulty; mode?: RaceMode }
+  | { kind: "lobby"; name: string; tables: number[]; difficulty: Difficulty; mode?: RaceMode; christmas?:boolean }
   | { kind: "prepare"; round: Round }
   | { kind: "ready"; round: string }
   | { kind: "go"; round: string; delay: number }
@@ -99,9 +99,9 @@ export function parseWire(value: unknown): Wire | undefined {
   if (["ready", "go", "state", "finish", "pause", "rematch", "victory", "victory-choice"].includes(String(v.kind)) && !text(v.round, 64)) return;
   switch (v.kind) {
     case "hello": if (Number.isInteger(v.version) && text(v.name, 80) && isDifficulty(v.difficulty)) return v as Wire; break;
-    case "lobby": if (text(v.name, 80) && tables(v.tables) && isDifficulty(v.difficulty) && mode(v.mode)) return { kind: "lobby", name: cleanName(v.name), tables: normalizeTables(v.tables), difficulty: v.difficulty, mode: v.mode as RaceMode | undefined }; break;
+    case "lobby": if (text(v.name, 80) && tables(v.tables) && isDifficulty(v.difficulty) && mode(v.mode) && optionalBoolean(v.christmas)) return { kind: "lobby", name: cleanName(v.name), tables: normalizeTables(v.tables), difficulty: v.difficulty, mode: v.mode as RaceMode | undefined,christmas:v.christmas===true }; break;
     case "prepare": if (object(v.round) && text(v.round.id, 64) && Number.isInteger(v.round.seed) && number(v.round.seed, 0, 0xffffffff)
-      && Number.isInteger(v.round.questionSeed) && number(v.round.questionSeed, 0, 0xffffffff) && tables(v.round.tables) && isDifficulty(v.round.difficulty) && isDifficulty(v.round.guestDifficulty) && mode(v.round.mode)) return v as Wire; break;
+      && Number.isInteger(v.round.questionSeed) && number(v.round.questionSeed, 0, 0xffffffff) && tables(v.round.tables) && isDifficulty(v.round.difficulty) && isDifficulty(v.round.guestDifficulty) && mode(v.round.mode) && typeof v.round.christmas === "boolean") return v as Wire; break;
     case "ready": case "rematch": case "leave": return v as Wire;
     case "go": if (number(v.delay, 0, 5000)) return v as Wire; break;
     case "state": if (validRideState(v.state)) return v as Wire; break;

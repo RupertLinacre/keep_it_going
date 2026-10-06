@@ -6,7 +6,9 @@ Leave the optional course seed blank for a fresh ride on every restart, or enter
 
 ## Adventure worlds
 
-On the `codex/christmas-world` branch, Remix travels through six worlds:
+Remix normally travels through four worlds. Each year from **15 November through 6 January**, inclusive, it adds two Christmas worlds. Add **`?christmas=1`** (or `&christmas=1` to an existing query) to enable them at any time, including in the track gallery and attraction demos. For example, `/?mode=remix&christmas=1&world=lapland` starts a winter preview. The season uses the device’s local calendar and is captured when a ride starts. In multiplayer, the host shares this choice with both riders, so their dates or URL settings cannot produce different courses. A four-world adventure loops at 4,200 metres; a Christmas adventure loops at 6,600 metres.
+
+The complete world catalogue is:
 
 - **Baa Baa Meadows:** Sheep Shuffle on grassy banks, Lily Pad Bridge over ducks and flowers, and a loop around a working windmill.
 - **Marmalade Mountains:** Mountain Gorge with a cliff-edge railway and river below, a proper arched Glowstone Tunnel through a snowy mountain, and a timber Waterfall Viaduct. Snowy peaks and cable cars frame the route.

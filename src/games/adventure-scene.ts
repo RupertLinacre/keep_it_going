@@ -123,7 +123,7 @@ export class AdventureScene {
   private build(section: MiniSection, track: MiniTrack): Tile {
     const model = new WorldModel(true), actors: Actor[] = [];
     const placePumpkin=(x:number,y:number,z:number,size:number)=>actors.push({kind:'pumpkin',x,y,z,size,phase:x*.7+z*.3,onTrack:true});
-    const world = section.kind === "strengthtower" ? WORLDS[2] : this.options.world ?? adventureAt(Math.max(0, section.start)).world;
+    const world = section.kind === "strengthtower" ? WORLDS[2] : this.options.world ?? adventureAt(Math.max(0, section.start),track.worlds).world;
     const random = seededRandom((track.seed ^ Math.imul(section.id + 17, 17041)) >>> 0);
     const bounds = sectionBounds(section);
     const back = -Math.max(10,Math.abs(bounds.min.z-section.origin.z),Math.abs(bounds.max.z-section.origin.z))-12;

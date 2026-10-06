@@ -13,7 +13,8 @@ import {
   MiniRailCurve,
   type MiniKind,
 } from "./games/mini-track";
-import { WORLDS } from "./games/adventure-worlds";
+import { christmasEnabled } from "./games/christmas-season";
+import { BASE_WORLDS, WORLDS } from "./games/adventure-worlds";
 import { AdventureScene } from "./games/adventure-scene";
 import { ELEMENT_NAMES } from "./games/mini-progression";
 import { seededRandom } from "./games/mini-rail";
@@ -91,15 +92,16 @@ const descriptions: Record<MiniKind, string> = {
     "A fantasy element: a smaller complete inversion tucked into the crown of a giant loop.",
 };
 const reviewMode=new URLSearchParams(location.search).has("review")&&["localhost","127.0.0.1"].includes(location.hostname);
-const signatures = WORLDS.flatMap(w=>w.pieces);
+const christmas=christmasEnabled(),worlds=christmas?WORLDS:BASE_WORLDS;
+const signatures = worlds.flatMap(w=>w.pieces);
 // The tower has a two-way, unlimited route; its playable preview is tower.html.
-const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>k!=="strengthtower"&&!signatures.includes(k))];
+const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>k!=="strengthtower"&&!signatures.includes(k)&&(christmas||!isChristmasKind(k)&&k!=="sledswitchbacks"))];
 let collection = new URLSearchParams(location.search).get("world") ?? "all";
 // Keep the original worktree preview links pointing at the combined fair.
 if(collection==="frosty")collection="winterfair";
-if (!WORLDS.some(w=>w.id===collection)) collection="all";
+if (!worlds.some(w=>w.id===collection)) collection="all";
 const shownKinds = () => {
-  const world = WORLDS.find(w => w.id === collection);
+  const world = worlds.find(w => w.id === collection);
   return world ? [...(world.pieces.length ? world.pieces : world.challenges)] : kinds;
 };
 const title = (kind: MiniKind) =>
@@ -116,13 +118,13 @@ let elapsed = 0;
 let playing = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 let group = new THREE.Group();
 let attraction: AdventureScene | undefined;
-const galleryTrack = new MiniTrack(71, {generative:true});
+const galleryTrack = new MiniTrack(71, {generative:true,christmas});
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-<header class="gallery-header"><a href="./index.html" class="brand"><img src="./images/keep-it-going-logo.png" alt="Keep it going" /></a><a class="back" href="./index.html">← Play the game</a></header>
+<header class="gallery-header"><a href="./index.html${new URLSearchParams(location.search).get("christmas")==="1"?"?christmas=1":""}" class="brand"><img src="./images/keep-it-going-logo.png" alt="Keep it going" /></a><a class="back" href="./index.html${new URLSearchParams(location.search).get("christmas")==="1"?"?christmas=1":""}">← Play the game</a></header>
 <main class="gallery-layout">
 <aside class="catalogue"><p class="eyebrow">THE TRACK COLLECTION</p><h1>Made to make<br>your stomach drop.</h1><p class="intro">Explore all ${kinds.length} pieces, from the first hill to the impossible inversions.</p>
-<label class="collection-label" for="collection">Explore a world</label><select id="collection"><option value="all">All track sections</option>${WORLDS.map(w=>`<option value="${w.id}">${w.icon} ${w.name}</option>`).join("")}</select>
+<label class="collection-label" for="collection">Explore a world</label><select id="collection"><option value="all">All track sections</option>${worlds.map(w=>`<option value="${w.id}">${w.icon} ${w.name}</option>`).join("")}</select>
 <label class="mobile-picker" for="element">Track section</label><select id="element">${kinds.map((k) => `<option value="${k}">${title(k)}</option>`).join("")}</select>
 <nav class="piece-list" aria-label="Track sections">${kinds.map((k, i) => `<button data-kind="${k}" aria-pressed="false"><span>${String(i + 1).padStart(2, "0")}</span>${title(k)}</button>`).join("")}</nav></aside>
 <section class="explorer" aria-label="Interactive track viewer">
@@ -250,8 +252,8 @@ function rebuild() {
   attraction?.destroy(); attraction=undefined;
   $("#replay-penguins").hidden=kind!=="sledswitchbacks";
   $("#tunnel-cutaway").hidden=kind!=="tunnel";$("#tunnel-cutaway").setAttribute("aria-pressed","false");
-  const selectedWorld = WORLDS.find(w => w.id === collection);
-  const world = selectedWorld && !selectedWorld.pieces.length ? selectedWorld : WORLDS.find(w=>w.pieces.includes(kind));
+  const selectedWorld = worlds.find(w => w.id === collection);
+  const world = selectedWorld && !selectedWorld.pieces.length ? selectedWorld : worlds.find(w=>w.pieces.includes(kind));
   galleryWorld=world??WORLDS[0];
   winterSky.material.uniforms.weight.value=kind!=="sledswitchbacks"&&(world?.id==="lapland"||world?.id==="winterfair")?1:0;
   scene.background = kind === 'sledswitchbacks' ? alpineBackdrop : new THREE.Color(world?.sky ?? '#e6eee8');
@@ -387,7 +389,7 @@ function rebuild() {
     .forEach((b) =>
       b.setAttribute("aria-pressed", String(b.dataset.kind === kind)),
     );
-  history.replaceState(null, "", `?element=${kind}&km=${distance}${collection==="all"?"":"&world="+collection}`);
+  history.replaceState(null, "", `?element=${kind}&km=${distance}${collection==="all"?"":"&world="+collection}${new URLSearchParams(location.search).get("christmas")==="1"?"&christmas=1":""}`);
   $<HTMLButtonElement>('[data-view="attraction"]').hidden=!isChristmasKind(kind);
   if(!isChristmasKind(kind)&&view==='attraction')view='perspective';
   fit();

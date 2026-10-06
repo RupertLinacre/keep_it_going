@@ -33,12 +33,16 @@ export const WORLDS: readonly AdventureWorld[] = [
     pieces: ["frozenwaterfall","sledswitchbacks"], challenges: ["frozenwaterfall", "sledswitchbacks", "hill", "dip", "loop", "corkscrew", "helix", "doubledip"] },
 ];
 export const WORLD_LAP = WORLDS.at(-1)!.end;
-export function adventureAt(distance: number) {
-  const lap = Math.floor(Math.max(0, distance) / WORLD_LAP);
-  const at = Math.max(0, distance) % WORLD_LAP;
-  const index = WORLDS.findIndex(world => at < world.end);
-  const world = WORLDS[index];
-  return { world, index, lap, stage: lap * WORLDS.length + index,
+export const BASE_WORLDS = WORLDS.slice(0,4);
+/** The catalogue always includes design previews. Each game captures its own
+ * eligible world list, so date rollover never changes a running course. */
+export function adventureAt(distance: number,worlds:readonly AdventureWorld[]=WORLDS) {
+  const worldLap=worlds.at(-1)!.end;
+  const lap = Math.floor(Math.max(0, distance) / worldLap);
+  const at = Math.max(0, distance) % worldLap;
+  const index = worlds.findIndex(world => at < world.end);
+  const world = worlds[index];
+  return { world, index, lap, stage: lap * worlds.length + index,
     progress: Math.max(0, Math.min(1, (at - world.start) / (world.end - world.start))) };
 }
 

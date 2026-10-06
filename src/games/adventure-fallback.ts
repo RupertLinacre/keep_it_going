@@ -25,7 +25,7 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
   const triangle=(x:number,y:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x-w,y);ctx.lineTo(x,y+h);ctx.lineTo(x+w,y);ctx.closePath();ctx.fill()};
   for(const section of track.sections){
     if(section.start>distance+180)continue;
-    const world=adventureAt(section.start).world;
+    const world=adventureAt(section.start,track.worlds).world;
     if(!drives.has(section))drives.set(section,[new AttractionDrive(),new AttractionDrive()]);
     const drive=drives.get(section)![rider];drive.update(time,distance,section.start,section.end,!!reducedMotion?.matches);
     if(!flights.has(section))flights.set(section,new Map());

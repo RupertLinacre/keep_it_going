@@ -8,7 +8,7 @@ async page => {
     for(const layout of ['4k','phone','race-4k'])for(const world of layout==='race-4k'?['lapland','winterfair']:['night','lapland','winterfair']) {
       await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
       await page.setViewportSize(layout==='phone'?{width:390,height:844}:{width:3840,height:2160});
-      await page.goto('http://localhost:5198/?mode=remix&world='+world+'&seed=42');
+      await page.goto('http://localhost:5198/?mode=remix&world='+world+'&seed=42&christmas=1');
       await page.evaluate(async()=>{
         const url=performance.getEntriesByType('resource').find(e=>e.name.includes('/src/games/mini.ts')).name;
         const {Mini}=await import(url);window.winterStep=Mini.prototype.update;

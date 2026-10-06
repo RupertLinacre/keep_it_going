@@ -2,7 +2,7 @@
 async page => {
  const base=new URL('/',page.url()).href,errors=[],report=[];page.on('pageerror',e=>errors.push(e.message));
  for(const kind of ['frozenwaterfall','sledswitchbacks']){
-  await page.setViewportSize({width:3840,height:2160});await page.goto(base+'christmas.html?piece='+kind);
+  await page.setViewportSize({width:3840,height:2160});await page.goto(base+'christmas.html?christmas=1&piece='+kind);
   await page.waitForFunction(()=>document.querySelectorAll('canvas').length===2);
   await page.evaluate(async()=>{
    const url=performance.getEntriesByType('resource').find(r=>r.name.includes('/src/games/mini.ts')).name,{Mini}=await import(url),step=Mini.prototype.update;

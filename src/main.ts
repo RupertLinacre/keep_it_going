@@ -9,6 +9,7 @@ import "@fontsource/dm-sans/latin-600.css";
 import "@fontsource/dm-sans/latin-700.css";
 import "./style.css";
 import { courseSeed, freshCourseSeed } from "./games/course-seed";
+import { christmasEnabled } from "./games/christmas-season";
 import { WORLDS } from "./games/adventure-worlds";
 import { mountGame } from "./runner";
 import type { Difficulty } from "./types";
@@ -47,7 +48,7 @@ function shell(playing: boolean) {
   app.innerHTML = `
     <div class="tiny-utility container">
       <button class="logo-home" data-menu aria-label="Game home" title="Back to start screen"><img class="game-logo" src="${import.meta.env.BASE_URL}images/keep-it-going-logo.png" alt="Keep it going" width="2172" height="724" /></button>
-      <a class="track-gallery-link" href="${import.meta.env.BASE_URL}tracks.html">Track gallery ↗</a>
+      <a class="track-gallery-link" href="${import.meta.env.BASE_URL}tracks.html${new URLSearchParams(location.search).get("christmas")==="1"?"?christmas=1":""}">Track gallery ↗</a>
       <button class="text-button fullscreen-button" data-fullscreen aria-label="Enter fullscreen" title="Enter fullscreen" aria-pressed="false">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path data-fullscreen-icon d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" /></svg>
       </button>
@@ -70,7 +71,7 @@ function solo(tables: number[], difficulty: Difficulty, seedText = "") {
   unlockAudio();
   const seed = remixMode ? courseSeed(seedText) ?? freshCourseSeed() : undefined;
   const startWorld = WORLDS.find(w => w.id === query.get("world"))?.id;
-  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty, seedText), { tables, menu, remixMode, seed, startWorld });
+  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty, seedText), { tables, menu, remixMode, seed, startWorld,christmas:christmasEnabled() });
 }
 function race(round: Round) {
   unlockAudio();

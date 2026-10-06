@@ -2,7 +2,7 @@ async page => {
  const errors=[],report=[];page.on('pageerror',e=>errors.push(e.message));
  for(const layout of ['4k','phone','race']){
   await page.setViewportSize(layout==='phone'?{width:390,height:844}:{width:3840,height:2160});
-  await page.goto('http://localhost:5198/christmas.html?piece=chimneyhouse');await page.waitForFunction(()=>document.querySelectorAll('canvas').length===2);
+  await page.goto('http://localhost:5198/christmas.html?piece=chimneyhouse&christmas=1');await page.waitForFunction(()=>document.querySelectorAll('canvas').length===2);
   await page.evaluate(async()=>{
    const url=performance.getEntriesByType('resource').find(r=>r.name.includes('/src/games/mini.ts')).name,{Mini}=await import(url),step=Mini.prototype.update;
    window.chimneyHold=false;window.chimneyNext=2;Mini.prototype.update=function(dt){window.chimneyGame=this;if(window.chimneyHold)return;

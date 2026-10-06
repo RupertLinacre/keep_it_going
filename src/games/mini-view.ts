@@ -207,7 +207,7 @@ export class MiniView {
     if(track.options.generative&&track.options.startWorld&&!track.options.multiplayer) {
       // A direct world preview should open in its own palette. Only real
       // journey transitions need to fade from the preceding world's colours.
-      const world=adventureAt(track.sectionAt(track.startDistance).start).world;
+      const world=adventureAt(track.sectionAt(track.startDistance).start,track.worlds).world;
       (this.scene.background as THREE.Color).set(world.sky);
       (this.scene.fog as THREE.Fog).color.set(world.sky);
       this.material("#d5e3c3").color.set(world.ground);this.material("#cfae8c").color.set(world.earth);
@@ -1020,7 +1020,7 @@ export class MiniView {
     }
     if (this.track.options.generative) {
       const towerNearby=this.track.sections.some(s=>s.kind==='strengthtower'&&distance>=s.start-45&&distance<=s.end);
-      const world = tower||towerNearby||this.track.options.towerDemo?WORLDS[2]:adventureAt(Math.max(0,this.track.sectionAt(distance).start)).world;
+      const world = tower||towerNearby||this.track.options.towerDemo?WORLDS[2]:adventureAt(Math.max(0,this.track.sectionAt(distance).start),this.track.worlds).world;
       this.fireworks ??= new LoopFireworks(this.scene);
       this.fireworks.update(this.track,distance,time,anchor,this.laneOffset,opponent?.distance,opponentTrack,this.reducedMotion.matches,this.renderer.getPixelRatio());
       this.adventureScene ??= new AdventureScene(this.scene,this.track.options.towerDemo?{world:WORLDS[2]}:{});

@@ -8,7 +8,7 @@ async page => {
  try{for(const kind of kinds){
   await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
   await page.setViewportSize(layout==='phone'?{width:390,height:844}:{width:3840,height:2160});
-  await page.goto('http://localhost:5198/christmas.html?piece='+kind);
+  await page.goto('http://localhost:5198/christmas.html?christmas=1&piece='+kind);
   await page.waitForFunction(()=>document.querySelectorAll('canvas').length===2);
   await page.evaluate(async()=>{
    const url=performance.getEntriesByType('resource').find(r=>r.name.includes('/src/games/mini.ts')).name,{Mini}=await import(url),step=Mini.prototype.update;

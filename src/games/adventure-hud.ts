@@ -1,4 +1,4 @@
-import { adventureAt, WORLDS } from "./adventure-worlds";
+import { adventureAt, WORLDS, type AdventureWorld } from "./adventure-worlds";
 import type { MiniTrack } from "./mini-track";
 
 export class AdventureHud {
@@ -6,15 +6,15 @@ export class AdventureHud {
   private announcement = document.createElement("div");
   private stage = -1;
   private entered = 0;
-  constructor(host: HTMLElement) {
+  constructor(host: HTMLElement,worlds:readonly AdventureWorld[]=WORLDS) {
     this.element.className = "world-hud";
-    this.element.innerHTML = '<span class="world-symbol" aria-hidden="true"></span><span class="world-name"></span><span class="world-stops" aria-hidden="true">'+WORLDS.map(()=>'<i></i>').join('')+'</span>';
+    this.element.innerHTML = '<span class="world-symbol" aria-hidden="true"></span><span class="world-name"></span><span class="world-stops" aria-hidden="true">'+worlds.map(()=>'<i></i>').join('')+'</span>';
     this.announcement.className = "world-welcome";
     this.announcement.setAttribute("role", "status");
     host.append(this.element, this.announcement);
   }
   render(track: MiniTrack, distance: number, time: number, inTower = false) {
-    const section=track.sectionAt(distance),journey=adventureAt(Math.max(0,section.start));
+    const section=track.sectionAt(distance),journey=adventureAt(Math.max(0,section.start),track.worlds);
     const {lap}=journey;
     const bonus=inTower||section.kind==="strengthtower"||track.options.towerDemo;
     const world=bonus?WORLDS[2]:journey.world,index=bonus?2:journey.index,stage=bonus?100000+journey.lap:journey.stage;
@@ -24,7 +24,7 @@ export class AdventureHud {
       this.element.querySelector('.world-name')!.textContent=world.name;
       this.element.setAttribute("aria-label", `World ${index+1}: ${world.name}, adventure ${lap+1}`);
       this.element.querySelectorAll('i').forEach((dot,i)=>dot.classList.toggle('visited',i<=index));
-      this.announcement.innerHTML=`<small>${lap ? `ADVENTURE ${lap+1} · ` : ''}WORLD ${index+1} OF ${WORLDS.length}</small><strong>${world.name}</strong><span>${world.invitation}</span>`;
+      this.announcement.innerHTML=`<small>${lap ? `ADVENTURE ${lap+1} · ` : ''}WORLD ${index+1} OF ${track.worlds.length}</small><strong>${world.name}</strong><span>${world.invitation}</span>`;
     }
     this.announcement.style.opacity=String(Math.max(0,Math.min(1,(3.8-(time-this.entered))*2)));
     this.announcement.style.visibility=time-this.entered<3.8?'visible':'hidden';
