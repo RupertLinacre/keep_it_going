@@ -6,20 +6,23 @@ Leave the optional course seed blank for a fresh ride on every restart, or enter
 
 ## Adventure worlds
 
-On the `feature/adventure-worlds` branch, Remix travels through four worlds:
+On the `codex/christmas-world` branch, Remix travels through six worlds:
 
 - **Baa Baa Meadows:** Sheep Shuffle on grassy banks, Lily Pad Bridge over ducks and flowers, and a loop around a working windmill.
 - **Marmalade Mountains:** Mountain Gorge with a cliff-edge railway and river below, a proper arched Glowstone Tunnel through a snowy mountain, and a timber Waterfall Viaduct. Snowy peaks and cable cars frame the route.
 - **Starlight Carnival:** Rainbow Midway, Marquee Loop and Carousel Climb. Chasing bulbs, sweeping light beams, glowing fountains, ticket booths, spinning carousels and Ferris wheels make this a night-time funfair.
 - **Pumpkin Party:** three Pumpkin Hops, a smashable Pumpkin Portal stack and a three-turn descent around a crooked Witch’s Hat. Friendly ghosts, bats and glowing cottages keep it playful.
 
-Worlds change on section boundaries near 900, 1,900 and 3,000 course metres. Beyond 4,200 metres, another adventure begins with new arrangements and additional elements. Hills remain bounded so later rides retain a visible train. Each world introduces its selected signature pieces before its shuffled challenges: five in the meadows and four in each other world, seventeen attractions in total. The track collection has a world selector and animated previews of the production pieces.
+- **Twilight Lapland:** Star Tree Spiral, Snowman Scarf Slalom, the giant ribbon bow, a sparkling snow globe, and Santa’s chimney delivery through a snowy Alpine chalet. Sleighs leave magical glitter trails.
+- **Frosty Lake Fair:** Sled Mountain Switchbacks winds on timber trestles past a summit lodge and through a glowing stone tunnel. The train tows three penguin sleds uphill, unhooks them at the summit, and sends them racing down separate snow runs to the frozen lake while it descends. Frozen Waterfall Stairway climbs icy terraces, enters the mountain behind its summit chalet and emerges through the front waterfall. The gallery includes a replay button.
+
+Worlds change on section boundaries near 900, 1,900, 3,000, 4,200 and 5,400 course metres. Beyond 6,600 metres, another adventure begins with new arrangements and additional elements. Hills remain bounded so later rides retain a visible train. Each world introduces its selected signature pieces before its shuffled challenges: five in the meadows, four in each original later world, five available in Lapland’s seeded tour, and two in Frosty Lake Fair—24 attractions in total. The track collection has a world selector and animated previews of the production pieces.
 
 Fairground lamps brighten around each passing train, with soft coloured halos and a short light trail. The carousel matches the train’s direction and angular speed around its spiral. Passing through Glowstone Tunnel pulls six gondolas along a cable to the snowy summit at the train’s speed. Sheep on the Sheep Shuffle rails leap safely onto the banks before the engine arrives. The Pumpkin Portal’s fifteen pumpkins scatter and tumble in a sparkling green burst. Windmill sails and the Ferris wheel receive a push and coast down; bridge ducks paddle away. Each multiplayer lane reacts to its own rider.
 
 The same seed creates the same journey in solo and multiplayer. Both players retain personal difficulty and identity colours. Mountains and other backdrops sit behind both lanes; rocky ledges and tunnels follow each lane. The gorge’s high wall sits behind both riders; tunnel cutaways open independently as each train passes. World scenery never requests camera zoom. WebGL and software fallback renderers both support the worlds; ambient animation respects reduced-motion preferences.
 
-`npm test` includes world progression, all seventeen attraction guarantees across 80 seeds, geometric continuity, energy conservation, later-course limits, scenery disposal and reduced-motion behaviour. `npx tsx scripts/playtest-worlds.ts` runs the full game with explicit answer-timing profiles. Browser scripts `scripts/check-worlds-browser.js` and `scripts/check-worlds-multiplayer-browser.js` cover frame pacing and real two-player connections. `scripts/check-world-attractions-browser.js` captures every signature on desktop/phone, and `scripts/check-world-gallery-browser.js` checks the world-filtered gallery. See [world design and validation](docs/adventure-worlds.md).
+`npm test` includes world progression, signature guarantees across 80 seeds, the Christmas tour and both winter attractions, geometric continuity, energy conservation, later-course limits, scenery disposal and reduced-motion behaviour. `npx tsx scripts/playtest-worlds.ts` runs the full game with explicit answer-timing profiles. Browser scripts `scripts/check-worlds-browser.js` and `scripts/check-worlds-multiplayer-browser.js` cover frame pacing and real two-player connections. `scripts/check-world-attractions-browser.js` captures every signature on desktop/phone, and `scripts/check-world-gallery-browser.js` checks the world-filtered gallery. See [world design and validation](docs/adventure-worlds.md).
 
 ## Original solo and multiplayer game
 

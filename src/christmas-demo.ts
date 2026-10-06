@@ -10,9 +10,10 @@ import { CHRISTMAS_KINDS, isChristmasKind } from './games/christmas-rails';
 import { ELEMENT_NAMES } from './games/mini-progression';
 document.body.classList.add("christmas-demo");
 const query=new URLSearchParams(location.search),requested=query.get('piece')??'startree';
-const piece=isChristmasKind(requested)?requested:'startree';
+const previewKinds=[...CHRISTMAS_KINDS,'sledswitchbacks'] as const;
+const piece=isChristmasKind(requested)||requested==='sledswitchbacks'?requested:'startree';
 const app=document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML=`<div class="tiny-utility container christmas-controls"><a href="./"><img class="tower-demo-logo" src="./images/keep-it-going-logo.png" alt="Keep it going"></a><label>Christmas attraction <select aria-label="Christmas attraction">${CHRISTMAS_KINDS.map(k=>`<option value="${k}" ${k===piece?'selected':''}>${({startree:'01',snowmanscarf:'06',ribbonreel:'14',snowglobe:'17',chimneyhouse:'CHIMNEY',frozenwaterfall:'30'} as Record<string,string>)[k]} · ${ELEMENT_NAMES[k]}</option>`).join('')}</select></label><button class="tower-retry">Ride again ↻</button><a href="./tracks.html?world=${piece==='frozenwaterfall'?'winterfair':'lapland'}&element=${piece}">Explore in 3D</a></div><main id="main-content" class="container"></main>`;
+app.innerHTML=`<div class="tiny-utility container christmas-controls"><a href="./"><img class="tower-demo-logo" src="./images/keep-it-going-logo.png" alt="Keep it going"></a><label>Christmas attraction <select aria-label="Christmas attraction">${previewKinds.map(k=>`<option value="${k}" ${k===piece?'selected':''}>${({startree:'01',snowmanscarf:'06',ribbonreel:'14',snowglobe:'17',chimneyhouse:'CHIMNEY',frozenwaterfall:'30',sledswitchbacks:'40'} as Record<string,string>)[k]} · ${ELEMENT_NAMES[k]}</option>`).join('')}</select></label><button class="tower-retry">Ride again ↻</button><a href="./tracks.html?world=${piece==='frozenwaterfall'||piece==='sledswitchbacks'?'winterfair':'lapland'}&element=${piece}">Explore in 3D</a></div><main id="main-content" class="container"></main>`;
 const root=app.querySelector<HTMLElement>('main')!;let destroy:(()=>void)|undefined;
 function start(){destroy?.();destroy=mountGame(root,'easy',start,{remixMode:true,previewPiece:piece,seed:42,tables:[2,3,4,5,6,7,8,9,10,11,12],menu:()=>location.assign('./')});}
 app.querySelector('button')!.addEventListener('click',start);

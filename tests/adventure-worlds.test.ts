@@ -101,7 +101,7 @@ test('scenery prunes old tiles, bounds actors and disposes shared race geometry 
 
 test('each adventure guarantees the original signatures and introduces a seeded Christmas tour',()=>{
  const all=WORLDS.flatMap(w=>w.pieces);
- assert.ok(WORLDS.every(w=>w.id==='winterfair'?w.pieces.includes('frozenwaterfall'):new Set(w.pieces).size>=3));
+ assert.ok(WORLDS.every(w=>w.id==='winterfair'?['frozenwaterfall','sledswitchbacks'].every(k=>w.pieces.includes(k as typeof w.pieces[number])):new Set(w.pieces).size>=3));
  assert.equal(new Set(all).size,all.length,'Each signature belongs to one world');
  for(let seed=1;seed<=80;seed++){
   const track=new MiniTrack(seed,{generative:true}),seen=new Map<number,Set<string>>();

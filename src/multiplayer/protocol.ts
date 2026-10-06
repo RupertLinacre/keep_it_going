@@ -4,7 +4,8 @@ import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
 import type { HeightState } from "../games/height-track";
 
-export const PROTOCOL = 10;
+// Six-world seeded courses include the Christmas and Frosty Lake attractions.
+export const PROTOCOL = 11;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];

@@ -1,3 +1,4 @@
+import { sledSwitchbacks } from "./sled-switchbacks";
 import { CHIMNEY } from './chimney-jump';
 import { christmasShape, isChristmasKind, type ChristmasKind } from "./christmas-rails";
 import { attractionRail, type AdditionalAttraction } from "./attraction-kinds";
@@ -10,10 +11,11 @@ import { specialElement, type SpecialKind } from "./mini-elements";
 import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
-  "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  "sledswitchbacks" | "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
   | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
   | ChristmasKind | AdditionalAttraction | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
+export type PreviewPiece = ChristmasKind | "sledswitchbacks";
 export const isHump = (kind: MiniKind) =>
   ["sheepbank", "pondbridge", "ravinebridge", "witchhat", "mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(attractionRail(kind));
 export interface MiniRail {
@@ -79,8 +81,8 @@ export class MiniSection implements MiniRail {
     const shape = railKind === "windmillloop" || railKind === "midwayloop" ? "loop"
       : railKind === "carouselhelix" ? "ascendinghelix" : railKind === "witchhat" ? "triplehelix"
       : railKind === "pumpkintunnel" ? "tunnel" : railKind;
-    const special = christmasShape(kind,width,amplitude,hand) ?? specialElement(shape, width, amplitude, hand, turns);
-    this.resolution = Math.min(16384, Math.max(isChristmasKind(kind) ? 4096 : shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
+    const special = kind === "sledswitchbacks" ? sledSwitchbacks(width, amplitude, hand) : christmasShape(kind,width,amplitude,hand) ?? specialElement(shape, width, amplitude, hand, turns);
+    this.resolution = Math.min(16384, Math.max(kind === "sledswitchbacks" ? 2400 : isChristmasKind(kind) ? 4096 : shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
       shape === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
     const point = (t: number) => {
       if (special) return special.point(t).add(new THREE.Vector3(0, 0, shift * smooth(t))).add(origin);
@@ -414,6 +416,7 @@ export function createMiniSection(requestedKind: MiniKind, start: number, origin
     if (kind === "lanternrun") { width = r(62, 78); amplitude = r(5, 8); shift = 0; }
     if (kind === "witchhat") { width = r(64, 74); amplitude = r(22, 27); turns = 3; shift = 0; }
     if (kind === "pumpkinhop") { width = r(70, 90); amplitude = r(7, 10); shift = 0; }
+    if (kind === "sledswitchbacks") { width = r(106, 118); amplitude = r(26, 30); shift = 0; turns = 2; }
     if (varied) {
       const world = adventureAt(start).world;
       const doubleHeight = ["loop", "windmillloop", "midwayloop", "nestedloop", "interlockingloops", "noninvertingloop"].includes(kind) ? 2 : 1;
@@ -445,7 +448,7 @@ export class MiniTrack implements MiniRail {
   private bags = 0;
   private bagWorld = -1;
   private nextTowerLap = 1;
-  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: ChristmasKind } = {}) {
+  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: PreviewPiece } = {}) {
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
     // Solo previews start on the usual opening hill inside the selected world.

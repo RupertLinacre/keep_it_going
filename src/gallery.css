@@ -360,3 +360,11 @@ input[type="range"] {
 
 .camera-tools button[hidden] { display:none; }
 .camera-tools { flex-wrap:wrap; max-width:calc(100% - 20px); }
+
+/* Keep the replay action reachable beside playback on narrow screens. */
+.viewer-footer { flex-wrap: wrap; gap: 10px; }
+.viewer-footer > span { flex: 1 1 180px; }
+@media (max-width: 700px) {
+  .viewer-footer > span { flex-basis: 100%; }
+  .viewer-footer button { flex: 1 1 auto; }
+}

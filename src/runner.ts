@@ -1,4 +1,4 @@
-import type { ChristmasKind } from "./games/christmas-rails";
+import type { PreviewPiece } from "./games/mini-track";
 import { riderColor } from "./multiplayer/identity";
 import { sound, unlockAudio } from "./audio";
 import { H, W } from "./draw";
@@ -15,7 +15,7 @@ export function mountGame(
   root: HTMLElement,
   difficulty: Difficulty,
   restart: () => void,
-  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; seed?: number; startWorld?: WorldKind; previewPiece?: ChristmasKind } = {},
+  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; seed?: number; startWorld?: WorldKind; previewPiece?: PreviewPiece } = {},
 ): () => void {
   const controller = new AbortController();
   let disposed = false;

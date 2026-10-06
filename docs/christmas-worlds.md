@@ -1,8 +1,9 @@
 # Two Christmas worlds
 
-Work is on `codex/christmas-world`. Both worlds are scenery foundations, with
-ordinary existing track geometry. Their signature-attraction lists are empty;
-world-specific pieces will be designed separately.
+Work is on `codex/christmas-world`. Both worlds retain their scenery foundations and
+ordinary track elements. Twilight Lapland now has Star Tree Spiral, Snowman Scarf
+Slalom, Elf’s Ribbon-Reel Roll, Snow-Globe Shake-Up and Santa’s Chimney Delivery.
+Frosty Lake Fair has Frozen Waterfall Stairway and Sled Mountain Switchbacks.
 
 The lighting refinement adds soft window/lantern/tree halos and warm snow spill,
 with deeper blue-hour contrast in Lapland and peach/lilac sunlit ridges at the fair.

@@ -10,10 +10,10 @@ import { AdventureScene } from '../src/games/adventure-scene';
 import { WinterAtmosphere, winterGlowMaterial, winterGroundBack } from '../src/games/winter-atmosphere';
 import { MINI_TRAIL_DISTANCE } from '../src/games/mini-config';
 
-test('winter worlds follow the original four; Lapland has selected attractions and the fair introduces its waterfall',()=>{
+test('winter worlds follow the original four; Lapland has selected attractions and the fair introduces its waterfall and sleds',()=>{
   assert.equal(WORLD_LAP,6600);
   for(const world of WORLDS.slice(4)) {
-    assert.equal(world.pieces.length,world.id==='lapland'?5:1);
+    assert.equal(world.pieces.length,world.id==='lapland'?5:2);
     assert.ok(world.challenges.length>=(world.id==='lapland'?5:6));
     assert.equal(adventureAt(world.start).world.id,world.id);
     const track=new MiniTrack(42,{generative:true,startWorld:world.id});

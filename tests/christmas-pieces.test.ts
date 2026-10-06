@@ -67,7 +67,7 @@ test('Christmas director varies the tour, fits its world and preview uses actual
   for(let at=track.startDistance;at<5401;at+=50){track.ensure(at);for(const s of track.sections){if((CHRISTMAS_KINDS as readonly string[]).includes(s.kind)){seen.add(s.kind);assert.equal(adventureAt(s.start).world.id,s.kind==='frozenwaterfall'?'winterfair':'lapland');assert.ok(s.end<=(s.kind==='frozenwaterfall'?6600:5400)+.001);}}}
  }
  assert.deepEqual([...seen].sort(),[...CHRISTMAS_KINDS].sort());
- assert.deepEqual(WORLDS[4].pieces,CHRISTMAS_KINDS.filter(k=>k!=='frozenwaterfall'));assert.deepEqual(WORLDS[5].pieces,['frozenwaterfall']);
+ assert.deepEqual(WORLDS[4].pieces,CHRISTMAS_KINDS.filter(k=>k!=='frozenwaterfall'));assert.deepEqual(WORLDS[5].pieces,['frozenwaterfall','sledswitchbacks']);
  for(const previewPiece of CHRISTMAS_KINDS){const t=new MiniTrack(42,{generative:true,previewPiece});assert.equal(t.sections.find(s=>s.id===0)?.kind,previewPiece);assert.equal(adventureAt(t.startDistance).world.id,previewPiece==='frozenwaterfall'?'winterfair':'lapland');}
 });
 

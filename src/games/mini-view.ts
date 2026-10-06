@@ -452,7 +452,7 @@ export class MiniView {
     const supports: THREE.Vector3[] = [];
     const supportDistances: number[] = [];
     for (let s = section.start + 0.8; s < section.end; s += (isChristmasKind(section.kind) ? 9 : ["carouselhelix", "witchhat"].includes(attractionRail(section.kind)) ? 8 : ["pondbridge", "ravinebridge"].includes(attractionRail(section.kind)) ? 12 : 2.4)) {
-      if (!section.hasRail(s)) continue;
+      if (section.kind === "sledswitchbacks" || !section.hasRail(s)) continue;
       const f = section.sample(s);
       const local = f.position.clone().sub(section.origin);
       const onTower = section.kind === "triplehelix"
@@ -567,7 +567,7 @@ export class MiniView {
         let at = 0;
         for (let i = 0; i < count; i++) {
           const s = section.start + i / count * section.length;
-          if (!section.hasRail(s)) continue;
+          if (section.kind === "sledswitchbacks" || !section.hasRail(s)) continue;
           const f = section.sample(s);
           dummy.position.copy(f.position).sub(section.origin);
           dummy.quaternion.copy(f.rotation); dummy.scale.set(1, 1, 1); dummy.updateMatrix();

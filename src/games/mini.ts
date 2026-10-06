@@ -1,4 +1,4 @@
-import type { ChristmasKind } from "./christmas-rails";
+import type { PreviewPiece } from "./mini-track";
 import { StrengthTower } from "./strength-tower";
 import { rollFrame } from "./ride-roll";
 import { iceDeployment, drawIceIcicles } from './ice-icicles';
@@ -81,7 +81,7 @@ export class Mini extends BaseGame {
   private answerWasLift = false;
   readonly recordId: "mini" | "height" | "remix";
   private pendingLifts = 0;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: ChristmasKind } = {}) {
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: PreviewPiece } = {}) {
     super(host);
     this.heightMode = !!options.heightMode && !options.multiplayer;
     this.remixMode = !!options.remixMode;

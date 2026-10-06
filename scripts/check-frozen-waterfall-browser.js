@@ -1,8 +1,8 @@
 // Playwright CLI run-code: actual arithmetic, carriage physics and renderer.
 async page => {
- const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const errors=[],base=new URL("/",page.url()).href;page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:1440,height:960});
- await page.goto('http://localhost:5205/christmas.html?piece=frozenwaterfall');
+ await page.goto(base+'christmas.html?piece=frozenwaterfall');
  await page.waitForFunction(()=>document.querySelectorAll('canvas').length===2);
  await page.evaluate(async()=>{
   const url=performance.getEntriesByType('resource').find(r=>r.name.includes('/src/games/mini.ts')).name,{Mini}=await import(url),step=Mini.prototype.update;
