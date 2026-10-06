@@ -15,11 +15,13 @@ export class PieceBuilder implements PieceAnimation {
   private dummy = new T.Object3D();
   private tick: PieceAnimation['update'] = () => {};
   constructor(private material:T.Material, private lights:FairgroundLights) {}
-  batch(model:WorldModel, parent=this.group) {
-    const group=model.finish(this.material,this.lights,false);
+  batch(model:WorldModel, parent=this.group, halos=false, softGlowMaterial?:T.Material) {
+    const group=model.finish(this.material,this.lights,halos,softGlowMaterial);
     group.traverse(o=>{if(o instanceof T.Mesh){this.geometries.add(o.geometry);o.castShadow=false;}});
     parent.add(group);return group;
   }
+  /** Register a custom mesh with the same geometry lifetime as baked models. */
+  own(mesh:T.Mesh){this.geometries.add(mesh.geometry);mesh.castShadow=false;this.group.add(mesh);return mesh;}
   pool(model:WorldModel,count:number,parent=this.group):InstancePool {
     const source=model.finish(this.material,this.lights,false),result:InstancePool=[];
     for(const child of source.children){

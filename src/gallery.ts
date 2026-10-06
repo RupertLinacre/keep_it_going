@@ -1,3 +1,5 @@
+import { WinterAtmosphere } from "./games/winter-atmosphere";
+import { christmasLayout, isChristmasKind } from "./games/christmas-rails";
 import "@fontsource/outfit/latin-600.css";
 import "@fontsource/outfit/latin-700.css";
 import "@fontsource/dm-sans/latin-400.css";
@@ -19,6 +21,11 @@ import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  chimneyhouse: "Santa visits a cosy Lapland home, pauses to deliver presents, then bursts from its chimney in a magical leap. More entry speed means a higher flight. Play it at christmas.html?piece=chimneyhouse.",
+  startree: "Three narrowing spirals climb a giant Christmas tree. Passing coaches wake its golden stars before sweeping down outside the branches.",
+  snowmanscarf: "Climb a snowman’s striped scarf, duck beneath the hat, then return through the tunnel in its bottom snowball.",
+  ribbonreel: "Ride the two actual rail loops of a giant Christmas bow above an elf wrapping workshop, setting its ribbon reels spinning.",
+  snowglobe: "Circle inside a glass snow globe, sweep outside, then return through its snowy village. Your train stirs a cloud of twinkling snow.",
   honeyfactory: "Busy delivery bees fill jars of honey beneath a giant turning sunflower.",
   pancakemill: "A giant smiling chef flips pancakes as the train loops past the pans.",
   penguinplunge: "Penguins race along icy slides and ride a return conveyor beside the viaduct.",
@@ -84,7 +91,10 @@ const signatures = WORLDS.flatMap(w=>w.pieces);
 const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>k!=="strengthtower"&&!signatures.includes(k))];
 let collection = new URLSearchParams(location.search).get("world") ?? "all";
 if (!WORLDS.some(w=>w.id===collection)) collection="all";
-const shownKinds = () => collection === "all" ? kinds : [...WORLDS.find(w=>w.id===collection)!.pieces];
+const shownKinds = () => {
+  const world = WORLDS.find(w => w.id === collection);
+  return world ? [...(world.pieces.length ? world.pieces : world.challenges)] : kinds;
+};
 const title = (kind: MiniKind) =>
   ELEMENT_NAMES[kind].toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const initial = new URLSearchParams(location.search).get("element") as MiniKind;
@@ -111,7 +121,7 @@ app.innerHTML = `
 <section class="explorer" aria-label="Interactive track viewer">
 <div class="piece-heading"><div><p class="eyebrow" id="piece-number"></p><h2 id="piece-title"></h2></div><div class="step-buttons"><button id="previous" aria-label="Previous section">←</button><button id="next" aria-label="Next section">→</button></div></div>
 <p id="description"></p>
-<div class="viewport"><div class="camera-tools" role="group" aria-label="Camera views"><button data-view="perspective" aria-pressed="true">3D</button><button data-view="side" aria-pressed="false">Side</button><button data-view="top" aria-pressed="false">Top</button><button id="reset">Reset view</button><button id="tunnel-cutaway" aria-pressed="false" hidden>Inside tunnel</button></div><div class="stage" aria-label="3D track. Drag to orbit, scroll or pinch to zoom."></div><div class="viewer-footer"><span>Drag to orbit · scroll or pinch to zoom</span><button id="play"></button></div></div>
+<div class="viewport"><div class="camera-tools" role="group" aria-label="Camera views"><button data-view="attraction" hidden>Close-up</button><button data-view="perspective" aria-pressed="true">3D</button><button data-view="side" aria-pressed="false">Side</button><button data-view="top" aria-pressed="false">Top</button><button id="reset">Reset view</button><button id="tunnel-cutaway" aria-pressed="false" hidden>Inside tunnel</button></div><div class="stage" aria-label="3D track. Drag to orbit, scroll or pinch to zoom."></div><div class="viewer-footer"><span>Drag to orbit · scroll or pinch to zoom</span><button id="play"></button></div></div>
 <div class="details"><div class="progression"><label for="distance">Later in the ride <output id="distance-value"></output></label><input id="distance" type="range" min="0" max="20" step="1" value="${distance}" /><div class="range-ends"><span>Opening scale</span><span>20 km</span></div></div><dl class="metrics"><div><dt>Height above entry</dt><dd id="height"></dd></div><div><dt>Rail length</dt><dd id="length"></dd></div><div><dt>Turns</dt><dd id="turns"></dd></div></dl></div>
 <p class="footnote">The same track geometry and growth rules as the game. The little coach is a direction marker, moving at a constant preview speed—not a physics simulation. The opening hill and recovery pieces grow little or not at all.</p>
 </section></main>`;
@@ -120,6 +130,8 @@ const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
 const stage = $(".stage");
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#e6eee8");
+const winterSky=new WinterAtmosphere(scene);
+let galleryWorld=WORLDS[0];
 const ambient = new THREE.HemisphereLight("#fffbea", "#8bafa6", 2.4);
 scene.add(ambient);
 const sun = new THREE.DirectionalLight("#fff2d5", 3);
@@ -162,17 +174,21 @@ roof.position.y = 1.2;
 coach.add(roof);
 scene.add(coach);
 let bounds = new THREE.Box3();
-let view = "perspective";
+let view = ["startree","snowmanscarf","snowglobe"].includes(kind)?"attraction":"perspective";
 function fit() {
-  const center = bounds.getCenter(new THREE.Vector3());
-  const size = bounds.getSize(new THREE.Vector3());
+  let framing=bounds;
+  const focus=isChristmasKind(kind)&&view==='attraction';
+  if(focus&&isChristmasKind(kind)){const l=christmasLayout(kind,section.width,section.amplitude,section.hand),r=l.radius+5,c=l.center;
+    framing=new THREE.Box3(new THREE.Vector3(c.x-r,0,c.z-r),new THREE.Vector3(c.x+r,Math.max(section.origin.y+section.amplitude+12,kind==='snowglobe'?(l.radius+5.6)*1.6+6.3:0),c.z+r));}
+  const center = framing.getCenter(new THREE.Vector3());
+  const size = framing.getSize(new THREE.Vector3());
   camera.up.set(0, 1, 0);
   const direction =
     view === "side"
       ? new THREE.Vector3(0, 0, 1)
       : view === "top"
         ? new THREE.Vector3(0, 1, 0)
-        : (kind === "pretzelknot" ? new THREE.Vector3(0.12, 0.28, -1) : new THREE.Vector3(-0.65, 0.65, 1));
+        : focus ? new THREE.Vector3(-.18,.32,1) : (kind === "pretzelknot" ? new THREE.Vector3(0.12, 0.28, -1) : new THREE.Vector3(-0.65, 0.65, 1));
   if (view === "top") camera.up.set(0, 0, -1);
   controls.target.copy(center);
   camera.position
@@ -181,9 +197,9 @@ function fit() {
   camera.lookAt(center);
   camera.updateMatrixWorld();
   const projected = new THREE.Box3();
-  for (const x of [bounds.min.x, bounds.max.x])
-    for (const y of [bounds.min.y, bounds.max.y])
-      for (const z of [bounds.min.z, bounds.max.z])
+  for (const x of [framing.min.x, framing.max.x])
+    for (const y of [framing.min.y, framing.max.y])
+      for (const z of [framing.min.z, framing.max.z])
         projected.expandByPoint(
           new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse),
         );
@@ -210,7 +226,10 @@ function fit() {
 function rebuild() {
   attraction?.destroy(); attraction=undefined;
   $("#tunnel-cutaway").hidden=kind!=="tunnel";$("#tunnel-cutaway").setAttribute("aria-pressed","false");
-  const world = WORLDS.find(w=>w.pieces.includes(kind));
+  const selectedWorld = WORLDS.find(w => w.id === collection);
+  const world = selectedWorld && !selectedWorld.pieces.length ? selectedWorld : WORLDS.find(w=>w.pieces.includes(kind));
+  galleryWorld=world??WORLDS[0];
+  winterSky.material.uniforms.weight.value=(world?.id==="lapland"||world?.id==="winterfair")?1:0;
   scene.background = new THREE.Color(world?.sky ?? '#e6eee8');
   materials.ground.color.set(world?.ground ?? '#d5e3c3');
   materials.rail.color.set(world?.rail ?? '#b87545');
@@ -236,7 +255,7 @@ function rebuild() {
   elapsed = 0;
   const end = section.end;
   const ranges =
-    kind === "jump"
+    ["jump","chimneyhouse"].includes(kind)
       ? [
           [section.start, section.takeoff],
           [section.distanceAtX(section.landingX), end],
@@ -287,9 +306,10 @@ function rebuild() {
   const railHeight = Math.max(0,bounds.max.y-section.origin.y);
   if(world){
     galleryTrack.sections.splice(0,galleryTrack.sections.length,section);
-    attraction=new AdventureScene(scene,{attractionsOnly:true,world});
+    attraction=new AdventureScene(scene,{attractionsOnly:!!world?.pieces.length&&!isChristmasKind(kind),world});
     attraction.render(galleryTrack,section.start,0,0,0);
-    bounds.expandByObject(attraction.group);
+    if(isChristmasKind(kind)){for(const tile of attraction.tiles.values())if(tile.animations[0])bounds.expandByObject(tile.animations[0].group);}
+    else bounds.expandByObject(attraction.group);
   }
   const center = bounds.getCenter(new THREE.Vector3()),
     size = bounds.getSize(new THREE.Vector3());
@@ -297,6 +317,7 @@ function rebuild() {
     new THREE.BoxGeometry(size.x + 12, 0.7, size.z + 14),
     materials.ground,
   );
+  ground.visible=!isChristmasKind(kind);
   ground.position.set(center.x, (world ? 0 : Math.min(-3, bounds.min.y - 2)) - 0.4, center.z);
   group.add(ground);
   if (kind === "jump") {
@@ -322,7 +343,7 @@ function rebuild() {
   $("#height").textContent = `${railHeight.toFixed(1)} m`;
   $("#length").textContent =
     `${(section.kind === "jump" ? section.length - (section.distanceAtX(section.landingX) - section.takeoff) : section.length).toFixed(0)} m`;
-  $("#turns").textContent = ["ascendinghelix", "triplehelix", "helix", "carouselhelix", "witchhat"].includes(
+  $("#turns").textContent = ["ascendinghelix", "triplehelix", "helix", "carouselhelix", "witchhat", "startree", "snowmanscarf"].includes(
     kind,
   )
     ? String(section.turns)
@@ -339,6 +360,8 @@ function rebuild() {
       b.setAttribute("aria-pressed", String(b.dataset.kind === kind)),
     );
   history.replaceState(null, "", `?element=${kind}&km=${distance}${collection==="all"?"":"&world="+collection}`);
+  $<HTMLButtonElement>('[data-view="attraction"]').hidden=!isChristmasKind(kind);
+  if(!isChristmasKind(kind)&&view==='attraction')view='perspective';
   fit();
 }
 app.querySelectorAll<HTMLButtonElement>("[data-kind]").forEach(
@@ -382,7 +405,7 @@ $("#tunnel-cutaway").onclick = () => {
   attraction?.setTunnelCutaway(reveal);
 };
 $("#reset").onclick = () => {
-  view = "perspective";
+  view = isChristmasKind(kind)?"attraction":"perspective";
   fit();
 };
 const updatePlay = () => {
@@ -411,6 +434,7 @@ renderer.setAnimationLoop((time) => {
   coach.quaternion.copy(frame.rotation);
   coach.visible = section.hasRail(d);
   attraction?.render(galleryTrack,d,0,0,elapsed);
+  winterSky.update(galleryWorld,scene.background as THREE.Color,1/60,stage.clientWidth/stage.clientHeight,-10000);
   controls.update();
   renderer.render(scene, camera);
 });

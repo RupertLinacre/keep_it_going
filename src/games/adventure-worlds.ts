@@ -1,6 +1,6 @@
 import type { MiniKind } from "./mini-track";
 
-export type WorldKind = "meadow" | "mountain" | "night" | "halloween";
+export type WorldKind = "meadow" | "mountain" | "night" | "halloween" | "lapland" | "winterfair";
 export interface AdventureWorld {
   id: WorldKind; name: string; icon: string; invitation: string;
   start: number; end: number; sky: string; ground: string; earth: string;
@@ -25,8 +25,14 @@ export const WORLDS: readonly AdventureWorld[] = [
     sky: "#352440", ground: "#625571", earth: "#403548", rail: "#ffb35d", light: "#f0c1f5", ambient: "#b2a0cd", darkness: .85, maxHeight: 40,
     pieces: ["pumpkinhop", "pumpkintunnel", "witchhat", "silkspindle"],
     challenges: ["pumpkinhop", "pumpkintunnel", "witchhat", "pretzelknot", "triplehelix", "zerogstall"] },
+  { id: "lapland", name: "Twilight Lapland", icon: "✶", invitation: "Warm windows. Snowy adventures!", start: 4200, end: 5400,
+    sky: "#555f9f", ground: "#93a6d6", earth: "#7589b9", rail: "#80d5d7", light: "#b9c7f3", ambient: "#91a6d8", darkness: .62, maxHeight: 34,
+    pieces: ["startree","snowmanscarf","ribbonreel","snowglobe","chimneyhouse"], challenges: ["startree","snowmanscarf","ribbonreel","snowglobe","chimneyhouse"] },
+  { id: "winterfair", name: "Frosty Lake Fair", icon: "❄", invitation: "Glide past the penguins!", start: 5400, end: 6600,
+    sky: "#ee9dae", ground: "#a4d5e4", earth: "#82b9d0", rail: "#e69382", light: "#ffd5b1", ambient: "#d0e1fc", darkness: .08, maxHeight: 34,
+    pieces: [], challenges: ["hill", "dip", "loop", "corkscrew", "helix", "doubledip"] },
 ];
-export const WORLD_LAP = 4200;
+export const WORLD_LAP = WORLDS.at(-1)!.end;
 export function adventureAt(distance: number) {
   const lap = Math.floor(Math.max(0, distance) / WORLD_LAP);
   const at = Math.max(0, distance) % WORLD_LAP;
@@ -40,4 +46,5 @@ export function adventureAt(distance: number) {
 export const WORLD_ENCORES: Record<WorldKind, readonly MiniKind[]> = {
   meadow: ["skyhill", "corkscrew"], mountain: ["verticalhill", "diveloop"],
   night: ["nestedloop", "cobraroll"], halloween: ["invertedhill", "tophat", "immelmann"],
+  lapland: ["ascendinghelix", "skyhill"], winterfair: ["noninvertingloop", "verticalhill"],
 };

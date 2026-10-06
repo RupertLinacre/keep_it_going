@@ -4,7 +4,7 @@ import { Vector3 } from "three";
 import { WORLD_LAP } from "../src/games/adventure-worlds.ts";
 import { createMiniSection, MiniTrack, type MiniSection } from "../src/games/mini-track.ts";
 
-test("generative courses put one strength tower at the first complete boundary after each four-world lap", () => {
+test("generative courses put one strength tower at the first complete boundary after each complete adventure lap", () => {
   for (const multiplayer of [false, true]) for (const seed of [1, 42, 2026]) {
     const track = new MiniTrack(seed, { generative: true, multiplayer });
     track.ensure(0, WORLD_LAP * 3.5);

@@ -1,3 +1,4 @@
+import { WORLD_LAP } from "../src/games/adventure-worlds.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Mini } from "../src/games/mini.ts";
@@ -36,9 +37,9 @@ test("the playable demo naturally enters the tower and returns to the normal gam
   assert.equal(game.ended, false);
 });
 
-test("entering a real four-world tower at rest suspends normal powers and accepts climb and exit answers", () => {
+test("entering a real complete-adventure tower at rest suspends normal powers and accepts climb and exit answers", () => {
   const { game, finishes } = ride();
-  game.track.ensure(0, 4800);
+  game.track.ensure(0, WORLD_LAP + 600);
   const section = game.track.sections.find(s => s.kind === "strengthtower")!;
   game.physics.relocate(section.start + .01, 0);
   game.carriages.incoming = { ...game.carriages.coaches.at(-1)!, id: 99, offset: 48 };
@@ -73,7 +74,7 @@ test("entering a real four-world tower at rest suspends normal powers and accept
 
 test("a water-jump flight is not interrupted merely because its distance crosses the tower entrance", () => {
   const { game } = ride();
-  game.track.ensure(0, 4800);
+  game.track.ensure(0, WORLD_LAP + 600);
   const section = game.track.sections.find(s => s.kind === "strengthtower")!;
   game.physics.relocate(section.start + 1, 24);
   const frame = game.track.sample(game.physics.distance);
