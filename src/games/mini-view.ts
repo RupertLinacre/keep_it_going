@@ -1,3 +1,4 @@
+import { TrainChaseCameraRig, cameraSeatNeed, firstPersonBlend, firstPersonProjection } from "./first-person-camera";
 import { isChristmasKind } from "./christmas-rails";
 import { attractionRail } from "./attraction-kinds";
 import { StrengthTowerAttraction } from "./strength-tower-attraction";
@@ -53,10 +54,14 @@ type EngineSmoke = {
 };
 type MagicTrail = { effect: SleighMagic; time?: number; sourceTime?: number; source?: unknown };
 
-/** A fixed-horizon, orthographic model railway view. The camera never rides the train. */
+/** Model railway view with a temporary front-seat camera power. */
 export class MiniView {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-32, 32, 15, -15, 0.1, 220);
+  readonly riderCamera = new THREE.PerspectiveCamera(76, 2, .12, 420);
+  readonly firstPersonRig = new TrainChaseCameraRig();
+  private renderCamera: THREE.Camera = this.camera;
+  private chaseTrainLength=(MINI_STARTING_CARTS-1)*MINI_CART_SPACING;
   readonly renderer: THREE.WebGLRenderer;
   readonly train: THREE.InstancedMesh[] = [];
   multiplayer = false;
@@ -773,6 +778,27 @@ export class MiniView {
     const fog = this.scene.fog as THREE.Fog;
     fog.near = cameraDistance + 60;
     fog.far = cameraDistance + Math.max(180, height * 3);
+    const aboard=firstPersonBlend(powerups);
+    this.renderCamera=this.camera;
+    if(aboard>0){
+      this.chaseTrainLength+=(Math.max(0,cartCount-1)*MINI_CART_SPACING-this.chaseTrainLength)*(1-Math.exp(-dt*2));
+      const behind=this.track.sample(Math.max(this.track.sections[0].start,distance-this.chaseTrainLength-9));
+      // Follow a deliberate jump upwards rather than leaving the camera below
+      // the sleigh; the ordinary railway supplies the smooth trailing position.
+      if(f.airborne)behind.position.add(f.position.clone().sub(this.track.sample(distance).position));
+      const need=cameraSeatNeed(this.track,distance,this.chaseTrainLength,velocity);
+      const rider=this.firstPersonRig.update(f,behind,dt,need,christmasTrainAt(this.track,distance));
+      const eye=lane(rider.eye);eye.x-=anchor;eye.applyMatrix4(this.scene.matrix);
+      this.riderCamera.position.copy(this.camera.position).lerp(eye,aboard);
+      this.riderCamera.quaternion.copy(this.camera.quaternion).slerp(rider.orientation,aboard);
+      this.riderCamera.aspect=this.aspect;
+      firstPersonProjection(this.riderCamera.projectionMatrix,aboard,height,this.aspect,cameraDistance,.12,this.camera.far);
+      this.riderCamera.projectionMatrixInverse.copy(this.riderCamera.projectionMatrix).invert();
+      this.riderCamera.updateMatrixWorld(true);
+      this.renderCamera=this.riderCamera;
+      fog.near=THREE.MathUtils.lerp(fog.near,65,aboard);
+      fog.far=THREE.MathUtils.lerp(fog.far,200,aboard);
+    }
     this.cartCount = cartCount;
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
     const localChristmas = christmasTrainAt(this.track, distance);
@@ -831,7 +857,7 @@ export class MiniView {
     for (const { frame, coach } of attached) {
       const position = lane(frame.position);
       position.x -= anchor;
-      const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
+      const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.renderCamera);
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
       addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0, true, coach.id === 0);
     }
@@ -853,7 +879,7 @@ export class MiniView {
     if (opponent) {
       for (const body of opponent.bodies) {
         const position = lane(new THREE.Vector3(...body.position), true); position.x -= anchor;
-        const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.camera);
+        const screen = position.clone().applyMatrix4(this.scene.matrix).project(this.renderCamera);
         if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
         addCar(position, mirrorRotation(new THREE.Quaternion(...body.rotation)), body.color, body.cargo, body.cargoAge, true, body.bombs ?? 0, body.id.startsWith("coach-"), body.id === "coach-0");
       }
@@ -1061,7 +1087,7 @@ export class MiniView {
         material.emissive.copy(material.color);material.emissiveIntensity=dark*.42;
       }
     }
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.renderCamera);
   }
   private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[], palette = CART_COLORS) {
     const matrix = new THREE.Matrix4();

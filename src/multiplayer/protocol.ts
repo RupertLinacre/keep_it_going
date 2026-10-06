@@ -4,8 +4,8 @@ import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
 import type { HeightState } from "../games/height-track";
 
-// The host pins the seasonal world selection for both racers.
-export const PROTOCOL = 12;
+// Front-seat camera power joins the shared power catalogue.
+export const PROTOCOL = 13;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];

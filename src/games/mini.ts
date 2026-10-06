@@ -82,7 +82,7 @@ export class Mini extends BaseGame {
   private answerWasLift = false;
   readonly recordId: "mini" | "height" | "remix";
   private pendingLifts = 0;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: PreviewPiece; christmas?:boolean } = {}) {
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: PreviewPiece; christmas?:boolean; firstPersonDemo?:boolean } = {}) {
     super(host);
     this.heightMode = !!options.heightMode && !options.multiplayer;
     this.remixMode = !!options.remixMode;
@@ -98,6 +98,7 @@ export class Mini extends BaseGame {
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => rollFrame(this.physics.sample(distance), this.powerups?.roll ?? 0);
     if (this.remixMode) this.powerups = new RidePowerups(this.track.seed, host.difficulty, this.multiplayer);
+    if(options.firstPersonDemo)this.powerups?.activate("firstperson",this.physics,this.carriages);
     this.next();
     this.hud();
     try {
@@ -448,7 +449,7 @@ export class Mini extends BaseGame {
       550 + (x - centerX) * scale,
       300 - (y - centerY) * scale,
     ];
-    if (theme && power !== "tilt" && power !== "confetti") {
+    if (theme && power !== "tilt" && power !== "confetti" && power !== "firstperson") {
       ctx.save(); ctx.globalAlpha = .4;
       for (let i = 0; i < 120; i++) {
         const p = weatherPoint(i, this.track.seed, power!, this.elapsed, frame.position);
