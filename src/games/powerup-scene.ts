@@ -68,7 +68,7 @@ export class PowerupScene {
       }
     }
     this.aura.visible = !!kind;
-    this.weather.visible = !!kind && kind !== "tilt" && kind !== "confetti";
+    this.weather.visible = !!kind && kind !== "tilt" && kind !== "confetti" && kind !== "firstperson";
     this.rocks.visible = kind === "reverse" || kind === "heavy";
     if (!kind || !info) return;
     const strength = Math.min(1, power.age * 3, power.remaining);

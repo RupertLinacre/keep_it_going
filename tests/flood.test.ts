@@ -28,7 +28,7 @@ test("flooded sections have continuous rails, dry approaches and shallow submerg
     assert.ok(pool.frames.at(-1)!.tangent.x > .9999);
     assert.ok(pool.frames[0].position.y === pool.frames.at(-1)!.position.y);
   }
-  assert.equal(POWER_KINDS.length, 8);
+  assert.equal(POWER_KINDS.length, 9);
   assert.ok(!(POWER_KINDS as string[]).includes("splash"));
 });
 

@@ -1241,3 +1241,6 @@ kbd {
  .christmas-controls .tower-retry::after {content:'↻';font-size:22px;}
  .christmas-controls > a:last-child {display:none;}
 }
+
+.front-seat-label { color: #648778; font-weight: 600; font-size: .85rem; margin-left: auto; }
+@media(max-width:480px) { .front-seat-label { font-size: .7rem; } }
