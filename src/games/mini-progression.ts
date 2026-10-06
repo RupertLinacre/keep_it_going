@@ -23,11 +23,18 @@ export const CHALLENGES: readonly (readonly MiniKind[])[] = [
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  sledswitchbacks: "SLED MOUNTAIN SWITCHBACKS",
+  frozenwaterfall: "FROZEN WATERFALL STAIRWAY",
+  startree: "STAR TREE SPIRAL",
+  snowmanscarf: "SNOWMAN SCARF SLALOM",
+  ribbonreel: "ELF’S RIBBON-REEL ROLL",
+  snowglobe: "SNOW-GLOBE SHAKE-UP",
   honeyfactory: "SUNFLOWER HONEY FACTORY",
   pancakemill: "PANCAKE MILL",
   penguinplunge: "PENGUIN PLUNGE",
   bigtopjuggle: "BIG TOP JUGGLE LOOP",
   silkspindle: "SPIDER SILK SPINDLE",
+  chimneyhouse: "SANTA’S CHIMNEY DELIVERY",
   strengthtower: "SKY STRIKER",
   sheepbank: "SHEEP SHUFFLE", pondbridge: "LILY PAD REGATTA", windmillloop: "STORYBOOK FLOUR MILL",
   ravinebridge: "WATERWHEEL RAINBOW",

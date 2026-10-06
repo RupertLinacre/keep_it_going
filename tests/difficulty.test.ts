@@ -20,7 +20,7 @@ test("five levels retain successively less momentum with identical launch and bo
 
 test("multiplayer requires valid individual difficulties", () => {
   for (const difficulty of DIFFICULTIES) {
-    const round = { id: "test", seed: 42, questionSeed: 9, tables: [7], difficulty, guestDifficulty: "easy" };
+    const round = { id: "test", seed: 42, questionSeed: 9, christmas:false, tables: [7], difficulty, guestDifficulty: "easy" };
     assert.ok(parseWire({ kind: "prepare", round }));
     assert.ok(parseWire({ kind: "lobby", name: "Sam", tables: [7], difficulty }));
   }

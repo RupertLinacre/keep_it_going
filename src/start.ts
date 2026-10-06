@@ -168,6 +168,7 @@ export function mountStart(root: HTMLElement, play: (tables: number[], difficult
     if (button.dataset.copy && session) {
       const url = new URL(location.href); url.search = ""; url.hash = ""; url.searchParams.set("join", session.code);
       url.searchParams.set("mode", session.remixMode ? "remix" : "classic");
+      if(session.remixMode&&session.christmas)url.searchParams.set("christmas","1");
       if (session.network.mode !== "auto") url.searchParams.set("network", session.network.mode);
       try {
         await navigator.clipboard.writeText(button.dataset.copy === "link" ? url.href : session.code);

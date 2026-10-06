@@ -29,7 +29,7 @@ export class HeightTrack extends MiniTrack {
     if (!lift) {
       // Never turn an upcoming jump's upward takeoff into a downhill ramp.
       // Carry the level lift past the lip, then descend through the open gap.
-      const jump = this.sections.find(s => s.kind === "jump" && s.takeoff > section.end && s.takeoff < section.end + 60);
+      const jump = this.sections.find(s => ["jump","chimneyhouse"].includes(s.kind) && s.takeoff > section.end && s.takeoff < section.end + 60);
       // Include the entire ten-coach train even just after entering a new piece.
       lift = { id: section.id, start: section.start - 26, end: jump ? jump.takeoff + 2 : section.end, height: 0, target: 0, from: 0, age: 0 };
       this.lifts.push(lift);
@@ -115,7 +115,7 @@ export class HeightTrack extends MiniTrack {
         frames[i].curvature.copy(b.tangent).sub(a.tangent).divideScalar(Math.max(.00001, b.position.distanceTo(a.position)));
       }
       section.revision++;
-      if (section.kind === "jump") section.launchLiftSlope = (this.elevation(section.takeoff + .01) - this.elevation(section.takeoff - .01)) / .02;
+      if (["jump","chimneyhouse"].includes(section.kind)) section.launchLiftSlope = (this.elevation(section.takeoff + .01) - this.elevation(section.takeoff - .01)) / .02;
     }
     const oldest = this.sections[0].start;
     for (let i = this.lifts.length - 1; i >= 0; i--) if (this.lifts[i].end + 60 < oldest) this.lifts.splice(i, 1);

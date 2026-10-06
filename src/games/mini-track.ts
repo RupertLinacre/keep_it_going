@@ -1,5 +1,8 @@
+import { sledSwitchbacks } from "./sled-switchbacks";
+import { CHIMNEY } from './chimney-jump';
+import { christmasShape, isChristmasKind, type ChristmasKind } from "./christmas-rails";
 import { attractionRail, type AdditionalAttraction } from "./attraction-kinds";
-import { adventureAt, WORLD_ENCORES, WORLDS, WORLD_LAP } from "./adventure-worlds";
+import { adventureAt, WORLD_ENCORES, WORLDS, BASE_WORLDS, type AdventureWorld, type WorldKind } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import { clamp } from "../math";
@@ -8,10 +11,11 @@ import { specialElement, type SpecialKind } from "./mini-elements";
 import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
-  "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  "sledswitchbacks" | "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
   | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
-  | AdditionalAttraction | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
+  | ChristmasKind | AdditionalAttraction | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
+export type PreviewPiece = ChristmasKind | "sledswitchbacks";
 export const isHump = (kind: MiniKind) =>
   ["sheepbank", "pondbridge", "ravinebridge", "witchhat", "mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(attractionRail(kind));
 export interface MiniRail {
@@ -77,8 +81,8 @@ export class MiniSection implements MiniRail {
     const shape = railKind === "windmillloop" || railKind === "midwayloop" ? "loop"
       : railKind === "carouselhelix" ? "ascendinghelix" : railKind === "witchhat" ? "triplehelix"
       : railKind === "pumpkintunnel" ? "tunnel" : railKind;
-    const special = specialElement(shape, width, amplitude, hand, turns);
-    this.resolution = Math.min(16384, Math.max(shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
+    const special = kind === "sledswitchbacks" ? sledSwitchbacks(width, amplitude, hand) : christmasShape(kind,width,amplitude,hand) ?? specialElement(shape, width, amplitude, hand, turns);
+    this.resolution = Math.min(16384, Math.max(kind === "sledswitchbacks" ? 2400 : isChristmasKind(kind) ? 4096 : shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
       shape === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
     const point = (t: number) => {
       if (special) return special.point(t).add(new THREE.Vector3(0, 0, shift * smooth(t))).add(origin);
@@ -234,19 +238,19 @@ export class MiniSection implements MiniRail {
   }
   /** Exact tangent of the quadratic launch ramp, independent of mesh sampling. */
   get launchTangent() {
-    const tangent = new THREE.Vector3(1, 10 * this.amplitude / this.width, 0).normalize();
+    const tangent = this.kind==='chimneyhouse' ? new THREE.Vector3(1, 2*this.amplitude/(this.width*(CHIMNEY.mouth-CHIMNEY.ramp)),0).normalize() : new THREE.Vector3(1, 10 * this.amplitude / this.width, 0).normalize();
     tangent.y += this.launchLiftSlope;
     return tangent.normalize();
   }
-  get takeoff() { return this.distanceAtX(this.origin.x + this.width * 0.2); }
-  get landingX() { return this.origin.x + this.width * 0.64; }
+  get takeoff() { return this.distanceAtX(this.origin.x + this.width * (this.kind==='chimneyhouse'?CHIMNEY.mouth:.2)); }
+  get landingX() { return this.origin.x + this.width * (this.kind==='chimneyhouse'?CHIMNEY.landing:.64); }
   get waterLevel() { return this.origin.y - this.amplitude + .55; }
   waterDepth(distance: number) {
     return this.kind === "splash" && distance >= this.start && distance <= this.end
       ? Math.max(0, this.waterLevel - this.height(distance)) : 0;
   }
   hasRail(distance: number) {
-    return this.kind !== "jump" || distance < this.takeoff - 0.02
+    return !["jump","chimneyhouse"].includes(this.kind) || distance < this.takeoff - 0.02
       || this.sample(distance).position.x >= this.landingX;
   }
   private indices(distance: number) {
@@ -303,13 +307,20 @@ export class MiniSection implements MiniRail {
 
 /** Shared piece factory for the game and the track gallery. */
 export function createMiniSection(requestedKind: MiniKind, start: number, origin: THREE.Vector3,
-  generated: number, random: () => number, varied = false, multiplayer = false): MiniSection {
+  generated: number, random: () => number, varied = false, multiplayer = false, worlds:readonly AdventureWorld[]=WORLDS): MiniSection {
     const kind = attractionRail(requestedKind);
     // The bonus controller supplies the uncapped vertical excursion. This
     // finite route connector reserves its entrance and exit in the real course.
     // Its fixed footprint does not grow with difficulty or consume random picks.
     if (kind === "strengthtower") return new MiniSection(generated, requestedKind, start, origin, 100, 0, 0, 1);
     const r = (min: number, max: number) => min + random() * (max - min);
+    if(isChristmasKind(requestedKind)) {
+      if(requestedKind==='chimneyhouse')return new MiniSection(generated,requestedKind,start,origin,r(124,132),r(18,20),multiplayer?-origin.z:0,1);
+      const w=requestedKind==='startree'?r(98,110):r(95,108);
+      const h=requestedKind==='frozenwaterfall'?r(25,27):requestedKind==='snowmanscarf'?r(23,25):r(19,23);
+      const hand=multiplayer||requestedKind==='frozenwaterfall'?1:random()>.5?1:-1;
+      return new MiniSection(generated,requestedKind,start,origin,w,h,multiplayer?-origin.z:0,hand,requestedKind==='startree'?3:requestedKind==='snowmanscarf'?2:1);
+    }
     const progress = rideProgress(start);
     // Familiar opening pieces keep their established scale. Later climbs grow
     // taller faster than they grow wider, demanding sustained, timely answers.
@@ -405,8 +416,9 @@ export function createMiniSection(requestedKind: MiniKind, start: number, origin
     if (kind === "lanternrun") { width = r(62, 78); amplitude = r(5, 8); shift = 0; }
     if (kind === "witchhat") { width = r(64, 74); amplitude = r(22, 27); turns = 3; shift = 0; }
     if (kind === "pumpkinhop") { width = r(70, 90); amplitude = r(7, 10); shift = 0; }
+    if (kind === "sledswitchbacks") { width = r(106, 118); amplitude = r(26, 30); shift = 0; turns = 2; }
     if (varied) {
-      const world = adventureAt(start).world;
+      const world = adventureAt(start,worlds).world;
       const doubleHeight = ["loop", "windmillloop", "midwayloop", "nestedloop", "interlockingloops", "noninvertingloop"].includes(kind) ? 2 : 1;
       const shrink = Math.min(1, world.maxHeight / Math.max(1, Math.abs(amplitude) * doubleHeight));
       amplitude *= shrink; width *= shrink;
@@ -428,6 +440,8 @@ export function createMiniSection(requestedKind: MiniKind, start: number, origin
 /** A sliding window of generated track. No finish, lap reset or cumulative descent. */
 export class MiniTrack implements MiniRail {
   readonly sections: MiniSection[] = [];
+  readonly worlds:readonly AdventureWorld[];
+  readonly worldLap:number;
   readonly seed: number;
   readonly startDistance: number;
   generated = 0;
@@ -436,15 +450,25 @@ export class MiniTrack implements MiniRail {
   private bags = 0;
   private bagWorld = -1;
   private nextTowerLap = 1;
-  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean; towerDemo?: boolean } = {}) {
+  constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: PreviewPiece; christmas?:boolean } = {}) {
+    this.worlds=options.christmas===false?BASE_WORLDS:WORLDS;
+    this.worldLap=this.worlds.at(-1)!.end;
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
+    // Solo previews start on the usual opening hill inside the selected world.
+    // Distance stays in the real journey, so scenery, powers and transitions
+    // follow the same rules as a full ride. Multiplayer always starts together.
+    const previewWorld=options.previewPiece&&options.christmas!==false
+      ? this.worlds.find(w=>w.pieces.includes(options.previewPiece!))
+      : this.worlds.find(w=>w.id===options.startWorld);
+    const start=options.generative&&!options.multiplayer&&!options.towerDemo&&previewWorld
+      ? previewWorld.start+MINI_TRAIL_DISTANCE:0;
     // Retain real rail behind the six coaches on the opening hill.
     this.sections.push(
       new MiniSection(
         -2,
         "station",
-        -MINI_TRAIL_DISTANCE,
+        start - MINI_TRAIL_DISTANCE,
         new THREE.Vector3(-MINI_TRAIL_DISTANCE, 4, 0),
         MINI_TRAIL_DISTANCE,
         0,
@@ -452,12 +476,13 @@ export class MiniTrack implements MiniRail {
         1,
       ),
     );
-    const firstHill = new MiniSection(-1, "firsthill", 0, new THREE.Vector3(0, 4, 0),
+    const firstHill = new MiniSection(-1, "firsthill", start, new THREE.Vector3(0, 4, 0),
       options.towerDemo ? 60 : options.generative ? 80 + this.random()*28 : 90, options.towerDemo ? 8 : options.generative ? 22 + this.random()*6 : 22, 0, 1);
     this.sections.push(firstHill);
     // Just over the broad crest: a gentle roll immediately gains speed from gravity.
     this.startDistance = firstHill.start + firstHill.length / 2 + 2;
     if(options.towerDemo){this.append("strengthtower");this.append("station");this.ensure(this.startDistance);return;}
+    if(options.previewPiece&&options.christmas!==false&&!options.multiplayer){this.append(options.previewPiece);this.append("station");this.ensure(this.startDistance);return;}
     this.append("station");
     if (options.generative) {
       const gentle: MiniKind[] = ["hill", "dip", "heartline", "corkscrew", "waveturn"];
@@ -484,29 +509,36 @@ export class MiniTrack implements MiniRail {
     if (this.options.multiplayer && kind === "pretzelknot") kind = "noninvertingloop";
     const previous = this.sections.at(-1);
     const start = previous?.end ?? 0, origin = previous ? this.endOrigin(previous) : new THREE.Vector3(0, 4, 0);
-    let section = createMiniSection(kind, start, origin, this.generated++, this.random, !!this.options.generative, !!this.options.multiplayer);
+    let section = createMiniSection(kind, start, origin, this.generated++, this.random, !!this.options.generative, !!this.options.multiplayer,this.worlds);
     if (this.options.generative && kind !== "strengthtower") {
-      const {world, lap} = adventureAt(start), boundary = lap * WORLD_LAP + world.end;
+      const {world, lap} = adventureAt(start,this.worlds), boundary = lap * this.worldLap + world.end;
       // A long compound inversion must not consume the next world's signature
       // tour. Finish the world with a level connector when it would overshoot.
-      if (!world.pieces.includes(kind) && section.end > boundary)
-        section = new MiniSection(section.id, "station", start, origin, Math.max(.01, Math.min(24, boundary - start)), 0, this.options.multiplayer ? -origin.z : 0, 1);
+      if ((!world.pieces.includes(kind) || isChristmasKind(kind)) && section.end > boundary) {
+        const remaining=boundary-start;
+        if(isChristmasKind(kind)&&remaining>35){
+          // A Christmas attraction that cannot fit yields to a gentle snowy
+          // hill, rather than a procession of tiny empty straights.
+          const width=Math.min(90,remaining*.85);
+          section=new MiniSection(section.id,"hill",start,origin,width,Math.min(6,width*.06),this.options.multiplayer?-origin.z:0,1);
+        } else section = new MiniSection(section.id, "station", start, origin, Math.max(.01, Math.min(24, remaining)), 0, this.options.multiplayer ? -origin.z : 0, 1);
+      }
     }
     this.sections.push(section);
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
-      // Finish the current element before adding the four-world finale. In
+      // Finish the current element before adding the adventure finale. In
       // particular, never splice a tower through a loop or a water jump.
       // Scheduling precedes the next world's bag so its signature tour follows
       // the bonus exit, and pruning cannot make a completed finale reappear.
-      if (this.options.generative && this.end >= this.nextTowerLap * WORLD_LAP) {
+      if (this.options.generative && this.end >= this.nextTowerLap * this.worldLap) {
         this.append("strengthtower");
         this.nextTowerLap++;
         this.prune(distance);
         continue;
       }
-      const adventure = this.options.towerDemo ? {...adventureAt(this.end),world:WORLDS[2],stage:2} : adventureAt(this.end);
+      const adventure = this.options.towerDemo ? {...adventureAt(this.end,this.worlds),world:WORLDS[2],stage:2} : adventureAt(this.end,this.worlds);
       const newWorld = this.options.generative && this.bagWorld !== adventure.stage;
       if (newWorld) {
         this.bag = []; this.bagWorld = adventure.stage;
@@ -533,7 +565,8 @@ export class MiniTrack implements MiniRail {
           // A short tour guarantees the selected signature attractions. Shuffle
           // the remaining bag afterwards, so they cannot be crowded out by a
           // long randomly chosen inversion just before the world boundary.
-          sequence.unshift(...adventure.world.pieces.flatMap((kind, i) =>
+          const tour=adventure.world.id === "lapland" ? [adventure.world.pieces[0],...shuffle(adventure.world.pieces.slice(1))] : adventure.world.pieces;
+          sequence.unshift(...tour.flatMap((kind, i) =>
             i ? ["station", kind] as MiniKind[] : [kind]));
         }
         this.bag = sequence.reverse();
@@ -567,7 +600,7 @@ export class MiniTrack implements MiniRail {
   waterDepth(distance: number) { return this.sectionAt(distance).waterDepth(distance); }
   jumpAt(distance: number) {
     const section = this.sectionAt(distance);
-    return section.kind === "jump" && distance >= section.takeoff && distance < section.end
+    return (section.kind === "jump" || section.kind==='chimneyhouse') && distance >= (section.kind==='chimneyhouse'?section.distanceAtX(section.origin.x+section.width*CHIMNEY.pause):section.takeoff) && distance < section.end
       ? section : undefined;
   }
   sectionAt(distance: number) {

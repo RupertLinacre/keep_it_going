@@ -1,3 +1,4 @@
+import { christmasEnabled } from "../games/christmas-season";
 import { normalizeDifficulty } from "../difficulty";
 import type { Difficulty } from "../types";
 import type Peer from "peerjs";
@@ -38,6 +39,7 @@ const createPeer: PeerFactory = async (id, setup) => {
 /** Each rider owns their coaster. Only presentation snapshots cross the connection;
  * remote packets cannot boost or change the local physics. */
 export class RaceSession {
+  christmas=false;
   role: "host" | "guest" = "host";
   phase: Phase = "idle";
   code = "";
@@ -111,13 +113,14 @@ export class RaceSession {
     clearTimeout(this.timeout); clearInterval(this.heartbeat); clearInterval(this.routeTimer);
     this.change();
   }
-  async open(role: "host" | "guest", name: string, tables: number[], code = "", difficulty: Difficulty = "normal", options: { remixMode?: boolean; seed?: number } = {}) {
+  async open(role: "host" | "guest", name: string, tables: number[], code = "", difficulty: Difficulty = "normal", options: { remixMode?: boolean; seed?: number; christmas?:boolean } = {}) {
     this.close();
     const attempt = ++this.attempt;
     this.abort = new AbortController();
     this.network = { mode: networkMode(typeof location === "undefined" ? "" : location.search), relay: "loading", stage: "credentials", route: "unknown" };
     this.difficulty = normalizeDifficulty(difficulty);
     this.remixMode = !!options.remixMode;
+    this.christmas=options.christmas??christmasEnabled();
     this.courseSeed = options.seed;
     this.role = role; this.name = cleanName(name); this.tables = normalizeTables(tables);
     this.code = role === "host" ? inviteCode() : cleanCode(code);
@@ -220,10 +223,11 @@ export class RaceSession {
       this.opponent = cleanName(message.name); this.connected = true; this.phase = "ready";
       this.status = "You’re both here. Ready to ride!";
       clearTimeout(this.timeout);
-      this.send({ kind: "lobby", name: this.name, tables: this.tables, difficulty: this.difficulty, mode: this.remixMode ? "remix" : "classic" }); this.change(); return;
+      this.send({ kind: "lobby", name: this.name, tables: this.tables, difficulty: this.difficulty, mode: this.remixMode ? "remix" : "classic",christmas:this.christmas }); this.change(); return;
     }
     if (message.kind === "lobby" && this.role === "guest" && this.phase === "opening") {
       this.remixMode = message.mode === "remix";
+      this.christmas=message.christmas===true;
       this.opponent = message.name; this.tables = message.tables; this.opponentDifficulty = message.difficulty; this.connected = true; this.phase = "ready";
       this.status = "You’re connected. Your friend will start the ride.";
       clearTimeout(this.timeout); this.change(); return;
@@ -256,11 +260,12 @@ export class RaceSession {
   start() {
     if (this.role !== "host" || !this.connected || !(["ready", "complete"].includes(this.phase) || this.phase === "racing" && this.victoryChoice === "restart")) return;
     const seed = crypto.getRandomValues(new Uint32Array(2));
-    const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: this.courseSeed ?? seed[0], questionSeed: seed[1], tables: [...this.tables], difficulty: this.difficulty, guestDifficulty: this.opponentDifficulty, mode: this.remixMode ? "remix" : "classic" };
+    const round: Round = { id: `${Date.now()}-${seed[0]}`, seed: this.courseSeed ?? seed[0], questionSeed: seed[1], tables: [...this.tables], difficulty: this.difficulty, guestDifficulty: this.opponentDifficulty, mode: this.remixMode ? "remix" : "classic",christmas:this.remixMode&&this.christmas };
     this.send({ kind: "prepare", round }); this.prepare(round);
   }
   private prepare(round: Round) {
     this.remixMode = round.mode === "remix";
+    this.christmas=round.christmas;
     this.round = round; this.phase = "preparing"; this.localReady = this.remoteReady = false;
     this.localPaused = this.remotePaused = false; this.localResult = this.remoteResult = undefined;
     this.localRematch = this.remoteRematch = false; this.victor = undefined; this.victoryChoice = undefined; this.lastSeq = -1;

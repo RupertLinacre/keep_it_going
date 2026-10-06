@@ -25,7 +25,7 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
   const triangle=(x:number,y:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x-w,y);ctx.lineTo(x,y+h);ctx.lineTo(x+w,y);ctx.closePath();ctx.fill()};
   for(const section of track.sections){
     if(section.start>distance+180)continue;
-    const world=adventureAt(section.start).world;
+    const world=adventureAt(section.start,track.worlds).world;
     if(!drives.has(section))drives.set(section,[new AttractionDrive(),new AttractionDrive()]);
     const drive=drives.get(section)![rider];drive.update(time,distance,section.start,section.end,!!reducedMotion?.matches);
     if(!flights.has(section))flights.set(section,new Map());
@@ -59,6 +59,18 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
           for(let j=0;j<8;j++){const a=j*Math.PI/4+time*.17+drive.angle*.18;oval(Math.sin(a)*5.6,7+Math.cos(a)*5.6,.35,.4,'#efc5d7')}
         }
         for(const tx of [-7,6]){rect(tx,0,.12,3,'#708c9f');oval(tx,3.2,.35,.55,'#ffd794')}
+      }else if(world.id==='lapland'||world.id==='winterfair'){
+        const fair=world.id==='winterfair';
+        triangle(0,0,20,10+r()*6,fair?'#d7e6ed':'#a8b9df');
+        if(fair)oval(0,.1,13,1.4,'#91c9da');
+        for(const tx of [-10,10]){rect(tx,0,.25,3,'#927577');triangle(tx,1,1.7,4,fair?'#60948b':'#355f69');triangle(tx,3.8,.7,1.2,fair?'#fff1df':'#cad5ee')}
+        rect(-3,0,5,2.7,fair?'#dc9b8c':'#9e676a');triangle(-.5,2.7,3,1.5,fair?'#fff0df':'#c6d2ed');
+        for(const tx of [-2,0])rect(tx,1.2,.7,1,'#ffdc9e');
+        for(const tx of [-6,6]){rect(tx,0,.12,2.7,'#97766b');oval(tx,2.8,.25,.35,'#ffdda0')}
+        if(fair)for(let j=0;j<2;j++){
+          const px=4+j*3+Math.sin(time*.4+phase+j),py=.7;
+          oval(px,py,.5,.7,'#53657c');oval(px+.12,py,.25,.45,'#fff3e2');oval(px+.2,py+.45,.07,.08,'#3e4b64');
+        }
       }else{
         rect(5,0,3.5,4.7,'#a18dab');triangle(6.6,4.7,3,3.2,'#6f5c83');rect(6,0,1,2.4,'#ffdfa2');
         for(const tx of [-8,-4,1]){

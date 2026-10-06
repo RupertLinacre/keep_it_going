@@ -52,7 +52,7 @@ test('background bays keep explicit geometry budgets, finite normals and separat
 test('backgrounds stay anchored and shared behind both race lanes', () => {
   const scene = new AdventureScene(new Scene()), track = new MiniTrack(42, { generative: true, multiplayer: true });
   try {
-    for (const distance of [180, 1120, 2120, 3220]) {
+    for (const distance of [180, 1120, 2120, 3220, 4440, 5640]) {
       track.ensure(distance);
       scene.render(track, distance, 0, 35, 12, distance - 35);
       const staticPositions = [...scene.tiles.values()].flatMap(tile => tile.root.children.map(mesh => ({

@@ -24,7 +24,7 @@ export function loopCrests(section:MiniSection) {
 }
 export function crossedNightCrests(track:MiniTrack, previous:number|undefined, distance:number) {
   if(previous===undefined||distance<=previous||distance-previous>120)return [];
-  return track.sections.filter(s=>s.end>=previous&&s.start<=distance&&adventureAt(s.start).world.id==='night')
+  return track.sections.filter(s=>s.end>=previous&&s.start<=distance&&adventureAt(s.start,track.worlds).world.id==='night')
     .flatMap(section=>loopCrests(section).filter(at=>at>previous&&at<=distance).map(at=>({section,at})));
 }
 type Burst={born:number;center:T.Vector3;seed:number;rival:boolean};

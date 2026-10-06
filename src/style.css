@@ -1227,3 +1227,17 @@ kbd {
 }
 
 .tiny-utility:has(.tower-retry) > a { margin-right:auto; }
+
+/* Compact controls for the temporary Christmas attraction playground. */
+.christmas-controls label { font-size:14px; }
+.christmas-controls select { max-width:280px; padding:9px 12px; border:1px solid #d1ddc5; border-radius:10px; background:#fffffc; color:#34544d; }
+@media(max-width:800px),(hover:none) and (pointer:coarse) {
+ .christmas-controls {display:grid;grid-template-columns:74px minmax(0,1fr) 36px;gap:8px;min-height:44px;min-width:0;}
+ .christmas-controls > a:first-child {margin:0;}
+ .christmas-controls .tower-demo-logo {width:74px;}
+ .christmas-controls label {font-size:0;min-width:0;}
+ .christmas-controls select {width:100%;max-width:100%;font-size:11px;padding:7px 5px;}
+ .christmas-controls .tower-retry {font-size:0;padding:5px;min-height:34px;}
+ .christmas-controls .tower-retry::after {content:'↻';font-size:22px;}
+ .christmas-controls > a:last-child {display:none;}
+}

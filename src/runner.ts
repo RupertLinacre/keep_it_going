@@ -1,7 +1,9 @@
+import type { PreviewPiece } from "./games/mini-track";
 import { riderColor } from "./multiplayer/identity";
 import { sound, unlockAudio } from "./audio";
 import { H, W } from "./draw";
 import { Mini } from "./games/mini";
+import type { WorldKind } from "./games/adventure-worlds";
 import type { Difficulty, Host, Result } from "./types";
 import type { RaceSession } from "./multiplayer/session";
 import type { Round } from "./multiplayer/protocol";
@@ -13,7 +15,7 @@ export function mountGame(
   root: HTMLElement,
   difficulty: Difficulty,
   restart: () => void,
-  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; seed?: number } = {},
+  settings: { tables?: number[]; network?: RaceSession; round?: Round; menu?: () => void; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; seed?: number; startWorld?: WorldKind; previewPiece?: PreviewPiece; christmas?:boolean } = {},
 ): () => void {
   const controller = new AbortController();
   let disposed = false;
@@ -218,7 +220,7 @@ export function mountGame(
   }
 
   try {
-    game = new Mini(host, settings.round?.seed ?? settings.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed ?? (settings.seed === undefined ? undefined : settings.seed ^ 0x517ab1e), multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode, remixMode: settings.remixMode, towerDemo: settings.towerDemo });
+    game = new Mini(host, settings.round?.seed ?? settings.seed, { tables: settings.tables, questionSeed: settings.round?.questionSeed ?? (settings.seed === undefined ? undefined : settings.seed ^ 0x517ab1e), multiplayer: !!network, riderRole: network?.role, heightMode: settings.heightMode, remixMode: settings.remixMode, towerDemo: settings.towerDemo, startWorld: settings.startWorld, previewPiece: settings.previewPiece,christmas:settings.round?settings.round.christmas:settings.christmas });
     game.opponent = ghost;
     ghost?.configure(game.track, network?.opponentDifficulty ?? "normal");
     if (network) { ghost!.push(snapshotRide(game, 0)); syncRaceOverlay(); network.ready(); }

@@ -22,13 +22,14 @@ const entityId = (entity: object, prefix: string) => {
 export function snapshotRide(game: Mini, seq: number): RideState {
   const distance = game.physics.renderDistance;
   const tower = !!game.tower;
+  const delivering=!!game.physics.chimneyPause;
   const poses = game.ridePoses?.(distance, game.physics.renderAlpha)
     ?? game.carriages.poses(distance, game.physics.renderAlpha);
   const incoming = game.carriages.incoming;
   const closing = incoming ? Math.min(2 + game.physics.velocity * .7,
     Math.max(0, incoming.offset - game.carriages.coaches.at(-1)!.offset - MINI_CART_SPACING) * 5) : 0;
   return {
-    seq, time: game.elapsed, distance: game.physics.distance, speed: game.ended || tower ? 0 : game.physics.velocity,
+    seq, time: game.elapsed, distance: game.physics.distance, speed: game.ended || tower || delivering ? 0 : game.physics.velocity,
     correct: game.correct, ended: game.ended,
     ...(game.powerups ? { power: game.powerups.snapshot() } : {}),
     ...(game.track instanceof HeightTrack ? { heights: game.track.snapshot(!tower && !game.physics.flight && !game.ended) } : {}),
@@ -40,8 +41,8 @@ export function snapshotRide(game: Mini, seq: number): RideState {
         // Tower motion follows its own guided climb/turn/descent. Without a
         // rail or velocity hint the peer interpolates the actual poses, then
         // holds the last pose instead of predicting along the ground or falling.
-        ...(!tower ? { velocity: frame.tangent.clone().multiplyScalar(game.physics.velocity + (coach === incoming ? closing : 0)).add(new Vector3(0, coach.liftVelocity, 0)).toArray() } : {}),
-        ...(!tower && !game.physics.sample(game.track.followerDistance(distance, coach.offset)).airborne ? { rail: {
+        ...(!tower && !delivering ? { velocity: frame.tangent.clone().multiplyScalar(game.physics.velocity + (coach === incoming ? closing : 0)).add(new Vector3(0, coach.liftVelocity, 0)).toArray() } : {}),
+        ...(!tower && !delivering && !game.physics.sample(game.track.followerDistance(distance, coach.offset)).airborne ? { rail: {
           distance: game.track.followerDistance(distance, coach.offset), speed: game.physics.velocity + (coach === incoming ? closing : 0),
           lift: coach.previousLift + (coach.lift - coach.previousLift) * game.physics.renderAlpha,
           liftSpeed: coach.liftVelocity, coupled: coach !== game.carriages.incoming,

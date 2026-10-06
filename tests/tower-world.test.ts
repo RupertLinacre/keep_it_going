@@ -1,3 +1,4 @@
+import { WORLD_LAP } from "../src/games/adventure-worlds.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Vector3 } from "three";
@@ -32,18 +33,21 @@ test("multiplayer tower spacing reserves the real junction and keeps the mirrore
 test("each player's tower anchor follows their own raised entrance, with cached bounds refreshed after lifts", () => {
   const players = [1, 2].map(answers => {
     const track = new HeightTrack(42, { generative: true, multiplayer: true });
-    track.ensure(0, 4800);
+    track.ensure(0, WORLD_LAP + 600);
     const tower = track.sections.find(s => s.kind === "strengthtower")!;
     const before = sectionBounds(tower).clone();
     for (let i = 0; i < answers; i++) track.raise(tower.start - 1);
     track.advance(1);
-    assert.ok(Math.abs(sectionAnchorY(tower) - (tower.origin.y + answers * 30)) < 1e-8);
+    // A seeded course can leave a sub-metre connector before the tower.
+    // Its entrance then lies in the smooth end of the preceding lift field.
+    assert.ok(Math.abs(sectionAnchorY(tower) - (tower.origin.y + track.elevation(tower.start))) < 1e-8);
+    assert.ok(Math.abs(track.elevation(tower.start) - answers * 30) < .01);
     assert.equal(sectionAnchorY(tower), tower.sample(tower.start).position.y);
     assert.ok(sectionBounds(tower).max.y > before.max.y + answers * 30 - 1);
     const ordinary = track.sections.find(s => s.kind !== "strengthtower" && s.revision > 0)!;
     assert.equal(sectionAnchorY(ordinary), ordinary.origin.y, "normal rail vertices already contain their lift");
     return tower;
   });
-  assert.ok(Math.abs(sectionAnchorY(players[1]) - sectionAnchorY(players[0]) - 30) < 1e-8,
+  assert.ok(Math.abs(sectionAnchorY(players[1]) - sectionAnchorY(players[0]) - 30) < .01,
     "the mirrored tower uses its rider's raised anchor rather than the local or original height");
 });

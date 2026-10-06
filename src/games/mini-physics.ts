@@ -1,3 +1,4 @@
+import { CHIMNEY, chimneyLaunchSpeed } from './chimney-jump';
 import { jumpRoll, rollFrame } from "./ride-roll";
 import { BASE_DRAG, BASE_ROLLING, rollingResistance } from "./ride-resistance";
 import * as THREE from "three";
@@ -56,8 +57,9 @@ export class MiniPhysics {
   lastJumpDistance = 0;
   bestJump = 0;
   flight?: { section: MiniSection; position: THREE.Vector3; velocity: THREE.Vector3; startX: number; missed?: boolean };
-  private traces: { start: number; end: number; points: { distance: number; frame: RailFrame }[] }[] = [];
+  private traces: { start: number; end: number; chimney:boolean; points: { distance: number; frame: RailFrame; travel:number }[] }[] = [];
   private launched = new Set<number>();
+  chimneyPause?: { section:MiniSection; remaining:number };
 
   private airFrame(): RailFrame {
     const flight = this.flight!;
@@ -68,17 +70,21 @@ export class MiniPhysics {
       position: flight.position.clone(), tangent, right, up,
       rotation: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, tangent.clone().negate())),
       curvature: new THREE.Vector3(), airborne: true,
-    }, jumpRoll(flight.position.x, flight.startX, flight.section.landingX));
+    }, flight.section.kind==='chimneyhouse'?0:jumpRoll(flight.position.x, flight.startX, flight.section.landingX));
   }
   /** Followers traverse the same ballistic arc with their normal spacing. */
   sample(distance: number): RailFrame {
-    const trace = this.traces.find(t => distance >= t.start && distance <= t.end);
+    const trace = this.traces.find(t => distance >= (t.chimney?t.end-t.points.at(-1)!.travel-24:t.start) && distance <= t.end);
     if (!trace) return this.track.sample(distance);
     const points = trace.points;
+    const byTravel=trace.chimney;
+    const wanted=byTravel?points.at(-1)!.travel-(trace.end-distance):distance;
+    if(byTravel&&wanted<0)return this.track.sample(trace.start+wanted);
+    const coordinate=(i:number)=>byTravel?points[i].travel:points[i].distance;
     let a = 0, b = points.length - 1;
-    while (b - a > 1) { const m = (a + b) >> 1; if (points[m].distance <= distance) a = m; else b = m; }
+    while (b - a > 1) { const m = (a + b) >> 1; if (coordinate(m) <= wanted) a = m; else b = m; }
     const f = points[a].frame, g = points[b].frame;
-    const blend = a === b ? 0 : (distance - points[a].distance) / (points[b].distance - points[a].distance);
+    const blend = a === b ? 0 : (wanted - coordinate(a)) / Math.max(1e-9,coordinate(b)-coordinate(a));
     const rotation = f.rotation.clone().slerp(g.rotation, blend);
     return {
       position: f.position.clone().lerp(g.position, blend), rotation,
@@ -93,10 +99,11 @@ export class MiniPhysics {
     this.distance = section.takeoff;
     const frame = section.sample(section.takeoff - 0.05);
     if (section.revision) frame.position.copy(section.sample(section.takeoff).position);
-    else frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
+    else if(section.kind!=='chimneyhouse') frame.position.copy(section.origin).add(new THREE.Vector3(section.width * 0.2, section.amplitude, 0));
     frame.tangent.copy(section.launchTangent);
+    if(section.kind==='chimneyhouse'){frame.position.copy(section.sample(section.takeoff).position);this.velocity=chimneyLaunchSpeed(this.velocity);this.previousDistance=this.distance;}
     this.flight = { section, position: frame.position.clone(), velocity: frame.tangent.clone().multiplyScalar(this.velocity), startX: frame.position.x };
-    this.traces.push({ start: this.distance, end: this.distance, points: [{ distance: this.distance, frame: this.airFrame() }] });
+    this.traces.push({ start: this.distance, end: this.distance, chimney:section.kind==='chimneyhouse', points: [{ distance: this.distance, frame: this.airFrame(),travel:0 }] });
   }
   private stepJump(h: number) {
     const flight = this.flight!;
@@ -139,7 +146,7 @@ export class MiniPhysics {
     }
     const trace = this.traces.at(-1)!;
     trace.end = this.distance;
-    trace.points.push({ distance: this.distance, frame: landed ? rail : this.airFrame() });
+    trace.points.push({ distance: this.distance, frame: landed ? rail : this.airFrame(),travel:trace.points.at(-1)!.travel+previous.distanceTo(flight.position) });
     if (landed) this.flight = undefined;
   }
   constructor(
@@ -163,7 +170,7 @@ export class MiniPhysics {
   }
   /** Resume from a scripted rail segment without a stale interpolation or flight. */
   relocate(distance:number,speed:number) {
-    this.distance=this.previousDistance=distance;this.velocity=speed;this.flight=undefined;this.traces=[];this.accumulator=0;
+    this.distance=this.previousDistance=distance;this.velocity=speed;this.flight=undefined;this.chimneyPause=undefined;this.traces=[];this.accumulator=0;
   }
   get held() {
     return this.velocity === 0;
@@ -195,6 +202,12 @@ export class MiniPhysics {
       this.previousDistance = this.distance;
       if (this.crashed) { if (afterStep?.(h) === false) { this.accumulator = 0; return; } continue; }
       this.time += h;
+      if(this.chimneyPause){
+        this.chimneyPause.remaining-=h;this.acceleration=0;
+        if(this.chimneyPause.remaining<=0){const section=this.chimneyPause.section;this.chimneyPause=undefined;this.startJump(section);}
+        if(afterStep?.(h)===false){this.accumulator=0;return;}
+        continue;
+      }
       if (this.flight) {
         const before = this.distance;
         this.stepJump(h);
@@ -228,7 +241,10 @@ export class MiniPhysics {
       this.velocity = Math.max(0, v + (h / 6) * (a1 + 2 * a2 + 2 * a3 + a4));
       if (this.velocity < 0.05 && a1 <= 0) this.velocity = 0;
       const jump = this.track.jumpAt?.(this.distance);
-      if (jump && this.velocity > 0 && !this.launched.has(jump.id)) this.startJump(jump);
+      if (jump && this.velocity > 0 && !this.launched.has(jump.id)){
+        if(jump.kind==='chimneyhouse'){this.launched.add(jump.id);this.distance=jump.distanceAtX(jump.origin.x+jump.width*CHIMNEY.pause);this.chimneyPause={section:jump,remaining:CHIMNEY.delay};}
+        else this.startJump(jump);
+      }
       this.traces = this.traces.filter(t => t.end >= this.distance - 200);
       if (jump) for (const id of this.launched) if (id < jump.id - 30) this.launched.delete(id);
       this.acceleration = a1;
