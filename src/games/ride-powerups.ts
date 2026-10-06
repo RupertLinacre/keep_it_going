@@ -17,7 +17,7 @@ export const POWERUPS = {
   heavy: { name: "Heavy metal", icon: "↓", color: "#b46c45", sky: "#efe4db", description: "Bigger drops. Heavier climbs.", instruction: "1g uphill · 3g downhill" },
   wind: { name: "Tailwind", icon: "»", color: "#427f81", sky: "#e0eee9", description: "The wind is on your side.", instruction: "A steady push carries you along the rails" },
   confetti: { name: "Confetti Clouds", icon: "✦", color: "#bf73b5", sky: "#eddced", description: "A party in your funnel.", instruction: "Cotton-candy clouds and rainbow stars for 20 seconds" },
-  firstperson: { name: "Train chase", icon: "◉", color: "#df8254", sky: "#f3e7df", description: "Follow your train into the adventure!", instruction: "Follow the train · front seat through loops and tunnels" },
+  firstperson: { name: "Front seat", icon: "◉", color: "#df8254", sky: "#f3e7df", description: "Ride right at the front!", instruction: "A front-row view for 20 seconds · keep answering" },
   tilt: { name: "Downhill drift", icon: "↘", color: "#b27f32", sky: "#f2ebd8", description: "The whole board tips downhill.", instruction: "22° downhill tilt · gravity builds your speed" },
 } as const;
 export type PowerKind = keyof typeof POWERUPS;

@@ -14,7 +14,7 @@ import {
   type MiniKind,
 } from "./games/mini-track";
 import { christmasEnabled } from "./games/christmas-season";
-import { BASE_WORLDS, WORLDS } from "./games/adventure-worlds";
+import { BASE_WORLDS, CHRISTMAS_WORLDS, WORLDS } from "./games/adventure-worlds";
 import { AdventureScene } from "./games/adventure-scene";
 import { ELEMENT_NAMES } from "./games/mini-progression";
 import { seededRandom } from "./games/mini-rail";
@@ -92,7 +92,7 @@ const descriptions: Record<MiniKind, string> = {
     "A fantasy element: a smaller complete inversion tucked into the crown of a giant loop.",
 };
 const reviewMode=new URLSearchParams(location.search).has("review")&&["localhost","127.0.0.1"].includes(location.hostname);
-const christmas=christmasEnabled(),worlds=christmas?WORLDS:BASE_WORLDS;
+const christmas=christmasEnabled(),worlds=christmas?CHRISTMAS_WORLDS:BASE_WORLDS;
 const signatures = worlds.flatMap(w=>w.pieces);
 // The tower has a two-way, unlimited route; its playable preview is tower.html.
 const kinds = [...signatures, ...(Object.keys(ELEMENT_NAMES) as MiniKind[]).filter(k=>k!=="strengthtower"&&!signatures.includes(k)&&(christmas||!isChristmasKind(k)&&k!=="sledswitchbacks"))];

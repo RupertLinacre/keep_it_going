@@ -5,8 +5,10 @@ async page => {
  const cases=[
   ['2026-10-06T12:00:00','?mode=remix',4,'meadow'],
   ['2026-10-06T12:00:00','?mode=remix&world=lapland',4,'meadow'],
+  ['2026-10-06T12:00:00','?christmas=1',6,'lapland'],
   ['2026-10-06T12:00:00','?mode=remix&world=lapland&christmas=1',6,'lapland'],
-  ['2026-11-15T12:00:00','?mode=remix&world=lapland',6,'lapland'],
+  ['2026-11-15T12:00:00','?mode=remix',6,'lapland'],
+  ['2027-01-06T23:59:00','?mode=remix',6,'lapland'],
   ['2027-01-06T23:59:00','?mode=remix&world=winterfair',6,'winterfair'],
   ['2027-01-07T00:01:00','?mode=remix&world=lapland',4,'meadow']
  ];

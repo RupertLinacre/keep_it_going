@@ -1,4 +1,4 @@
-import { TrainChaseCameraRig, cameraSeatNeed, firstPersonBlend, firstPersonProjection } from "./first-person-camera";
+import { FrontSeatCameraRig, firstPersonBlend, firstPersonProjection } from "./first-person-camera";
 import { isChristmasKind } from "./christmas-rails";
 import { attractionRail } from "./attraction-kinds";
 import { StrengthTowerAttraction } from "./strength-tower-attraction";
@@ -59,9 +59,8 @@ export class MiniView {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-32, 32, 15, -15, 0.1, 220);
   readonly riderCamera = new THREE.PerspectiveCamera(76, 2, .12, 420);
-  readonly firstPersonRig = new TrainChaseCameraRig();
+  readonly firstPersonRig = new FrontSeatCameraRig();
   private renderCamera: THREE.Camera = this.camera;
-  private chaseTrainLength=(MINI_STARTING_CARTS-1)*MINI_CART_SPACING;
   readonly renderer: THREE.WebGLRenderer;
   readonly train: THREE.InstancedMesh[] = [];
   multiplayer = false;
@@ -781,13 +780,7 @@ export class MiniView {
     const aboard=firstPersonBlend(powerups);
     this.renderCamera=this.camera;
     if(aboard>0){
-      this.chaseTrainLength+=(Math.max(0,cartCount-1)*MINI_CART_SPACING-this.chaseTrainLength)*(1-Math.exp(-dt*2));
-      const behind=this.track.sample(Math.max(this.track.sections[0].start,distance-this.chaseTrainLength-9));
-      // Follow a deliberate jump upwards rather than leaving the camera below
-      // the sleigh; the ordinary railway supplies the smooth trailing position.
-      if(f.airborne)behind.position.add(f.position.clone().sub(this.track.sample(distance).position));
-      const need=cameraSeatNeed(this.track,distance,this.chaseTrainLength,velocity);
-      const rider=this.firstPersonRig.update(f,behind,dt,need,christmasTrainAt(this.track,distance));
+      const rider=this.firstPersonRig.update(f,dt,christmasTrainAt(this.track,distance));
       const eye=lane(rider.eye);eye.x-=anchor;eye.applyMatrix4(this.scene.matrix);
       this.riderCamera.position.copy(this.camera.position).lerp(eye,aboard);
       this.riderCamera.quaternion.copy(this.camera.quaternion).slerp(rider.orientation,aboard);
