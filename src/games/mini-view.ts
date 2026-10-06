@@ -1,4 +1,4 @@
-import { TrainChaseCameraRig, firstPersonBlend, firstPersonProjection } from "./first-person-camera";
+import { TrainChaseCameraRig, cameraSeatNeed, firstPersonBlend, firstPersonProjection } from "./first-person-camera";
 import { isChristmasKind } from "./christmas-rails";
 import { attractionRail } from "./attraction-kinds";
 import { StrengthTowerAttraction } from "./strength-tower-attraction";
@@ -786,7 +786,8 @@ export class MiniView {
       // Follow a deliberate jump upwards rather than leaving the camera below
       // the sleigh; the ordinary railway supplies the smooth trailing position.
       if(f.airborne)behind.position.add(f.position.clone().sub(this.track.sample(distance).position));
-      const rider=this.firstPersonRig.update(f,behind,dt);
+      const need=cameraSeatNeed(this.track,distance,this.chaseTrainLength,velocity);
+      const rider=this.firstPersonRig.update(f,behind,dt,need,christmasTrainAt(this.track,distance));
       const eye=lane(rider.eye);eye.x-=anchor;eye.applyMatrix4(this.scene.matrix);
       this.riderCamera.position.copy(this.camera.position).lerp(eye,aboard);
       this.riderCamera.quaternion.copy(this.camera.quaternion).slerp(rider.orientation,aboard);

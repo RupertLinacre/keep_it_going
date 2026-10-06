@@ -1244,3 +1244,5 @@ kbd {
 
 .front-seat-label { color: #648778; font-weight: 600; font-size: .85rem; margin-left: auto; }
 @media(max-width:480px) { .front-seat-label { font-size: .7rem; } }
+
+.camera-course-picker { margin-left: auto; max-width: 12rem; padding: .5rem .6rem; border: 1px solid #d5dec9; border-radius: .8rem; background: #fffef6; color: #506e5e; font: inherit; font-size: .85rem; }

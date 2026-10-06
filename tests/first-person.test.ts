@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import { TrainChaseCameraRig, firstPersonBlend, firstPersonProjection, FIRST_PERSON_FOV } from '../src/games/first-person-camera';
-import { createMiniSection } from '../src/games/mini-track';
+import { TrainChaseCameraRig, cameraSeatNeed, firstPersonBlend, firstPersonProjection, FIRST_PERSON_FOV } from '../src/games/first-person-camera';
+import { MiniTrack, MiniSection, createMiniSection } from '../src/games/mini-track';
 import { POWER_DURATION,powerPhysics } from '../src/games/ride-powerups';
 import { validRideState } from '../src/multiplayer/protocol';
 import { snapshotRide } from '../src/multiplayer/ghost';
@@ -62,4 +62,50 @@ test('the chase eye stays above the railway behind the whole train through bends
    near(rig.orientation.length(),1);
   }
  }
+});
+
+test('the camera previews loops and tunnels and waits for the whole train to leave',()=>{
+ const track=new MiniTrack(42,{generative:true,christmas:false});
+ for(const kind of ['loop','noninvertingloop','corkscrew','tunnel'] as const){
+  const entry=new MiniSection(-1,'station',0,new T.Vector3(0,4,0),120,0,0,1);
+  const piece=createMiniSection(kind,entry.end,entry.sample(entry.end).position,0,()=>.5);
+  const exit=new MiniSection(1,'station',piece.end,piece.sample(piece.end).position,160,0,0,1);
+  track.sections.splice(0,track.sections.length,entry,piece,exit);
+  assert.equal(cameraSeatNeed(track,10,12,25),0);
+  assert.equal(cameraSeatNeed(track,piece.start-8,12,25),1);
+  assert.equal(cameraSeatNeed(track,piece.end+12,12,25),1);
+  assert.equal(cameraSeatNeed(track,piece.end+50,12,25),0);
+ }
+});
+
+test('full loops keep the seated camera pointed along the rails through both verticals and the inversion',()=>{
+ const track=new MiniTrack(42,{generative:true,christmas:false});
+ const entry=new MiniSection(-1,'station',0,new T.Vector3(0,4,0),120,0,0,1);
+ const loop=createMiniSection('loop',120,entry.sample(entry.end).position,0,()=>.5);
+ const exit=new MiniSection(1,'station',loop.end,loop.sample(loop.end).position,160,0,0,1);
+ track.sections.splice(0,track.sections.length,entry,loop,exit);
+ for(const speed of [25,60]){
+ const rig=new TrainChaseCameraRig();let previous:T.Quaternion|undefined,minimumFacing=1,maximumTurn=0;
+ for(let d=20;d<=loop.end+125;d+=speed/60){
+  const f=track.sample(d),behind=track.sample(Math.max(0,d-21)),need=cameraSeatNeed(track,d,12,speed);
+  rig.update(f,behind,1/60,need);
+  if(d>=loop.start&&d<=loop.end){
+   assert.equal(rig.seatBlend,1);
+   near(rig.eye.clone().sub(f.position).dot(f.up),2.65);
+   const facing=new T.Vector3(0,0,-1).applyQuaternion(rig.orientation).dot(f.tangent);
+   minimumFacing=Math.min(minimumFacing,facing);
+   if(previous)maximumTurn=Math.max(maximumTurn,previous.angleTo(rig.orientation));
+  }
+  previous=rig.orientation.clone();
+ }
+ assert.ok(minimumFacing>.98,`Camera lost the rail direction: ${minimumFacing}`);
+ assert.ok(maximumTurn<.35,`Camera spun instead of following: ${maximumTurn}`);
+ assert.ok(rig.seatBlend<.05,'Camera did not return to chase view');
+ }
+});
+
+test('ordinary loop demos remain available off season without admitting Christmas pieces',()=>{
+ const track=new MiniTrack(42,{generative:true,christmas:false,previewPiece:'loop'});
+ assert.equal(track.sections.find(s=>s.id===0)!.kind,'loop');
+ assert.equal(track.worlds.length,4);
 });

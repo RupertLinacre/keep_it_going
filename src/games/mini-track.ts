@@ -15,7 +15,7 @@ export type MiniKind =
   | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
   | ChristmasKind | AdditionalAttraction | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
-export type PreviewPiece = ChristmasKind | "sledswitchbacks";
+export type PreviewPiece = ChristmasKind | "sledswitchbacks" | "loop" | "corkscrew" | "tunnel" | "noninvertingloop";
 export const isHump = (kind: MiniKind) =>
   ["sheepbank", "pondbridge", "ravinebridge", "witchhat", "mountainpass", "lanternrun", "pumpkinhop", "firsthill", "hill", "skyhill", "invertedhill", "verticalhill", "tophat", "doubledip", "waveturn"].includes(attractionRail(kind));
 export interface MiniRail {
@@ -458,9 +458,9 @@ export class MiniTrack implements MiniRail {
     // Solo previews start on the usual opening hill inside the selected world.
     // Distance stays in the real journey, so scenery, powers and transitions
     // follow the same rules as a full ride. Multiplayer always starts together.
-    const previewWorld=options.previewPiece&&options.christmas!==false
-      ? this.worlds.find(w=>w.pieces.includes(options.previewPiece!))
-      : this.worlds.find(w=>w.id===options.startWorld);
+    const previewAllowed=options.previewPiece&&(options.christmas!==false||!isChristmasKind(options.previewPiece)&&options.previewPiece!=="sledswitchbacks");
+    const selectedWorld=this.worlds.find(w=>w.id===options.startWorld);
+    const previewWorld=previewAllowed?this.worlds.find(w=>w.pieces.includes(options.previewPiece!))??selectedWorld:selectedWorld;
     const start=options.generative&&!options.multiplayer&&!options.towerDemo&&previewWorld
       ? previewWorld.start+MINI_TRAIL_DISTANCE:0;
     // Retain real rail behind the six coaches on the opening hill.
@@ -482,7 +482,7 @@ export class MiniTrack implements MiniRail {
     // Just over the broad crest: a gentle roll immediately gains speed from gravity.
     this.startDistance = firstHill.start + firstHill.length / 2 + 2;
     if(options.towerDemo){this.append("strengthtower");this.append("station");this.ensure(this.startDistance);return;}
-    if(options.previewPiece&&options.christmas!==false&&!options.multiplayer){this.append(options.previewPiece);this.append("station");this.ensure(this.startDistance);return;}
+    if(options.previewPiece&&previewAllowed&&!options.multiplayer){this.append(options.previewPiece);this.append("station");this.ensure(this.startDistance);return;}
     this.append("station");
     if (options.generative) {
       const gentle: MiniKind[] = ["hill", "dip", "heartline", "corkscrew", "waveturn"];

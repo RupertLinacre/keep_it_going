@@ -25,8 +25,8 @@ async page => {
   const g=window.frontSeatGame,v=g.view,head=g.ridePoses()[0].frame;
   if(!document.querySelector('.power-copy strong').textContent.includes('Train chase'))throw Error('Stale camera build');
   const rear=v.firstPersonRig.eye.clone().sub(head.position).dot(head.tangent);
-  if(rear>=-12)throw Error('Camera is not behind the train');
-  return {behindMetres:-rear,cameraHeight:v.firstPersonRig.eye.y-head.position.y};
+  if(v.firstPersonRig.seatBlend<.05&&rear>=-12)throw Error('Camera is not behind the train on open rail');
+  return {seatBlend:v.firstPersonRig.seatBlend,behindMetres:-rear,cameraHeight:v.firstPersonRig.eye.y-head.position.y};
  }));
  await page.screenshot({path:'output/playwright/front-seat-desktop.png'});
  await page.setViewportSize({width:390,height:844});
