@@ -1,8 +1,9 @@
+import type { ChristmasKind } from "./christmas-rails";
 import { StrengthTower } from "./strength-tower";
 import { rollFrame } from "./ride-roll";
 import { iceDeployment, drawIceIcicles } from './ice-icicles';
 import { drawAdventureFallback } from "./adventure-fallback";
-import { adventureAt } from "./adventure-worlds";
+import { adventureAt, WORLDS, type WorldKind } from "./adventure-worlds";
 import { AdventureHud } from "./adventure-hud";
 import { drawTailwindSail, sailDeployment } from "./tailwind-sails";
 import { RaceSpacing } from "./mini-world";
@@ -80,7 +81,7 @@ export class Mini extends BaseGame {
   private answerWasLift = false;
   readonly recordId: "mini" | "height" | "remix";
   private pendingLifts = 0;
-  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean } = {}) {
+  constructor(host: Host, seed?: number, options: { tables?: number[]; questionSeed?: number; multiplayer?: boolean; riderRole?: RiderRole; heightMode?: boolean; remixMode?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: ChristmasKind } = {}) {
     super(host);
     this.heightMode = !!options.heightMode && !options.multiplayer;
     this.remixMode = !!options.remixMode;
@@ -90,8 +91,8 @@ export class Mini extends BaseGame {
     this.personalBest = bestRide(host.difficulty, this.recordId);
     if (options.tables) this.nextQuestion = questionSequence(options.tables, options.questionSeed ?? Math.floor(Math.random() * 0xffffffff));
     this.track = this.heightMode || this.remixMode
-      ? new HeightTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer, towerDemo: options.towerDemo })
-      : new MiniTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer, towerDemo: options.towerDemo });
+      ? new HeightTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer, towerDemo: options.towerDemo, startWorld: options.startWorld, previewPiece: options.previewPiece })
+      : new MiniTrack(seed, { generative: this.remixMode, multiplayer: this.multiplayer, towerDemo: options.towerDemo, startWorld: options.startWorld, previewPiece: options.previewPiece });
     this.physics = new MiniPhysics(this.track, rideResistance(host.difficulty));
     this.carriages = new MiniCarriages(this.track, this.physics.options.gravity);
     this.carriages.sample = distance => rollFrame(this.physics.sample(distance), this.powerups?.roll ?? 0);
@@ -249,7 +250,7 @@ export class Mini extends BaseGame {
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
     const stopped = this.heightMode ? "The train ran out of momentum. Raise your track before the next climb." : water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.";
     const journey = this.remixMode ? adventureAt(this.track.sectionAt(this.physics.distance).start) : undefined;
-    const explored = journey ? journey.lap ? ` All four worlds explored! Adventure ${journey.lap+1} reached.` : ` You reached ${journey.world.name}!` : "";
+    const explored = journey ? journey.lap ? ` All ${WORLDS.length} worlds explored! Adventure ${journey.lap+1} reached.` : ` You reached ${journey.world.name}!` : "";
     this.finish(false, stopped + explored, {
       distance: this.travelled, bestDistance: Math.max(this.personalBest.distance, this.travelled),
       bestJump: this.physics.bestJump, longestTrain: this.longestTrain, peakSpeed: this.physics.peakSpeed,

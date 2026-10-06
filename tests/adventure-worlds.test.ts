@@ -6,11 +6,11 @@ import { MiniTrack, createMiniSection } from '../src/games/mini-track';
 import { MiniPhysics } from '../src/games/mini-physics';
 import { seededRandom } from '../src/games/mini-rail';
 
-test('the four worlds advance by distance, repeat as a new adventure and retain their order',()=>{
- assert.deepEqual(WORLDS.map(w=>w.id),['meadow','mountain','night','halloween']);
+test('the six worlds advance by distance, repeat as a new adventure and retain their order',()=>{
+ assert.deepEqual(WORLDS.map(w=>w.id),['meadow','mountain','night','halloween','lapland','winterfair']);
  for(const [i,w]of WORLDS.entries()) {
   assert.equal(adventureAt(w.start).index,i);assert.equal(adventureAt(w.end-.001).index,i);
-  assert.equal(adventureAt(w.start+WORLD_LAP).stage,4+i);
+  assert.equal(adventureAt(w.start+WORLD_LAP).stage,WORLDS.length+i);
  }
  assert.equal(adventureAt(-200).world.id,'meadow');
 });
@@ -23,7 +23,7 @@ test('the director introduces each world signature at its next section and bound
    for(const section of track.sections){
     if(seen.has(section.id))continue;seen.add(section.id);
     const stage=adventureAt(section.start);
-    if(stage.stage!==lastWorld&&stage.index>0)assert.equal(section.kind,stage.world.pieces[0]);
+    if(stage.stage!==lastWorld&&stage.index>0&&stage.world.pieces.length)assert.equal(section.kind,stage.world.pieces[0]);
     lastWorld=stage.stage;
     assert.ok(section.turns<=4);assert.ok(section.frames.every(f=>Number.isFinite(f.position.y)));
     if(section.start>700)assert.ok(section.amplitude<=stage.world.maxHeight+.001,section.kind);
@@ -65,7 +65,7 @@ test('late adventures unlock more elements without squeezing hills into thin nee
  const encores=new Set<string>();
  for(const seed of [1,18,42,73]) {
  const track=new MiniTrack(seed,{generative:true});
- for(let at=4200;at<25000;at+=150){
+ for(let at=WORLD_LAP;at<25000;at+=150){
   track.ensure(at);
   for(const s of track.sections){
    encores.add(s.kind);
@@ -99,21 +99,21 @@ test('scenery prunes old tiles, bounds actors and disposes shared race geometry 
  assert.ok([...geometries.values()].every(n=>n===1),'Owned/shared geometry released exactly once');
 });
 
-test('each adventure guarantees all seventeen unique signature attractions before leaving their worlds',()=>{
+test('each adventure guarantees the original signatures and introduces a seeded Christmas tour',()=>{
  const all=WORLDS.flatMap(w=>w.pieces);
- assert.ok(WORLDS.every(w=>new Set(w.pieces).size>=3));
+ assert.ok(WORLDS.every(w=>w.id==='winterfair'?w.pieces.includes('frozenwaterfall'):new Set(w.pieces).size>=3));
  assert.equal(new Set(all).size,all.length,'Each signature belongs to one world');
  for(let seed=1;seed<=80;seed++){
   const track=new MiniTrack(seed,{generative:true}),seen=new Map<number,Set<string>>();
   // Different ensure chunk sizes must not crowd a signature out of its world.
-  for(let at=0;at<9000;at+=137){
+  for(let at=0;at<WORLD_LAP*2+500;at+=137){
    track.ensure(at,seed%2?230:600);
    for(const s of track.sections){
     const stage=adventureAt(s.start).stage;
     if(!seen.has(stage))seen.set(stage,new Set());seen.get(stage)!.add(s.kind);
    }
   }
-  for(let stage=0;stage<8;stage++)for(const kind of WORLDS[stage%4].pieces)
+  for(let stage=0;stage<WORLDS.length*2;stage++)for(const kind of (stage%WORLDS.length===4?['startree']:WORLDS[stage%WORLDS.length].pieces))
    assert.ok(seen.get(stage)?.has(kind),`seed ${seed}, stage ${stage}, missing ${kind}`);
  }
 });

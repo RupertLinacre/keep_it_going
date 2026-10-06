@@ -9,6 +9,7 @@ import "@fontsource/dm-sans/latin-600.css";
 import "@fontsource/dm-sans/latin-700.css";
 import "./style.css";
 import { courseSeed, freshCourseSeed } from "./games/course-seed";
+import { WORLDS } from "./games/adventure-worlds";
 import { mountGame } from "./runner";
 import type { Difficulty } from "./types";
 import { mountStart } from "./start";
@@ -68,7 +69,8 @@ function shell(playing: boolean) {
 function solo(tables: number[], difficulty: Difficulty, seedText = "") {
   unlockAudio();
   const seed = remixMode ? courseSeed(seedText) ?? freshCourseSeed() : undefined;
-  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty, seedText), { tables, menu, remixMode, seed });
+  const startWorld = WORLDS.find(w => w.id === query.get("world"))?.id;
+  cleanup = mountGame(shell(true), difficulty, () => solo(tables, difficulty, seedText), { tables, menu, remixMode, seed, startWorld });
 }
 function race(round: Round) {
   unlockAudio();

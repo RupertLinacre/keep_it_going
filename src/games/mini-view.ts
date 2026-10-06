@@ -1,3 +1,4 @@
+import { isChristmasKind } from "./christmas-rails";
 import { attractionRail } from "./attraction-kinds";
 import { StrengthTowerAttraction } from "./strength-tower-attraction";
 import type { StrengthTower } from "./strength-tower";
@@ -6,6 +7,7 @@ import { gravityRoll, rollFrame, rollShader } from "./ride-roll";
 import { iceDeployment, ICICLES } from './ice-icicles';
 import { AdventureScene } from "./adventure-scene";
 import { adventureAt, WORLDS } from "./adventure-worlds";
+import { WinterAtmosphere, winterGroundBack } from "./winter-atmosphere";
 import { sailDeployment } from "./tailwind-sails";
 import { groundBounds, RaceSpacing, sectionAnchorY } from "./mini-world";
 import { riderColor, riderColorIndex, type RiderRole } from "../multiplayer/identity";
@@ -34,6 +36,8 @@ import { DOWNHILL_TILT, tiltPoint } from "./mini-tilt";
 import { scenePixelRatio } from "./render-resolution";
 import { CART_COLORS, createMiniCar, createMiniFunnel, createMiniParcel, MINI_FUNNEL_OUTLET } from "./train-model";
 import { TrainSmoke } from "./train-smoke";
+import { SleighMagic } from "./sleigh-magic";
+import { CHRISTMAS_GIFT_COLORS, christmasTrainAt, createChristmasGift, createChristmasSleigh } from "./christmas-sleigh";
 
 type ModelPart = { mesh: THREE.InstancedMesh; transform: THREE.Matrix4; body: boolean };
 type EngineSmoke = {
@@ -47,6 +51,7 @@ type EngineSmoke = {
   sourceTime?: number;
   source?: unknown;
 };
+type MagicTrail = { effect: SleighMagic; time?: number; sourceTime?: number; source?: unknown };
 
 /** A fixed-horizon, orthographic model railway view. The camera never rides the train. */
 export class MiniView {
@@ -65,8 +70,14 @@ export class MiniView {
   private funnelParts: ModelPart[];
   private readonly trainSmoke: EngineSmoke;
   private opponentSmoke?: EngineSmoke;
+  private sleighMagic?: MagicTrail;
+  private opponentMagic?: MagicTrail;
   private wagonParts: ModelPart[];
   private parcelParts: ModelPart[];
+  private christmasParts?: { engine: ModelPart[]; coach: ModelPart[]; wagon: ModelPart[]; gift: ModelPart[] };
+  private readonly christmasTransforms = { engine: [] as THREE.Matrix4[], coach: [] as THREE.Matrix4[], wagon: [] as THREE.Matrix4[], gift: [] as THREE.Matrix4[], colors: [] as number[] };
+  private readonly christmasParcelColors = new WeakMap<object, number>();
+  private nextChristmasParcelColor = 0;
   private sailParts?: ModelPart[];
   private icicleParts?: ModelPart[];
   private dynamiteParts?: ModelPart[];
@@ -90,6 +101,7 @@ export class MiniView {
   readonly pieces = new Map<number, THREE.Group>();
   readonly resize: ResizeObserver;
   private board = new THREE.Group();
+  private winterAtmosphere?: WinterAtmosphere;
   private boardInlay: THREE.Mesh;
   private lastState = "";
   private aspect = 2;
@@ -192,6 +204,17 @@ export class MiniView {
     this.resize = new ResizeObserver(resize);
     this.resize.observe(stage);
     resize();
+    if(track.options.generative&&track.options.startWorld&&!track.options.multiplayer) {
+      // A direct world preview should open in its own palette. Only real
+      // journey transitions need to fade from the preceding world's colours.
+      const world=adventureAt(track.sectionAt(track.startDistance).start).world;
+      (this.scene.background as THREE.Color).set(world.sky);
+      (this.scene.fog as THREE.Fog).color.set(world.sky);
+      this.material("#d5e3c3").color.set(world.ground);this.material("#cfae8c").color.set(world.earth);
+      this.sunlight!.color.set(world.light);this.sunlight!.intensity=world.id==='lapland'?.8:2.5-world.darkness*1.3;
+      this.skylight!.color.set(world.ambient);this.skylight!.intensity=world.id==='lapland'?1.25:world.id==='winterfair'?1.95:2-world.darkness*.2;
+      this.railMaterial(0).color.set(world.rail);
+    }
     this.render(track.startDistance, MINI_START_SPEED, 0, false);
     // Compile the water materials during setup, so the first entry splash is smooth.
     void this.renderer.compileAsync(this.scene, this.camera).catch(() => {});
@@ -211,6 +234,21 @@ export class MiniView {
     this.scene.add(effect.group);
     return { effect, emitter: new THREE.Vector3(), previousEmitter: new THREE.Vector3(),
       direction: new THREE.Vector3(0, 1, 0), velocity: new THREE.Vector3(), active: false };
+  }
+  private createMagic(): MagicTrail {
+    const effect = new SleighMagic();
+    this.scene.add(effect.group);
+    return { effect };
+  }
+  private updateMagic(state: MagicTrail, time: number, sourceTime: number, source: unknown,
+    position: THREE.Vector3 | null, rotation: THREE.Quaternion, speed: number, anchor: number) {
+    const elapsed = state.time === undefined ? 0 : time - state.time;
+    if (elapsed < 0 || elapsed > .5 || (source !== undefined && state.source !== undefined && source !== state.source)
+      || (state.sourceTime !== undefined && sourceTime < state.sourceTime)) state.effect.reset();
+    state.effect.group.position.x = -anchor;
+    state.effect.reducedMotion = this.reducedMotion.matches;
+    state.effect.update(Math.max(0, elapsed), position, rotation, speed);
+    state.time = time; state.sourceTime = sourceTime; state.source = source;
   }
   private updateSmoke(state: EngineSmoke, time: number, sourceTime: number, source: unknown,
     position: THREE.Vector3 | null, rotation: THREE.Quaternion, speed: number, anchor: number,
@@ -413,7 +451,7 @@ export class MiniView {
     group.add(sleepers);
     const supports: THREE.Vector3[] = [];
     const supportDistances: number[] = [];
-    for (let s = section.start + 0.8; s < section.end; s += (["carouselhelix", "witchhat"].includes(attractionRail(section.kind)) ? 8 : ["pondbridge", "ravinebridge"].includes(attractionRail(section.kind)) ? 12 : 2.4)) {
+    for (let s = section.start + 0.8; s < section.end; s += (isChristmasKind(section.kind) ? 9 : ["carouselhelix", "witchhat"].includes(attractionRail(section.kind)) ? 8 : ["pondbridge", "ravinebridge"].includes(attractionRail(section.kind)) ? 12 : 2.4)) {
       if (!section.hasRail(s)) continue;
       const f = section.sample(s);
       const local = f.position.clone().sub(section.origin);
@@ -655,7 +693,22 @@ export class MiniView {
       const influence=clamp((p.x-f.position.x+45)/20,0,1)*clamp((f.position.x+70-p.x)/25,0,1);
       skyline=Math.max(skyline,elevation+10+(p.y+29-elevation-10)*influence);
     }
+    // Christmas silhouettes are a handful of fixed landmarks, never particles.
+    // A gentle approach fade keeps crowns/antlers visible without abrupt zoom.
+    if(this.track.options.generative)for(const section of this.track.sections)if(isChristmasKind(section.kind)){
+      const cx=section.origin.x+section.width*.5;
+      const influence=clamp((cx-f.position.x+95)/28,0,1)*clamp((f.position.x+75-cx)/28,0,1);
+      const peak=Math.max(section.origin.y+section.amplitude+(section.kind==='snowglobe'?12:section.kind==='snowmanscarf'?9:section.kind==='frozenwaterfall'?10:7),section.kind==='snowglobe'?(section.width*.145+5.6)*1.6+6.3:0);
+      skyline=Math.max(skyline,elevation+10+(peak-elevation-10)*influence);
+    }
     const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches, elevation);
+    // On the low front exit, the summit sits behind the train in depth. Give
+    // the portrait view a little upward room for the chalet without widening
+    // the train view; ease this extra pan away as the attraction leaves.
+    if(this.compactLayout.matches&&!close){
+      const waterfall=this.track.sections.find(s=>s.kind==='frozenwaterfall'&&distance>s.start+s.length*.68&&distance<s.end);
+      if(waterfall){const low=1-THREE.MathUtils.smoothstep(f.position.y-waterfall.origin.y,8,14),leave=1-THREE.MathUtils.smoothstep(distance,waterfall.end-55,waterfall.end-10);framing.focus.y+=6*low*leave;}
+    }
     if(tower && poses?.length){
       const target=towerFraming(lane(f.position),lane(poses.at(-1)!.frame.position),tower.trainLength,tower.motion.peak,this.compactLayout.matches);
       const blend=THREE.MathUtils.smoothstep(tower.cameraBlend,0,1);
@@ -721,6 +774,21 @@ export class MiniView {
     fog.far = cameraDistance + Math.max(180, height * 3);
     this.cartCount = cartCount;
     const count = Math.min(cartCount, MINI_VISIBLE_CARTS);
+    const localChristmas = christmasTrainAt(this.track, distance);
+    const remoteChristmas = !!opponent && christmasTrainAt(opponentTrack ?? this.track, opponent.distance);
+    const festive = this.christmasTransforms;
+    festive.engine.length = festive.coach.length = festive.wagon.length = festive.gift.length = festive.colors.length = 0;
+    if ((localChristmas || remoteChristmas) && !this.christmasParts) {
+      const factory = (geometry: THREE.BufferGeometry, color: string) => this.mesh(geometry, color);
+      const capacity = 2 * (MINI_VISIBLE_CARTS + MINI_MAX_FLYING_CARTS);
+      this.christmasParts = {
+        engine: this.instanceModel(createChristmasSleigh(true, factory), 2),
+        coach: this.instanceModel(createChristmasSleigh(false, factory, true), capacity),
+        wagon: this.instanceModel(createChristmasSleigh(false, factory), capacity),
+        gift: this.instanceModel(createChristmasGift(factory), capacity * MINI_POWER_PARCELS + MINI_MAX_FLYING_PARCELS * 2),
+      };
+      this.train.push(...this.christmasParts.engine.map(part => part.mesh), ...this.christmasParts.coach.map(part => part.mesh), ...this.christmasParts.wagon.map(part => part.mesh));
+    }
     const closed: THREE.Matrix4[] = [], open: THREE.Matrix4[] = [], cargo: THREE.Matrix4[] = [], dynamite: THREE.Matrix4[] = [], funnels: THREE.Matrix4[] = [];
     const closedColors: number[] = [], openColors: number[] = [];
     const sails: THREE.Matrix4[] = [], sailColors: number[] = [];
@@ -729,7 +797,8 @@ export class MiniView {
     const localIce=iceDeployment(powerups),remoteIce=iceDeployment(opponent?.power);
     const addCar = (position: THREE.Vector3, rotation: THREE.Quaternion, index: number, loaded: number, cargoAge = 1, rival = false, bombs = 0, attached = false, engine = false) => {
       const matrix = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
-      if (engine) funnels.push(matrix);
+      const christmas = rival ? remoteChristmas : localChristmas;
+      if (engine && !christmas) funnels.push(matrix);
       const frozen = rival ? remoteIce : localIce;
       if (attached && frozen > 0) ice.push(matrix.clone().multiply(new THREE.Matrix4().compose(
         new THREE.Vector3(0,isParcelWagon(index)?.89:1.62,0),new THREE.Quaternion(),new THREE.Vector3(isParcelWagon(index)?1:.6,frozen,1))));
@@ -743,13 +812,17 @@ export class MiniView {
         sailColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index);
       }
       if (isParcelWagon(index)) {
-        open.push(matrix); openColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index);
+        if (christmas) festive.wagon.push(matrix);
+        else { open.push(matrix); openColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index); }
         if (loaded) for (const [i, offset] of parcelPresentation(loaded, cargoAge, powerups ? MINI_POWER_PARCELS : undefined).entries()) {
           if (offset.scale <= 0) continue;
-          (bombs & (1 << i) ? dynamite : cargo).push(matrix.clone().multiply(new THREE.Matrix4().compose(
+          const bomb = bombs & (1 << i);
+          (bomb ? dynamite : christmas ? festive.gift : cargo).push(matrix.clone().multiply(new THREE.Matrix4().compose(
             new THREE.Vector3(offset.x, offset.y, offset.z), new THREE.Quaternion(), new THREE.Vector3().setScalar(offset.scale))));
+          if (christmas && !bomb) festive.colors.push(index + i);
         }
-      } else { closed.push(matrix); closedColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index); }
+      } else if (christmas) (engine || index === 0 ? festive.engine : festive.coach).push(matrix);
+      else { closed.push(matrix); closedColors.push(this.multiplayer ? riderColorIndex(this.riderRole, rival) : index); }
     };
     const attached = poses ?? Array.from({ length: count }, (_, index) => ({
       frame: rollFrame(this.track.sample(distance - index * MINI_CART_SPACING),powerups?.roll??0), coach: { id: index, cargo: isParcelWagon(index) ? 2 : 0, cargoAge: 1 },
@@ -761,7 +834,7 @@ export class MiniView {
       if (Math.abs(screen.x) > 1.25 || Math.abs(screen.y) > 1.35) continue;
       addCar(position, frame.rotation, coach.id, coach.cargo, coach.cargoAge, false, "dynamite" in coach && typeof coach.dynamite === "number" ? coach.dynamite : 0, true, coach.id === 0);
     }
-    this.renderedCartCount = open.length + closed.length;
+    this.renderedCartCount = open.length + closed.length + festive.engine.length + festive.coach.length + festive.wagon.length;
     for (const cart of flights) {
       const position = lane(cart.position);
       position.x -= anchor;
@@ -769,7 +842,12 @@ export class MiniView {
     }
     for (const parcel of parcels) {
       const position = lane(parcel.position); position.x -= anchor;
-      (parcel.dynamite ? dynamite : cargo).push(new THREE.Matrix4().compose(position, parcel.rotation, new THREE.Vector3(1, 1, 1)));
+      (parcel.dynamite ? dynamite : localChristmas ? festive.gift : cargo).push(new THREE.Matrix4().compose(position, parcel.rotation, new THREE.Vector3(1, 1, 1)));
+      if (localChristmas && !parcel.dynamite) {
+        let color = this.christmasParcelColors.get(parcel);
+        if (color === undefined) { color = this.nextChristmasParcelColor++ % CHRISTMAS_GIFT_COLORS.length; this.christmasParcelColors.set(parcel, color); }
+        festive.colors.push(color);
+      }
     }
     if (opponent) {
       for (const body of opponent.bodies) {
@@ -781,7 +859,13 @@ export class MiniView {
       for (const parcel of opponent.parcels) {
         const position = lane(new THREE.Vector3(...parcel.position), true); position.x -= anchor;
         if (Math.abs(position.x - f.position.x + anchor) > 130) continue;
-        (parcel.dynamite ? dynamite : cargo).push(new THREE.Matrix4().compose(position, mirrorRotation(new THREE.Quaternion(...parcel.rotation)), new THREE.Vector3(1, 1, 1)));
+        (parcel.dynamite ? dynamite : remoteChristmas ? festive.gift : cargo).push(new THREE.Matrix4().compose(position, mirrorRotation(new THREE.Quaternion(...parcel.rotation)), new THREE.Vector3(1, 1, 1)));
+        if (remoteChristmas && !parcel.dynamite) {
+          // Network snapshots replace objects, so use a stable id when supplied.
+          const id = parcel.id ?? "gift";
+          let color = 0; for (let i = 0; i < id.length; i++) color = (color * 31 + id.charCodeAt(i)) >>> 0;
+          festive.colors.push(color % CHRISTMAS_GIFT_COLORS.length);
+        }
       }
     }
     if(ice.length && !this.icicleParts)this.icicleParts=this.instanceModel(this.icicles(),MINI_VISIBLE_CARTS*2);
@@ -791,21 +875,34 @@ export class MiniView {
     this.drawModel(this.funnelParts, funnels, []);
     const lead = attached.find(pose => pose.coach.id === 0)?.frame;
     this.updateSmoke(this.trainSmoke, time, time, effects ?? this.track,
-      lead ? lane(lead.position) : null, lead?.rotation ?? f.rotation, tower ? 0 : velocity, anchor, undefined, powerups?.active === "confetti");
+      lead && !localChristmas ? lane(lead.position) : null, lead?.rotation ?? f.rotation, tower ? 0 : velocity, anchor, undefined, powerups?.active === "confetti");
+    if (localChristmas) this.sleighMagic ??= this.createMagic();
+    if (this.sleighMagic) this.updateMagic(this.sleighMagic, time, time, effects ?? this.track,
+      lead && localChristmas ? lane(lead.position) : null, lead?.rotation ?? f.rotation, velocity, anchor);
     const remoteLead = opponent?.bodies.find(body => body.id === "coach-0");
     const remoteNearby = !!remoteLead && Math.abs(remoteLead.position[0] - f.position.x) < 130;
+    if (remoteNearby && remoteChristmas) this.opponentMagic ??= this.createMagic();
+    if (this.opponentMagic) this.updateMagic(this.opponentMagic, time, opponent?.time ?? time, remoteLead?.id,
+      remoteNearby && remoteChristmas ? lane(new THREE.Vector3(...remoteLead!.position), true) : null,
+      remoteLead ? mirrorRotation(new THREE.Quaternion(...remoteLead.rotation)) : f.rotation, opponent?.speed ?? 0, anchor);
     if (remoteNearby) this.opponentSmoke ??= this.createSmoke();
     if (this.opponentSmoke) {
       const rotation = remoteLead ? mirrorRotation(new THREE.Quaternion(...remoteLead.rotation)) : new THREE.Quaternion();
       const remoteVelocity = remoteLead?.velocity ? new THREE.Vector3(...remoteLead.velocity) : undefined;
       if (remoteVelocity) remoteVelocity.z *= -1;
       this.updateSmoke(this.opponentSmoke, time, opponent?.time ?? time, remoteLead?.id,
-        remoteNearby ? lane(new THREE.Vector3(...remoteLead!.position), true) : null,
+        remoteNearby && !remoteChristmas ? lane(new THREE.Vector3(...remoteLead!.position), true) : null,
         rotation, opponent?.speed ?? 0, anchor, remoteVelocity, opponent?.power?.active === "confetti");
     }
     this.drawModel(this.trainParts, closed, closedColors);
     this.drawModel(this.wagonParts, open, openColors);
     this.drawModel(this.parcelParts, cargo, []);
+    if (this.christmasParts) {
+      this.drawModel(this.christmasParts.engine, festive.engine, []);
+      this.drawModel(this.christmasParts.coach, festive.coach, []);
+      this.drawModel(this.christmasParts.wagon, festive.wagon, []);
+      this.drawModel(this.christmasParts.gift, festive.gift, festive.colors, CHRISTMAS_GIFT_COLORS);
+    }
     if (dynamite.length && !this.dynamiteParts) this.dynamiteParts = this.instanceModel(this.dynamite(), 64);
     if (this.dynamiteParts) this.drawModel(this.dynamiteParts, dynamite, []);
     const dummy = new THREE.Object3D();
@@ -934,6 +1031,16 @@ export class MiniView {
         sky.lerp(new THREE.Color(dark ? POWERUPS[powerups.active].color : POWERUPS[powerups.active].sky),dark ? .025 : .12);
       }
       (this.scene.background as THREE.Color).lerp(sky,blend);
+      if((world.id==='lapland'||world.id==='winterfair')&&!this.winterAtmosphere) {
+        this.winterAtmosphere=new WinterAtmosphere(this.scene);
+        if(this.track.options.startWorld&&time<.05) {
+          this.winterAtmosphere.material.uniforms.weight.value=1;
+          this.winterAtmosphere.material.uniforms.dawn.value=Number(world.id==='winterfair');
+        }
+        this.winterAtmosphere.attachGround(this.material('#d5e3c3'));
+        this.winterAtmosphere.attachGround(this.material('#cfae8c'));
+      }
+      this.winterAtmosphere?.update(world,this.scene.background as THREE.Color,dt,this.aspect,winterGroundBack(this.track,this.laneOffset),f.position.x);
       fog.color.copy(this.scene.background as THREE.Color);
       this.material("#d5e3c3").color.lerp(ground,blend);
       this.material("#cfae8c").color.lerp(new THREE.Color(world.earth),blend);
@@ -941,9 +1048,9 @@ export class MiniView {
       this.material("#ffffff").emissiveIntensity=dark*.14;
       this.lamp.intensity += dark*22; this.lamp.distance=dark?12:8;
       this.sunlight!.color.lerp(new THREE.Color(world.light),blend);
-      this.sunlight!.intensity += ((2.5-dark*1.3)-this.sunlight!.intensity)*blend;
+      this.sunlight!.intensity += ((world.id==='lapland'?.8:2.5-dark*1.3)-this.sunlight!.intensity)*blend;
       this.skylight!.color.lerp(new THREE.Color(world.ambient),blend);
-      this.skylight!.intensity += ((2-dark*.2)-this.skylight!.intensity)*blend;
+      this.skylight!.intensity += ((world.id==='lapland'?1.25:world.id==='winterfair'?1.95:2-dark*.2)-this.skylight!.intensity)*blend;
       if(!this.multiplayer) {
         this.railMaterial(0).color.lerp(new THREE.Color(world.rail),blend);
         this.railMaterial(1).color.lerp(new THREE.Color(dark?"#a2efdf":"#ffe4a1"),blend);
@@ -955,7 +1062,7 @@ export class MiniView {
     }
     this.renderer.render(this.scene, this.camera);
   }
-  private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[]) {
+  private drawModel(parts: ModelPart[], transforms: THREE.Matrix4[], colorIndices: number[], palette = CART_COLORS) {
     const matrix = new THREE.Matrix4();
     for (const part of parts) {
       if (transforms.length > part.mesh.instanceMatrix.count) {
@@ -976,7 +1083,7 @@ export class MiniView {
         if (part.body)
           part.mesh.setColorAt(
             index,
-            colorIndices[index] === -1 ? new THREE.Color("#e48670") : colorIndices[index] === -2 ? new THREE.Color("#68bdb0") : CART_COLORS[colorIndices[index] % CART_COLORS.length],
+            colorIndices[index] === -1 ? new THREE.Color("#e48670") : colorIndices[index] === -2 ? new THREE.Color("#68bdb0") : palette[colorIndices[index] % palette.length],
           );
       });
       part.mesh.instanceMatrix.clearUpdateRanges();
@@ -994,8 +1101,11 @@ export class MiniView {
     this.resize.disconnect();
     this.adventureScene?.destroy();
     this.fireworks?.destroy();
+    this.winterAtmosphere?.destroy();
     this.trainSmoke.effect.dispose();
     this.opponentSmoke?.effect.dispose();
+    this.sleighMagic?.effect.dispose();
+    this.opponentMagic?.effect.dispose();
     this.powerScene?.destroy();
     this.opponentPowerScene?.destroy();
     // All geometries are owned by this view; shared materials are released once.

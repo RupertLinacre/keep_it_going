@@ -24,7 +24,7 @@ export class AdventureHud {
       this.element.querySelector('.world-name')!.textContent=world.name;
       this.element.setAttribute("aria-label", `World ${index+1}: ${world.name}, adventure ${lap+1}`);
       this.element.querySelectorAll('i').forEach((dot,i)=>dot.classList.toggle('visited',i<=index));
-      this.announcement.innerHTML=`<small>${lap ? `ADVENTURE ${lap+1} · ` : ''}WORLD ${index+1} OF 4</small><strong>${world.name}</strong><span>${world.invitation}</span>`;
+      this.announcement.innerHTML=`<small>${lap ? `ADVENTURE ${lap+1} · ` : ''}WORLD ${index+1} OF ${WORLDS.length}</small><strong>${world.name}</strong><span>${world.invitation}</span>`;
     }
     this.announcement.style.opacity=String(Math.max(0,Math.min(1,(3.8-(time-this.entered))*2)));
     this.announcement.style.visibility=time-this.entered<3.8?'visible':'hidden';

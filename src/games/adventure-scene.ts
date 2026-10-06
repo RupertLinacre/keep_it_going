@@ -3,6 +3,8 @@ import { meadowScenery, meadowTerrain } from './background-meadow';
 import { mountainTerrain } from './background-mountains';
 import { nightTerrain } from './background-night';
 import { halloweenTerrain } from './background-halloween';
+import { winterGlowMaterial } from "./winter-atmosphere";
+import { winterTerrain, laplandScenery, winterFairScenery, penguinModel } from './background-winter';
 import { tunnelRevealAt } from "./mountain-landforms";
 import { AttractionDrive } from './attraction-drive';
 import { SceneryFlight } from './scenery-flight';
@@ -25,7 +27,7 @@ import { createCarnivalPieceAnimation } from './carnival-piece-animation';
 import { createHalloweenPieceAnimation } from './halloween-piece-animation';
 import type { PieceAnimation } from './piece-animation';
 
-type Actor = { kind: "sheep" | "pumpkin" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "gondola" | "beam"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number; liftCable?:boolean; sheepDistance?:number; portalIndex?:number; flights?:[SceneryFlight,SceneryFlight] };
+type Actor = { kind: "sheep" | "pumpkin" | "mill" | "cable" | "wheel" | "firefly" | "ghost" | "bat" | "duck" | "spray" | "gondola" | "beam" | "skater"; x: number; y: number; z: number; phase: number; size: number; onTrack?: boolean; drop?: number; liftCable?:boolean; sheepDistance?:number; portalIndex?:number; flights?:[SceneryFlight,SceneryFlight] };
 type Tile = { root: T.Group; formation?: T.Group; mirrorFormation?: T.Group; gorgeWall?: T.Group; actors: Actor[]; section: MiniSection; tunnel?: T.Group; mirrorTunnel?: T.Group; drives: [AttractionDrive,AttractionDrive]; portals?:[PortalImpact,PortalImpact]; builtHeight:number; animations:[PieceAnimation|undefined,PieceAnimation|undefined] };
 
 /** World decorations stay in world coordinates, outside the camera's subject list.
@@ -35,6 +37,12 @@ export class AdventureScene {
   readonly tiles = new Map<number, Tile>();
   private material = new T.MeshStandardMaterial({ vertexColors: true, roughness: .92, flatShading: true });
   private luminous = new FairgroundLights();
+  private winterGlow = winterGlowMaterial();
+  // Two unshadowed lights bring nearby roofs, timber and snow into the glow.
+  // Everything farther away keeps its cheap baked/billboard lighting.
+  private winterLamps=[new T.PointLight('#ffc077',0,14,2),new T.PointLight('#ffc077',0,14,2)];
+  private winterLampPositions=[new T.Vector3(),new T.Vector3()];
+  private winterLampReady=[false,false];
   private beamMaterial = fairgroundBeamMaterial();
   private sheep: T.InstancedMesh;
   private mills: T.InstancedMesh;
@@ -49,6 +57,7 @@ export class AdventureScene {
   private spray: T.InstancedMesh;
   private gondolas: T.InstancedMesh;
   private beams: T.InstancedMesh;
+  private skaters: T.InstancedMesh;
   private actorMeshes: Record<Actor["kind"],T.InstancedMesh>;
   private dummy = new T.Object3D();
   private lightTransform = new T.Matrix4();
@@ -57,6 +66,7 @@ export class AdventureScene {
   private reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
   constructor(scene: T.Scene, private options: { attractionsOnly?: boolean; world?: AdventureWorld; tunnelCutaway?: boolean } = {}) {
     scene.add(this.group);
+    this.group.add(...this.winterLamps);
     this.portalEffects=new PortalEffects(this.group);
     const sheep = new WorldModel();
     sheep.add(G.round, "#fff5de", [0, 1.05, 0], [1, .64, .65]);
@@ -98,10 +108,11 @@ export class AdventureScene {
     this.ducks=this.instances(duckModel());
     const spray=new WorldModel();spray.add(G.round,"#d5f0f0",[0,0,0],[.18,.45,.18],[],true);this.spray=this.instances(spray,true);
     this.gondolas=this.instances(gondolaModel());
+    this.skaters=this.instances(penguinModel());
     const beamGeometry=new T.CylinderGeometry(.22,0,1,16,1,true);beamGeometry.translate(0,.5,0);
     this.beams=new T.InstancedMesh(beamGeometry,this.beamMaterial,192);this.beams.count=0;this.beams.frustumCulled=false;
     this.beams.instanceMatrix.setUsage(T.DynamicDrawUsage);this.group.add(this.beams);
-    this.actorMeshes={sheep:this.sheep,pumpkin:this.pumpkins,mill:this.mills,cable:this.cables,wheel:this.wheels,firefly:this.fireflies,ghost:this.ghosts,bat:this.bats,duck:this.ducks,spray:this.spray,gondola:this.gondolas,beam:this.beams};
+    this.actorMeshes={sheep:this.sheep,pumpkin:this.pumpkins,mill:this.mills,cable:this.cables,wheel:this.wheels,firefly:this.fireflies,ghost:this.ghosts,bat:this.bats,duck:this.ducks,spray:this.spray,gondola:this.gondolas,beam:this.beams,skater:this.skaters};
   }
   private instances(model: WorldModel, glow=false) {
     const source = model.finish(this.material, this.luminous,false).children[0] as T.Mesh;
@@ -124,7 +135,9 @@ export class AdventureScene {
     // narrow loops/connectors in a row cannot leave a hole in the backdrop.
     const n = section.kind === "strengthtower" ? 0 : Math.min(12, Math.floor(span / 28));
     if (!n && !this.options.attractionsOnly) {
-      const terrain = { meadow: meadowTerrain, mountain: mountainTerrain, night: nightTerrain, halloween: halloweenTerrain };
+      const terrain = { meadow: meadowTerrain, mountain: mountainTerrain, night: nightTerrain, halloween: halloweenTerrain,
+        lapland: (m:WorldModel,x:number,b:number,r:()=>number)=>winterTerrain(m,x,b,r,'lapland'),
+        winterfair: (m:WorldModel,x:number,b:number,r:()=>number)=>winterTerrain(m,x,b,r,'winterfair') };
       terrain[world.id](model, span / 2, back, random);
     }
     for (let i = 0; i < (this.options.attractionsOnly ? 0 : n); i++) {
@@ -158,7 +171,9 @@ export class AdventureScene {
         halloweenScenery(model,x,back,front,random,placePumpkin,variant);
         for(let j=0;j<2;j++)actors.push({kind:'ghost',x:x-10+random()*20,y:2+random()*2,z:front+2+random()*5,phase:random()*6.28,size:.9+random()*.4,onTrack:true});
         for(let j=0;j<3;j++)actors.push({kind:'bat',x:x-12+random()*24,y:7+random()*3,z:back+3,phase:random()*6.28,size:.7+random()*.3});
-      } else meadowScenery(model, actor => actors.push(actor), x, back, front, random,variant);
+      } else if(world.id==='lapland') laplandScenery(model,x,back,front,random,variant);
+      else if(world.id==='winterfair') winterFairScenery(model,actor=>actors.push(actor),x,back,front,random,variant);
+      else meadowScenery(model, actor => actors.push(actor), x, back, front, random,variant);
     }
     let formation:T.Group|undefined, gorgeWall:T.Group|undefined;
     const additional=createAdditionalAttraction(section,this.material,this.luminous);
@@ -231,7 +246,7 @@ export class AdventureScene {
       const lights=new WorldModel();tracksideLights(lights,section);formation=lights.finish(this.material,this.luminous);this.group.add(formation);
     }
     }
-    const root = model.finish(this.material, this.luminous);
+    const root = model.finish(this.material, this.luminous,true,this.winterGlow);
     this.group.add(root);
     const tunnel=!additional&&section.kind==='tunnel'?tunnelModel(this.material,this.luminous):undefined;
     if(tunnel)this.group.add(tunnel);
@@ -273,9 +288,10 @@ export class AdventureScene {
     const visible = track.sections.filter(s=>s.start<distance+350).sort((a,b)=>near(a)-near(b));
     const ids = new Set(visible.map(s=>s.id));
     for (const [id,tile] of this.tiles) if(!ids.has(id)) { this.release(tile); this.tiles.delete(id); }
-    const counts:Record<Actor["kind"],number>={sheep:0,pumpkin:0,mill:0,cable:0,wheel:0,firefly:0,ghost:0,bat:0,duck:0,spray:0,gondola:0,beam:0};
+    const counts:Record<Actor["kind"],number>={sheep:0,pumpkin:0,mill:0,cable:0,wheel:0,firefly:0,ghost:0,bat:0,duck:0,spray:0,gondola:0,beam:0,skater:0};
     this.portalEffects.begin();
     const leadX=track.sample(distance).position.x;
+    const warmTargets:(undefined|{x:number;y:number;z:number;strength:number;score:number})[]=[undefined,undefined];
     for (const section of visible) {
       let tile=this.tiles.get(section.id);
       if(!tile) { tile=this.build(section,track);this.tiles.set(section.id,tile); }
@@ -290,6 +306,12 @@ export class AdventureScene {
       }
       tile.root.position.set(section.origin.x-anchor,0,section.origin.z);
       for(const mesh of tile.root.children) mesh.position.z=laneOffset?(mesh.userData.front?laneOffset:-laneOffset-2*section.origin.z):0;
+      for(const source of tile.root.userData.winterEmitters??[]) {
+        const [x,y,z]=source.position,index=Number(source.front),worldX=section.origin.x+x;
+        const score=Math.abs(worldX-leadX-8);
+        if(score<65&&(!warmTargets[index]||score<warmTargets[index]!.score))warmTargets[index]={
+          x:worldX,y:y+1.9,z:section.origin.z+z+(laneOffset?(source.front?laneOffset:-laneOffset-2*section.origin.z):0),strength:source.strength,score};
+      }
       if(tile.gorgeWall) {
         // The high gorge wall frames both riders from behind. Mirroring a tall
         // wall beside each lane would put a mountain in front of the opponent.
@@ -355,6 +377,12 @@ export class AdventureScene {
           this.dummy.rotation.set(0,0,0);
         }
         if(actor.kind==='beam')this.dummy.rotation.set(Math.sin(phase*.25)*.22,0,Math.sin(phase*.4)*.42);
+        if(actor.kind==='skater') {
+          const a=time*.35+actor.phase;
+          this.dummy.position.x+=Math.cos(a)*2.05;
+          this.dummy.position.z+=Math.sin(a)*1.2;
+          this.dummy.rotation.set(0,Math.atan2(-2.05*Math.sin(a),1.2*Math.cos(a)),Math.sin(a)*.06);
+        }
         if(actor.kind==='firefly') {
           this.dummy.position.x+=Math.sin(phase*.9)*.8;this.dummy.position.y+=Math.sin(phase)*.6;
           this.dummy.position.z+=Math.cos(phase*.7)*.6;
@@ -402,6 +430,18 @@ export class AdventureScene {
         if(actor.kind==='pumpkin')this.pumpkinFaces.setMatrixAt(index,this.dummy.matrix);
       }
     }
+    const ease=1-Math.exp(-flightDt*3);
+    for(let i=0;i<2;i++) {
+      const light=this.winterLamps[i],target=warmTargets[i],point=this.winterLampPositions[i];
+      if(target) {
+        this.dummy.position.set(target.x,target.y,target.z);
+        if(!this.winterLampReady[i]){point.copy(this.dummy.position);this.winterLampReady[i]=true;}
+        else point.lerp(this.dummy.position,ease);
+      }
+      light.position.set(point.x-anchor,point.y,point.z);
+      light.intensity+=((target?target.strength*22:0)-light.intensity)*ease;
+      light.visible=light.intensity>.01;
+    }
     this.uploadActors(this.pumpkinFaces, counts.pumpkin);
     this.portalEffects.finish();
     for(const kind of Object.keys(this.actorMeshes) as Actor["kind"][]) {
@@ -441,7 +481,7 @@ export class AdventureScene {
   destroy() {
     this.portalEffects.destroy();
     this.tiles.forEach(tile=>this.release(tile));this.tiles.clear();
-    for(const mesh of [this.sheep,this.pumpkins,this.pumpkinFaces,this.mills,this.cables,this.wheels,this.fireflies,this.ghosts,this.bats,this.ducks,this.spray,this.gondolas,this.beams]) {mesh.geometry.dispose();mesh.dispose()}
-    this.material.dispose();this.luminous.dispose();this.beamMaterial.dispose();this.group.removeFromParent();
+    for(const mesh of [this.sheep,this.pumpkins,this.pumpkinFaces,this.mills,this.cables,this.wheels,this.fireflies,this.ghosts,this.bats,this.ducks,this.spray,this.gondolas,this.beams,this.skaters]) {mesh.geometry.dispose();mesh.dispose()}
+    this.winterGlow.dispose();this.material.dispose();this.luminous.dispose();this.beamMaterial.dispose();this.group.removeFromParent();
   }
 }

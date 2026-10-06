@@ -35,6 +35,7 @@ export class WorldModel {
   private frontGlow: Part[] = [];
   private halos: Part[] = [];
   private frontHalos: Part[] = [];
+  private softGlows: {position:number[];color:T.Color;radius:number;strength:number;ground:boolean;front:boolean}[] = [];
   constructor(private splitLandscape = false) {}
   add(geometry: T.BufferGeometry, color: string, position: number[], scale = [1, 1, 1], rotation = [0, 0, 0], glow = false, phase = -1) {
     const matrix = new T.Matrix4().compose(new T.Vector3(...position),
@@ -44,6 +45,12 @@ export class WorldModel {
     const front = this.splitLandscape && position[2] > 0;
     (front ? glow ? this.frontGlow : this.frontSolid : glow ? this.glow : this.solid).push(part);
     if (glow && phase >= 0 && geometry === WORLD_SHAPES.round) (front ? this.frontHalos : this.halos).push(part);
+  }
+  /** A bounded quad, batched with its lane. Windows use camera-facing halos;
+   * snow uses horizontal pools. Neither creates a scene light or camera subject. */
+  softGlow(position:number[], color:string, radius:number, strength:number, ground=false) {
+    this.softGlows.push({position:[...position],color:new T.Color(color),radius,strength,ground,
+      front:this.splitLandscape && position[2]>0});
   }
   beam(color: string, from: T.Vector3, to: T.Vector3, radius = .1, glow = false, phase = -1) {
     const delta = to.clone().sub(from), length = delta.length();
@@ -85,7 +92,7 @@ export class WorldModel {
     if (centers) geometry.setAttribute('lightCenter', new T.BufferAttribute(centers, 3));
     return geometry;
   }
-  finish(material: T.Material, luminous: T.Material, halos = true) {
+  finish(material: T.Material, luminous: T.Material, halos = true, softGlowMaterial?:T.Material) {
     const group = new T.Group();
     for (const [parts, mat, front, glow] of [[this.solid, material, false, false], [this.glow, luminous, false, true],
       [this.frontSolid, material, true, false], [this.frontGlow, luminous, true, true]] as const) {
@@ -99,6 +106,22 @@ export class WorldModel {
       const mesh = new T.Mesh(this.bake(parts, true, true), luminous.halos);
       mesh.userData.front = front; group.add(mesh);
     }
+    if(softGlowMaterial)for(const front of [false,true]) {
+      const lights=this.softGlows.filter(light=>light.front===front);if(!lights.length)continue;
+      const positions:number[]=[],colors:number[]=[],offsets:number[]=[],modes:number[]=[],strengths:number[]=[];
+      for(const light of lights)for(const [x,y] of [[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]]) {
+        positions.push(...light.position);colors.push(light.color.r,light.color.g,light.color.b);
+        offsets.push(x*light.radius,y*light.radius);modes.push(Number(light.ground));strengths.push(light.strength);
+      }
+      const geometry=new T.BufferGeometry();
+      for(const [name,values,size] of [['position',positions,3],['color',colors,3],['glowOffset',offsets,2],['groundGlow',modes,1],['glowStrength',strengths,1]] as const)
+        geometry.setAttribute(name,new T.Float32BufferAttribute(values,size));
+      const mesh=new T.Mesh(geometry,softGlowMaterial);mesh.frustumCulled=false;mesh.userData.front=front;mesh.userData.winterGlow=true;
+      group.add(mesh);
+    }
+    group.userData.winterEmitters=this.softGlows.filter(light=>light.ground&&light.strength>=.5)
+      .map(light=>({position:[...light.position],front:light.front,strength:light.strength}));
+    this.softGlows=[];
     this.halos = []; this.frontHalos = [];
     this.solid = []; this.glow = []; this.frontSolid = []; this.frontGlow = [];
     return group;
