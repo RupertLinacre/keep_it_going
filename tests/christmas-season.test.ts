@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isChristmasSeason,christmasEnabled } from '../src/games/christmas-season';
-import { adventureAt,BASE_WORLDS,WORLDS } from '../src/games/adventure-worlds';
+import { adventureAt,BASE_WORLDS,CHRISTMAS_WORLDS,WORLDS } from '../src/games/adventure-worlds';
 import { MiniTrack } from '../src/games/mini-track';
 import { Mini } from '../src/games/mini';
 import { christmasTrainAt } from '../src/games/christmas-sleigh';
@@ -57,15 +57,26 @@ test('ordinary rides repeat four worlds, put the tower after 4200m, and never ge
  }
 });
 
-test('early-access rides retain both winter worlds and the 6600m adventure finale',()=>{
+test('Christmas rides start with both winter worlds and retain the 6600m adventure finale',()=>{
  const t=new MiniTrack(42,{generative:true,christmas:true});t.ensure(0,7300);
  assert.equal(t.worldLap,6600);assert.equal(t.worlds.length,6);
  assert.ok(t.sections.some(s=>s.kind==='frozenwaterfall'));
  assert.ok(t.sections.some(s=>s.kind==='sledswitchbacks'));
  assert.ok(t.sections.find(s=>s.kind==='strengthtower')!.start>=6600);
- assert.equal(adventureAt(4200,t.worlds).world.id,'lapland');
- assert.equal(adventureAt(5400,t.worlds).world.id,'winterfair');
- assert.equal(christmasTrainAt(t,5550),true);
+ assert.deepEqual(t.worlds.map(w=>w.id),['lapland','winterfair','meadow','mountain','night','halloween']);
+ assert.deepEqual(t.worlds.map(w=>[w.start,w.end]),[[0,1200],[1200,2400],[2400,3300],[3300,4300],[4300,5400],[5400,6600]]);
+ assert.equal(adventureAt(0,t.worlds).world.id,'lapland');
+ assert.equal(adventureAt(1200,t.worlds).world.id,'winterfair');
+ assert.equal(adventureAt(2400,t.worlds).world.id,'meadow');
+ assert.equal(christmasTrainAt(t,t.startDistance),true);
+ assert.equal(christmasTrainAt(t,1500),true);
+ assert.equal(christmasTrainAt(t,3000),false);
+ assert.equal(adventureAt(6600,t.worlds).world.id,'lapland');
+ for(const world of CHRISTMAS_WORLDS){
+  const original=WORLDS.find(w=>w.id===world.id)!;
+  assert.equal(world.end-world.start,original.end-original.start);
+ }
+ assert.equal(WORLDS[0].id,'meadow','the design catalogue remains unchanged');
 });
 
 test('a host-pinned course ignores the guest URL and opponent prediction uses the same selection',()=>{

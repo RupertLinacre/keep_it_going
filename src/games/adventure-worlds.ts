@@ -34,6 +34,13 @@ export const WORLDS: readonly AdventureWorld[] = [
 ];
 export const WORLD_LAP = WORLDS.at(-1)!.end;
 export const BASE_WORLDS = WORLDS.slice(0,4);
+/** Christmas rides begin with the winter worlds, then visit the usual four.
+ * Keep each world's length while rebasing its course boundaries. The catalogue
+ * remains stable for design tools; a ride captures its selected order once. */
+export const CHRISTMAS_WORLDS:readonly AdventureWorld[]=[...WORLDS.slice(4),...BASE_WORLDS].map((world,index,order)=>{
+  const start=order.slice(0,index).reduce((total,w)=>total+w.end-w.start,0);
+  return {...world,start,end:start+world.end-world.start};
+});
 /** The catalogue always includes design previews. Each game captures its own
  * eligible world list, so date rollover never changes a running course. */
 export function adventureAt(distance: number,worlds:readonly AdventureWorld[]=WORLDS) {

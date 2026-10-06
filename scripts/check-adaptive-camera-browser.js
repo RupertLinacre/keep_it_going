@@ -29,9 +29,9 @@ async page => {
    const state=await page.evaluate(()=>{
     const g=window.cameraGame,v=g.view,f=g.ridePoses()[0].frame;
     const forward=f.tangent.clone().set(0,0,-1).applyQuaternion(v.riderCamera.quaternion);
-    return {piece:window.cameraPiece,elapsed:g.elapsed,seat:v.firstPersonRig.seatBlend,facing:forward.dot(f.tangent),finite:v.riderCamera.matrixWorld.elements.every(Number.isFinite),active:g.powerups.active};
+    return {piece:window.cameraPiece,elapsed:g.elapsed,height:v.firstPersonRig.eye.clone().sub(f.position).dot(f.up),facing:forward.dot(f.tangent),finite:v.riderCamera.matrixWorld.elements.every(Number.isFinite),active:g.powerups.active};
    });
-   if(state.seat<.98||state.facing<.94||!state.finite||state.active!=='firstperson')throw Error('Lost the rails: '+JSON.stringify(state));
+   if(Math.abs(state.height-2.65)>.05||state.facing<.94||!state.finite||state.active!=='firstperson')throw Error('Lost the rails: '+JSON.stringify(state));
    report.push({fraction,...state});await page.screenshot({path:'output/playwright/adaptive-camera-'+piece+'-'+fraction+'.png'});
   }
   await page.waitForFunction(()=>{
@@ -41,7 +41,7 @@ async page => {
   });
   report.push(await page.evaluate(()=>{
    const g=window.cameraGame,t=window.cameraFrames.slice(5).sort((a,b)=>a-b);
-   return {piece:window.cameraPiece,after:g.view.firstPersonRig.seatBlend,answers:g.correct,p50:t[Math.floor(t.length*.5)],p95:t[Math.floor(t.length*.95)]};
+   return {piece:window.cameraPiece,power:g.powerups.active,answers:g.correct,p50:t[Math.floor(t.length*.5)],p95:t[Math.floor(t.length*.95)]};
   }));
   if(piece==='loop'){
    await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);

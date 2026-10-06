@@ -23,10 +23,11 @@ async page => {
  });
  report.push(await page.evaluate(()=>{
   const g=window.frontSeatGame,v=g.view,head=g.ridePoses()[0].frame;
-  if(!document.querySelector('.power-copy strong').textContent.includes('Train chase'))throw Error('Stale camera build');
-  const rear=v.firstPersonRig.eye.clone().sub(head.position).dot(head.tangent);
-  if(v.firstPersonRig.seatBlend<.05&&rear>=-12)throw Error('Camera is not behind the train on open rail');
-  return {seatBlend:v.firstPersonRig.seatBlend,behindMetres:-rear,cameraHeight:v.firstPersonRig.eye.y-head.position.y};
+  if(!document.querySelector('.power-copy strong').textContent.includes('Front seat'))throw Error('Stale camera build');
+  const offset=v.firstPersonRig.eye.clone().sub(head.position);
+  const expected=head.position.clone().addScaledVector(head.up,2.65).addScaledVector(head.tangent,.4);
+  if(v.firstPersonRig.eye.distanceTo(expected)>.05)throw Error('Camera left the front row');
+  return {above:offset.dot(head.up),forward:offset.dot(head.tangent)};
  }));
  await page.screenshot({path:'output/playwright/front-seat-desktop.png'});
  await page.setViewportSize({width:390,height:844});

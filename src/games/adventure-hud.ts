@@ -17,7 +17,7 @@ export class AdventureHud {
     const section=track.sectionAt(distance),journey=adventureAt(Math.max(0,section.start),track.worlds);
     const {lap}=journey;
     const bonus=inTower||section.kind==="strengthtower"||track.options.towerDemo;
-    const world=bonus?WORLDS[2]:journey.world,index=bonus?2:journey.index,stage=bonus?100000+journey.lap:journey.stage;
+    const world=bonus?WORLDS[2]:journey.world,index=bonus?track.worlds.findIndex(w=>w.id===world.id):journey.index,stage=bonus?100000+journey.lap:journey.stage;
     if(stage!==this.stage) {
       this.stage=stage;this.entered=time;
       this.element.querySelector('.world-symbol')!.textContent=world.icon;

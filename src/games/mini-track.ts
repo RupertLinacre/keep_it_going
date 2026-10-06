@@ -2,7 +2,7 @@ import { sledSwitchbacks } from "./sled-switchbacks";
 import { CHIMNEY } from './chimney-jump';
 import { christmasShape, isChristmasKind, type ChristmasKind } from "./christmas-rails";
 import { attractionRail, type AdditionalAttraction } from "./attraction-kinds";
-import { adventureAt, WORLD_ENCORES, WORLDS, BASE_WORLDS, type AdventureWorld, type WorldKind } from "./adventure-worlds";
+import { adventureAt, WORLD_ENCORES, WORLDS, BASE_WORLDS, CHRISTMAS_WORLDS, type AdventureWorld, type WorldKind } from "./adventure-worlds";
 import * as THREE from "three";
 import { seededRandom, type RailFrame } from "./mini-rail";
 import { clamp } from "../math";
@@ -451,7 +451,7 @@ export class MiniTrack implements MiniRail {
   private bagWorld = -1;
   private nextTowerLap = 1;
   constructor(seed = Math.floor(Math.random() * 0xffffffff), readonly options: { generative?: boolean; multiplayer?: boolean; towerDemo?: boolean; startWorld?: WorldKind; previewPiece?: PreviewPiece; christmas?:boolean } = {}) {
-    this.worlds=options.christmas===false?BASE_WORLDS:WORLDS;
+    this.worlds=options.christmas===true?CHRISTMAS_WORLDS:options.christmas===false?BASE_WORLDS:WORLDS;
     this.worldLap=this.worlds.at(-1)!.end;
     this.seed = seed >>> 0;
     this.random = seededRandom(this.seed);
