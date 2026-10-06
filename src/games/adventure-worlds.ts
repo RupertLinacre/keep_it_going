@@ -30,7 +30,7 @@ export const WORLDS: readonly AdventureWorld[] = [
     pieces: ["startree","snowmanscarf","ribbonreel","snowglobe","chimneyhouse"], challenges: ["startree","snowmanscarf","ribbonreel","snowglobe","chimneyhouse"] },
   { id: "winterfair", name: "Frosty Lake Fair", icon: "❄", invitation: "Glide past the penguins!", start: 5400, end: 6600,
     sky: "#ee9dae", ground: "#a4d5e4", earth: "#82b9d0", rail: "#e69382", light: "#ffd5b1", ambient: "#d0e1fc", darkness: .08, maxHeight: 34,
-    pieces: [], challenges: ["hill", "dip", "loop", "corkscrew", "helix", "doubledip"] },
+    pieces: ["frozenwaterfall"], challenges: ["frozenwaterfall", "hill", "dip", "loop", "corkscrew", "helix", "doubledip"] },
 ];
 export const WORLD_LAP = WORLDS.at(-1)!.end;
 export function adventureAt(distance: number) {

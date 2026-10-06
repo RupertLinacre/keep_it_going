@@ -1,3 +1,4 @@
+import { frozenWaterfall } from './frozen-waterfall';
 import { chimneyHouse } from './chimney-house';
 import * as T from 'three';
 import { WorldModel, WORLD_SHAPES as G } from '../world-models';
@@ -89,6 +90,7 @@ export function createChristmasPiece(s:MiniSection,material:T.Material,lights:Fa
   if(!isChristmasKind(s.kind))return;
   const v=new ChristmasBuilder(material,lights);v.group.name=s.kind+'-christmas-attraction';
   switch(s.kind){
+    case 'frozenwaterfall':frozenWaterfall(v,s);break;
     case 'chimneyhouse':chimneyHouse(v,s);break;
     case 'startree':treePiece(v,s);break;
     case 'snowmanscarf':snowmanPiece(v,s);break;

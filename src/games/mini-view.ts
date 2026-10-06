@@ -698,7 +698,7 @@ export class MiniView {
     if(this.track.options.generative)for(const section of this.track.sections)if(isChristmasKind(section.kind)){
       const cx=section.origin.x+section.width*.5;
       const influence=clamp((cx-f.position.x+95)/28,0,1)*clamp((f.position.x+75-cx)/28,0,1);
-      const peak=Math.max(section.origin.y+section.amplitude+(section.kind==='snowglobe'?12:section.kind==='snowmanscarf'?9:7),section.kind==='snowglobe'?(section.width*.145+5.6)*1.6+6.3:0);
+      const peak=Math.max(section.origin.y+section.amplitude+(section.kind==='snowglobe'?12:section.kind==='snowmanscarf'?9:section.kind==='frozenwaterfall'?10:7),section.kind==='snowglobe'?(section.width*.145+5.6)*1.6+6.3:0);
       skyline=Math.max(skyline,elevation+10+(peak-elevation-10)*influence);
     }
     const framing = coasterFraming(lane(f.position), skyline, this.aspect, close, this.stage.clientHeight < 400, this.compactLayout.matches, elevation);

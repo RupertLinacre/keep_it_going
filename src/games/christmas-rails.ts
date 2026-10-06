@@ -1,9 +1,9 @@
 import { chimneyShape, chimneyPoint, CHIMNEY } from './chimney-jump';
-import { refinedLayout, bankProfile, ChristmasPath, segment } from "./christmas-path";
+import { waterfallLayout, refinedLayout, bankProfile, ChristmasPath, segment } from "./christmas-path";
 import * as T from 'three';
 import type { ElementShape } from './mini-elements';
 
-export const CHRISTMAS_KINDS = ['startree','snowmanscarf','ribbonreel','snowglobe','chimneyhouse'] as const;
+export const CHRISTMAS_KINDS = ['startree','snowmanscarf','ribbonreel','snowglobe','chimneyhouse','frozenwaterfall'] as const;
 export type ChristmasKind = typeof CHRISTMAS_KINDS[number];
 export const isChristmasKind = (kind:string):kind is ChristmasKind => (CHRISTMAS_KINDS as readonly string[]).includes(kind);
 const TAU=Math.PI*2;
@@ -15,6 +15,7 @@ export interface ChristmasLayout {
  * collinear entry/exit controls, and crossings are separated in depth/height. */
 export function christmasLayout(kind:ChristmasKind,w:number,h:number,hand:number):ChristmasLayout {
   if(kind==='chimneyhouse'){const curve=new ChristmasPath([segment(t=>chimneyPoint(t,w,h))]);return {curve,center:new T.Vector3(w*.3,0,0),radius:w*.22,height:h,landmarks:[chimneyPoint(CHIMNEY.mouth,w,h)]};}
+  if(kind==='frozenwaterfall')return waterfallLayout(w,h,hand);
   if(kind==='startree'||kind==='snowmanscarf'||kind==='snowglobe')return refinedLayout(kind,w,h,hand);
   const p=(x:number,y:number,z:number)=>new T.Vector3(x,y,z*hand);
   const controls:T.Vector3[]=[p(0,0,0),p(w*.035,0,0)];
@@ -39,7 +40,7 @@ export function christmasShape(kind:string,w:number,h:number,hand:number):Elemen
   if(!isChristmasKind(kind))return;
   if(kind==='chimneyhouse')return chimneyShape(w,h);
   const {curve}=christmasLayout(kind,w,h,hand);
-  const bank=["startree","snowmanscarf","snowglobe"].includes(kind)?bankProfile(curve):undefined;
+  const bank=["startree","snowmanscarf","snowglobe","frozenwaterfall"].includes(kind)?bankProfile(curve):undefined;
   return {point:t=>curve.getPointAt(t),up:(t,tangent)=>{
     // Bow lobes have a continuous planar normal through their vertical faces.
     const up=kind==='ribbonreel'?new T.Vector3(-tangent.y,tangent.x,0):new T.Vector3(0,1,0);

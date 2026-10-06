@@ -21,6 +21,7 @@ import { floodedPool } from "./games/flooded-track";
 import "./gallery.css";
 
 const descriptions: Record<MiniKind, string> = {
+  frozenwaterfall: "Climb the icy terraces, enter the hill behind the summit chalet, and descend inside the mountain before emerging through the sparkling front waterfall.",
   chimneyhouse: "Santa visits a cosy Lapland home, pauses to deliver presents, then bursts from its chimney in a magical leap. More entry speed means a higher flight. Play it at christmas.html?piece=chimneyhouse.",
   startree: "Three narrowing spirals climb a giant Christmas tree. Passing coaches wake its golden stars before sweeping down outside the branches.",
   snowmanscarf: "Climb a snowman’s striped scarf, duck beneath the hat, then return through the tunnel in its bottom snowball.",
@@ -174,7 +175,7 @@ roof.position.y = 1.2;
 coach.add(roof);
 scene.add(coach);
 let bounds = new THREE.Box3();
-let view = ["startree","snowmanscarf","snowglobe"].includes(kind)?"attraction":"perspective";
+let view = ["startree","snowmanscarf","snowglobe","frozenwaterfall"].includes(kind)?"attraction":"perspective";
 function fit() {
   let framing=bounds;
   const focus=isChristmasKind(kind)&&view==='attraction';

@@ -1,13 +1,14 @@
 # Selected Christmas attractions
 
-Implemented on `codex/christmas-world`. The four selected attractions are Twilight Lapland pieces;
-Frosty Lake Fair retains its ordinary track and winter scenery.
+Implemented on `codex/christmas-world`. The four selected attractions and Santa’s Chimney Delivery are Twilight Lapland pieces;
+Frosty Lake Fair introduces Frozen Waterfall Stairway alongside its winter scenery.
 
 | Concept | Attraction | Playable preview | Route and response |
 | --- | --- | --- | --- |
 | 01 | Star Tree Spiral | `christmas.html?piece=startree` | Three narrowing circuits around a tiered fir; an outside descent. Train proximity wakes ornament lights; crown pulses and passage sparkles. |
 | 06 | Snowman Scarf Slalom | `christmas.html?piece=snowmanscarf` | Climbs along a striped scarf around the snowballs and hat, returns through a genuine bored snowball tunnel. Hat nods, tassels dance and snow stars burst. |
 | 14 | Elf’s Ribbon-Reel Roll | `christmas.html?piece=ribbonreel` | The rails themselves draw both lobes of a giant ribbon bow, with ten-metre depth separation at its knot. Train-driven reels coast to a stop; elves dance. |
+| 30 | Frozen Waterfall Stairway | `christmas.html?piece=frozenwaterfall` | Climbs icy terraces, enters behind the summit chalet, descends through a carved mountain bore and emerges through the front waterfall. |
 | 17 | Snow-Globe Shake-Up | `christmas.html?piece=snowglobe` | Climbs the globe rim, enters an open gate and circles the little clock-tower village. Bounded snow swirls and its star shakes gently. |
 
 Use `tracks.html?world=lapland` to orbit each attraction. The playable playground

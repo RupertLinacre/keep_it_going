@@ -110,3 +110,16 @@ export function bankProfile(curve:T.Curve<T.Vector3>){
   }
   return(t:number)=>{const at=clamp(t,0,1)*count,i=Math.floor(at);return T.MathUtils.lerp(banks[i],banks[Math.min(count,i+1)],at-i);};
 }
+
+/** The summit rail dives into a rear mouth behind the chalet, descends
+ * through the mountain, and emerges forward from its frozen-waterfall grotto. */
+export function waterfallLayout(w:number,h:number,hand:number){
+ const x=w*.48,z=17,r=17;
+ const coil=segment(u=>{const radius=r-5*ease(u),a=Math.PI*5*u;return new T.Vector3(x+radius*Math.sin(a),10+(h-10)*u,z+radius*Math.cos(a));});
+ const bore=new T.CubicBezierCurve3(new T.Vector3(x,h,z-12),new T.Vector3(x-6,h-4,z-8),new T.Vector3(x+5.5,5,z+3),new T.Vector3(x+5.5,5,z+18));
+ const tunnel=segment(u=>bore.getPoint(u));
+ const exitTurn=segment(u=>{const a=Math.PI*.5*u;return new T.Vector3(x+5.5+12*(1-Math.cos(a)),5,z+18+12*Math.sin(a));});
+ const curve=assemble(w,[straight(new T.Vector3(w*.16,10,z+r),new T.Vector3(w*.29,10,z+r)),coil,tunnel,exitTurn],hand);
+ const entrance=bore.getPoint(0),exit=bore.getPoint(1);entrance.z*=hand;exit.z*=hand;
+ return{curve,center:new T.Vector3(x,0,z*hand),radius:r,height:h,entrance,exit,landmarks:[coil.point(.3),coil.point(.7),bore.getPoint(.99)].map(p=>{p.z*=hand;return p;})};
+}

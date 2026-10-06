@@ -315,8 +315,8 @@ export function createMiniSection(requestedKind: MiniKind, start: number, origin
     if(isChristmasKind(requestedKind)) {
       if(requestedKind==='chimneyhouse')return new MiniSection(generated,requestedKind,start,origin,r(124,132),r(18,20),multiplayer?-origin.z:0,1);
       const w=requestedKind==='startree'?r(98,110):r(95,108);
-      const h=requestedKind==='snowmanscarf'?r(23,25):r(19,23);
-      const hand=multiplayer?1:random()>.5?1:-1;
+      const h=requestedKind==='frozenwaterfall'?r(25,27):requestedKind==='snowmanscarf'?r(23,25):r(19,23);
+      const hand=multiplayer||requestedKind==='frozenwaterfall'?1:random()>.5?1:-1;
       return new MiniSection(generated,requestedKind,start,origin,w,h,multiplayer?-origin.z:0,hand,requestedKind==='startree'?3:requestedKind==='snowmanscarf'?2:1);
     }
     const progress = rideProgress(start);
@@ -452,7 +452,7 @@ export class MiniTrack implements MiniRail {
     // Distance stays in the real journey, so scenery, powers and transitions
     // follow the same rules as a full ride. Multiplayer always starts together.
     const start = options.generative && !options.multiplayer && !options.towerDemo
-      ? (options.previewPiece ? 4200 + MINI_TRAIL_DISTANCE : options.startWorld ? (WORLDS.find(w => w.id === options.startWorld)?.start ?? 0) + MINI_TRAIL_DISTANCE : 0) : 0;
+      ? (options.previewPiece ? (WORLDS.find(w=>w.pieces.includes(options.previewPiece!))?.start ?? 4200) + MINI_TRAIL_DISTANCE : options.startWorld ? (WORLDS.find(w => w.id === options.startWorld)?.start ?? 0) + MINI_TRAIL_DISTANCE : 0) : 0;
     // Retain real rail behind the six coaches on the opening hill.
     this.sections.push(
       new MiniSection(

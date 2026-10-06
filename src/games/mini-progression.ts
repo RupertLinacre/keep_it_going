@@ -23,6 +23,7 @@ export const CHALLENGES: readonly (readonly MiniKind[])[] = [
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  frozenwaterfall: "FROZEN WATERFALL STAIRWAY",
   startree: "STAR TREE SPIRAL",
   snowmanscarf: "SNOWMAN SCARF SLALOM",
   ribbonreel: "ELF’S RIBBON-REEL ROLL",
