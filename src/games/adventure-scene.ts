@@ -124,13 +124,13 @@ export class AdventureScene {
     // narrow loops/connectors in a row cannot leave a hole in the backdrop.
     const n = section.kind === "strengthtower" ? 0 : Math.min(12, Math.floor(span / 28));
     if (!n && !this.options.attractionsOnly) {
-      const terrain = { meadow: meadowTerrain, mountain: mountainTerrain, night: nightTerrain, halloween: halloweenTerrain };
+      const terrain = { meadow: meadowTerrain, mountain: mountainTerrain, night: nightTerrain, halloween: halloweenTerrain, frosty: mountainTerrain };
       terrain[world.id](model, span / 2, back, random);
     }
     for (let i = 0; i < (this.options.attractionsOnly ? 0 : n); i++) {
       const x = span * (i+.5) / n;
       const variant = ((track.seed % 3 + section.id + i) % 3 + 3) % 3;
-      if(world.id==='mountain') {
+      if((world.id==='mountain'||world.id==='frosty')) {
         mountainScenery(model,x,back,front,random,variant);
         if(i%2===0) {
           model.add(G.box,'#697d88',[x,15,back-8],[24,.055,.055]);

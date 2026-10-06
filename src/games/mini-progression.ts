@@ -23,6 +23,7 @@ export const CHALLENGES: readonly (readonly MiniKind[])[] = [
 ];
 
 export const ELEMENT_NAMES: Record<MiniKind, string> = {
+  sledswitchbacks: "SLED MOUNTAIN SWITCHBACKS",
   honeyfactory: "SUNFLOWER HONEY FACTORY",
   pancakemill: "PANCAKE MILL",
   penguinplunge: "PENGUIN PLUNGE",

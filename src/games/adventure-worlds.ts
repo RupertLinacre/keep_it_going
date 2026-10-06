@@ -1,6 +1,6 @@
 import type { MiniKind } from "./mini-track";
 
-export type WorldKind = "meadow" | "mountain" | "night" | "halloween";
+export type WorldKind = "meadow" | "mountain" | "night" | "halloween" | "frosty";
 export interface AdventureWorld {
   id: WorldKind; name: string; icon: string; invitation: string;
   start: number; end: number; sky: string; ground: string; earth: string;
@@ -25,8 +25,11 @@ export const WORLDS: readonly AdventureWorld[] = [
     sky: "#352440", ground: "#625571", earth: "#403548", rail: "#ffb35d", light: "#f0c1f5", ambient: "#b2a0cd", darkness: .85, maxHeight: 40,
     pieces: ["pumpkinhop", "pumpkintunnel", "witchhat", "silkspindle"],
     challenges: ["pumpkinhop", "pumpkintunnel", "witchhat", "pretzelknot", "triplehelix", "zerogstall"] },
+  { id: "frosty", name: "Frosty Lake Fair", icon: "❄", invitation: "Swoop down the snowy switchbacks!", start: 4200, end: 5400,
+    sky: "#f8cebd", ground: "#e5e8f5", earth: "#9ab9d2", rail: "#55aeb0", light: "#fff0de", ambient: "#dbe4fb", darkness: .05, maxHeight: 34,
+    pieces: ["sledswitchbacks"], challenges: ["sledswitchbacks", "mountainpass", "ravinebridge", "skyhill", "doubledip", "splash"] },
 ];
-export const WORLD_LAP = 4200;
+export const WORLD_LAP = 5400;
 export function adventureAt(distance: number) {
   const lap = Math.floor(Math.max(0, distance) / WORLD_LAP);
   const at = Math.max(0, distance) % WORLD_LAP;
@@ -38,6 +41,6 @@ export function adventureAt(distance: number) {
 
 // Returning to a world unlocks a few wilder silhouettes, still within its size cap.
 export const WORLD_ENCORES: Record<WorldKind, readonly MiniKind[]> = {
-  meadow: ["skyhill", "corkscrew"], mountain: ["verticalhill", "diveloop"],
+  frosty: ["ascendinghelix", "waveturn"], meadow: ["skyhill", "corkscrew"], mountain: ["verticalhill", "diveloop"],
   night: ["nestedloop", "cobraroll"], halloween: ["invertedhill", "tophat", "immelmann"],
 };

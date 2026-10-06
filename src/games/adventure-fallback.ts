@@ -48,7 +48,7 @@ export function drawAdventureFallback(ctx:CanvasRenderingContext2D,track:MiniTra
           for(const dx of [-.5,.5])rect(sx+dx-.08,sy,.16,.5,'#646a62');
           oval(sx,.8+sy,.9,.5,'#fff3d8');oval(sx+.8,1+sy,.3,.32,'#60646a');oval(sx+.92,1.09+sy,.06,.07,'#fff8dd');
         }
-      }else if(world.id==='mountain'){
+      }else if((world.id==='mountain'||world.id==='frosty')){
         triangle(0,0,17,19+r()*8,'#8b9fa9');triangle(0,19,4,7,'#edf2ea');
         for(const tx of [-10,9]){rect(tx,0,.2,4,'#797368');triangle(tx,1,1.7,4,'#4f8279');triangle(tx,4,.7,1.6,'#deeee8')}
         oval(5,.02,4,.2,'#74cbd3');

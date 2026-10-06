@@ -1,3 +1,4 @@
+import { createSledMountain } from './sled-mountain';
 import type * as T from 'three';
 import type { MiniSection } from '../mini-track';
 import type { FairgroundLights } from '../world-lighting';
@@ -9,6 +10,7 @@ import { createSpiderSilkSpindle } from './spider-silk-spindle';
 
 export function createAdditionalAttraction(section: MiniSection, material: T.Material, lights: FairgroundLights) {
   switch (section.kind) {
+    case 'sledswitchbacks': return createSledMountain(section, material, lights);
     case 'honeyfactory': return createHoneyFactory(section, material, lights);
     case 'pancakemill': return createPancakeMill(section, material, lights);
     case 'penguinplunge': return createPenguinPlunge(section, material, lights);

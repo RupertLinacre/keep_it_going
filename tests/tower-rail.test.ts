@@ -1,3 +1,4 @@
+import { WORLD_LAP } from "../src/games/adventure-worlds";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Quaternion, Vector3 } from "three";
@@ -141,7 +142,7 @@ test("the exit junction rejoins ordinary track without jumping when the engine c
 
 test("a raised tower entrance descends smoothly to the actual exit without a Sky Lift teleport", () => {
   const track = new HeightTrack(42, { generative: true });
-  track.ensure(0, 4800);
+  track.ensure(0, WORLD_LAP + 600);
   const section = track.sections.find(s => s.kind === "strengthtower")!;
   track.raise(section.start - 1);
   track.advance(1);

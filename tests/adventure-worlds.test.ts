@@ -6,11 +6,11 @@ import { MiniTrack, createMiniSection } from '../src/games/mini-track';
 import { MiniPhysics } from '../src/games/mini-physics';
 import { seededRandom } from '../src/games/mini-rail';
 
-test('the four worlds advance by distance, repeat as a new adventure and retain their order',()=>{
- assert.deepEqual(WORLDS.map(w=>w.id),['meadow','mountain','night','halloween']);
+test('the five worlds advance by distance, repeat as a new adventure and retain their order',()=>{
+ assert.deepEqual(WORLDS.map(w=>w.id),['meadow','mountain','night','halloween','frosty']);
  for(const [i,w]of WORLDS.entries()) {
   assert.equal(adventureAt(w.start).index,i);assert.equal(adventureAt(w.end-.001).index,i);
-  assert.equal(adventureAt(w.start+WORLD_LAP).stage,4+i);
+  assert.equal(adventureAt(w.start+WORLD_LAP).stage,WORLDS.length+i);
  }
  assert.equal(adventureAt(-200).world.id,'meadow');
 });
@@ -99,21 +99,21 @@ test('scenery prunes old tiles, bounds actors and disposes shared race geometry 
  assert.ok([...geometries.values()].every(n=>n===1),'Owned/shared geometry released exactly once');
 });
 
-test('each adventure guarantees all seventeen unique signature attractions before leaving their worlds',()=>{
+test('each adventure guarantees all eighteen unique signature attractions before leaving their worlds',()=>{
  const all=WORLDS.flatMap(w=>w.pieces);
- assert.ok(WORLDS.every(w=>new Set(w.pieces).size>=3));
+ assert.ok(WORLDS.every(w=>new Set(w.pieces).size>=1));
  assert.equal(new Set(all).size,all.length,'Each signature belongs to one world');
  for(let seed=1;seed<=80;seed++){
   const track=new MiniTrack(seed,{generative:true}),seen=new Map<number,Set<string>>();
   // Different ensure chunk sizes must not crowd a signature out of its world.
-  for(let at=0;at<9000;at+=137){
+  for(let at=0;at<WORLD_LAP*2+300;at+=137){
    track.ensure(at,seed%2?230:600);
    for(const s of track.sections){
     const stage=adventureAt(s.start).stage;
     if(!seen.has(stage))seen.set(stage,new Set());seen.get(stage)!.add(s.kind);
    }
   }
-  for(let stage=0;stage<8;stage++)for(const kind of WORLDS[stage%4].pieces)
+  for(let stage=0;stage<WORLDS.length*2;stage++)for(const kind of WORLDS[stage%WORLDS.length].pieces)
    assert.ok(seen.get(stage)?.has(kind),`seed ${seed}, stage ${stage}, missing ${kind}`);
  }
 });

@@ -249,7 +249,7 @@ export class Mini extends BaseGame {
     recordRide(this.host.difficulty, this.travelled, this.physics.bestJump, this.recordId);
     const stopped = this.heightMode ? "The train ran out of momentum. Raise your track before the next climb." : water ? "Splash! Build more speed before the water jump." : "The train stopped. A well-timed answer gives it another push.";
     const journey = this.remixMode ? adventureAt(this.track.sectionAt(this.physics.distance).start) : undefined;
-    const explored = journey ? journey.lap ? ` All four worlds explored! Adventure ${journey.lap+1} reached.` : ` You reached ${journey.world.name}!` : "";
+    const explored = journey ? journey.lap ? ` All five worlds explored! Adventure ${journey.lap+1} reached.` : ` You reached ${journey.world.name}!` : "";
     this.finish(false, stopped + explored, {
       distance: this.travelled, bestDistance: Math.max(this.personalBest.distance, this.travelled),
       bestJump: this.physics.bestJump, longestTrain: this.longestTrain, peakSpeed: this.physics.peakSpeed,

@@ -1,3 +1,4 @@
+import { WORLD_LAP } from "../src/games/adventure-worlds";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Vector3 } from "three";
@@ -32,7 +33,7 @@ test("multiplayer tower spacing reserves the real junction and keeps the mirrore
 test("each player's tower anchor follows their own raised entrance, with cached bounds refreshed after lifts", () => {
   const players = [1, 2].map(answers => {
     const track = new HeightTrack(42, { generative: true, multiplayer: true });
-    track.ensure(0, 4800);
+    track.ensure(0, WORLD_LAP + 600);
     const tower = track.sections.find(s => s.kind === "strengthtower")!;
     const before = sectionBounds(tower).clone();
     for (let i = 0; i < answers; i++) track.raise(tower.start - 1);

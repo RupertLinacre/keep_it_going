@@ -1,3 +1,4 @@
+import { sledSwitchbacks } from "./sled-switchbacks";
 import { attractionRail, type AdditionalAttraction } from "./attraction-kinds";
 import { adventureAt, WORLD_ENCORES, WORLDS, WORLD_LAP } from "./adventure-worlds";
 import * as THREE from "three";
@@ -8,7 +9,7 @@ import { specialElement, type SpecialKind } from "./mini-elements";
 import { rideProgress, RECOVERY, CHALLENGES } from "./mini-progression";
 
 export type MiniKind =
-  "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
+  "sledswitchbacks" | "station" | "strengthtower" | "firsthill" | "hill" | "skyhill" | "dip" | "loop" | "corkscrew" | "helix"
   | "mountainpass" | "tunnel" | "lanternrun" | "pumpkinhop"
   | "sheepbank" | "windmillloop" | "pondbridge" | "ravinebridge" | "midwayloop" | "carouselhelix" | "pumpkintunnel" | "witchhat"
   | AdditionalAttraction | "triplehelix" | "invertedhill" | "verticalhill" | "jump" | "splash" | SpecialKind;
@@ -77,8 +78,8 @@ export class MiniSection implements MiniRail {
     const shape = railKind === "windmillloop" || railKind === "midwayloop" ? "loop"
       : railKind === "carouselhelix" ? "ascendinghelix" : railKind === "witchhat" ? "triplehelix"
       : railKind === "pumpkintunnel" ? "tunnel" : railKind;
-    const special = specialElement(shape, width, amplitude, hand, turns);
-    this.resolution = Math.min(16384, Math.max(shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
+    const special = kind === "sledswitchbacks" ? sledSwitchbacks(width, amplitude, hand) : specialElement(shape, width, amplitude, hand, turns);
+    this.resolution = Math.min(16384, Math.max(kind === "sledswitchbacks" ? 2400 : shape === "triplehelix" ? 1260 : railKind === "verticalhill" ? 600 : special ? 840 : 420,
       shape === "ascendinghelix" ? turns * 420 : 0, Math.ceil((this.span + Math.abs(amplitude) * turns) * 5)));
     const point = (t: number) => {
       if (special) return special.point(t).add(new THREE.Vector3(0, 0, shift * smooth(t))).add(origin);
@@ -405,6 +406,7 @@ export function createMiniSection(requestedKind: MiniKind, start: number, origin
     if (kind === "lanternrun") { width = r(62, 78); amplitude = r(5, 8); shift = 0; }
     if (kind === "witchhat") { width = r(64, 74); amplitude = r(22, 27); turns = 3; shift = 0; }
     if (kind === "pumpkinhop") { width = r(70, 90); amplitude = r(7, 10); shift = 0; }
+    if (kind === "sledswitchbacks") { width = r(106, 118); amplitude = r(26, 30); shift = 0; turns = 2; }
     if (varied) {
       const world = adventureAt(start).world;
       const doubleHeight = ["loop", "windmillloop", "midwayloop", "nestedloop", "interlockingloops", "noninvertingloop"].includes(kind) ? 2 : 1;
@@ -496,7 +498,7 @@ export class MiniTrack implements MiniRail {
   }
   ensure(distance: number, lookahead = 230) {
     while (this.end < distance + lookahead) {
-      // Finish the current element before adding the four-world finale. In
+      // Finish the current element before adding the world-lap finale. In
       // particular, never splice a tower through a loop or a water jump.
       // Scheduling precedes the next world's bag so its signature tour follows
       // the bonus exit, and pruning cannot make a completed finale reappear.
