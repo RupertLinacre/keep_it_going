@@ -28,7 +28,7 @@ export function christmasLayout(kind:ChristmasKind,w:number,h:number,hand:number
   // At each knot crossing the rails are ten metres apart in depth.
   for(let i=0;i<=64;i++){
     const u=i/64,a=TAU*u;
-    add(w*.5+w*.23*Math.sin(a),h*(.65+.30*Math.sin(2*a)),6+20*u);
+    add(w*.5+w*.23*Math.sin(a),h*(.65+.28*Math.sin(a)**2+.32*Math.sin(2*a)),6+20*u);
     if(i===16||i===48)landmarks.push(controls.at(-1)!.clone());
   }
   add(w*.68,h*.83,29);add(w*.85,h*.32,30);add(w*.92,h*.015,2);

@@ -44,6 +44,52 @@ test('bow rails form both lobes themselves and the snowball has a genuine bore',
  for(let i=0;i<index.count;i++)assert.ok(Math.hypot(p.getY(index.getX(i))+7-5.4,p.getZ(index.getX(i)))>=3.6-1e-5);
  g.dispose();
 });
+test('the full width of the spool feed and finished ribbon clears the parcel',()=>{
+ const material=new T.MeshStandardMaterial(),lights=new FairgroundLights();
+ const triangle=new T.Triangle();
+ try{for(const random of [()=>.1,()=>.9])for(const height of [0,4,12]){
+  const s=createMiniSection('ribbonreel',4300,new T.Vector3(10,height,0),20,random,true);
+  const piece=createChristmasPiece(s,material,lights)!;
+  try{
+   piece.update(4,s.end,false);
+   const geometry=(piece.group.getObjectByName('unwinding-bow-ribbon') as T.Mesh).geometry;
+   const positions=geometry.getAttribute('position'),index=geometry.index!;
+   const x=s.width/2,z=19*s.hand,base=Math.max(0,height-5),lid=Math.min(base+8.2,height+5.3);
+   const parcel=new T.Box3(new T.Vector3(x-17.5,base,z-6.5),new T.Vector3(x+17.5,lid,z+6.5));
+   const rim=new T.Box3(new T.Vector3(x-17.83,lid-.9,z-6.85),new T.Vector3(x+17.83,lid,z+6.85));
+   for(let i=0;i<index.count;i+=3){
+    triangle.a.fromBufferAttribute(positions,index.getX(i));
+    triangle.b.fromBufferAttribute(positions,index.getX(i+1));
+    triangle.c.fromBufferAttribute(positions,index.getX(i+2));
+    assert.ok(!parcel.intersectsTriangle(triangle)&&!rim.intersectsTriangle(triangle),
+      'ribbon enters wrapping at '+triangle.a.toArray()+' (origin height '+height+')');
+   }
+  }finally{piece.dispose();}
+ }}finally{material.dispose();lights.dispose();}
+});
+test('the ribbon pays out with the train, holds its finished bow and rewinds for replay',()=>{
+ const material=new T.MeshStandardMaterial(),lights=new FairgroundLights();
+ const s=createMiniSection('ribbonreel',4300,new T.Vector3(0,4,0),20,seededRandom(71),true);
+ const piece=createChristmasPiece(s,material,lights)!;
+ try{
+  const strip=piece.group.getObjectByName('unwinding-bow-ribbon') as T.Mesh;
+  const geometry=strip.geometry,position=geometry.getAttribute('position');
+  const lead=geometry.drawRange.count;
+  piece.update(2,s.start+s.length*.55,false);
+  const half=geometry.drawRange.count;
+  piece.update(4,s.end,false);
+  const full=geometry.drawRange.count;
+  assert.ok(lead>0&&lead<half&&half<full);
+  assert.equal(full,geometry.index!.count);
+  piece.update(8,s.end+10,false);
+  assert.equal(geometry.drawRange.count,full);
+  piece.update(0,s.start,true);
+  assert.equal(geometry.drawRange.count,lead);
+  piece.update(4,s.end,true);
+  assert.equal(geometry.drawRange.count,full);
+  assert.equal(geometry.getAttribute('position'),position);
+ }finally{piece.dispose();material.dispose();lights.dispose();}
+});
 test('Christmas animations have fixed buffers, pause cleanly, respect reduced motion and release ownership',()=>{
  const material=new T.MeshStandardMaterial({vertexColors:true}),lights=new FairgroundLights();
  try{for(const kind of CHRISTMAS_KINDS.filter(k=>k!=='chimneyhouse')){
