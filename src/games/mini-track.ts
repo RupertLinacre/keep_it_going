@@ -434,7 +434,9 @@ export function createMiniSection(requestedKind: MiniKind, start: number, origin
       // footprint compact so opponents remain easy to compare.
       if(kind === "cobraroll" && amplitude > 15){width *= 15/amplitude; amplitude = 15;}
     }
-    return new MiniSection(generated, requestedKind, start, origin, width, amplitude, shift, hand, turns);
+    // Keep the sled runs and tunnel entrance on the camera side of the mountain.
+    const sectionHand = kind === "sledswitchbacks" ? 1 : hand;
+    return new MiniSection(generated, requestedKind, start, origin, width, amplitude, shift, sectionHand, turns);
 }
 
 /** A sliding window of generated track. No finish, lap reset or cumulative descent. */

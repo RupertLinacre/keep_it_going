@@ -8,7 +8,14 @@ import { createSledMountain, SLED_TUNNEL } from '../src/games/attractions/sled-m
 import { penguinRoutes, PenguinHaul, TOW_GAPS, RACE_SECONDS } from '../src/games/sled-penguins';
 import { FairgroundLights } from '../src/games/world-lighting';
 
-// Both hands, later laps and race lanes use the actual game factory.
+test('the sled runs finish on the camera side regardless of the incoming track offset',()=>{
+  for(const z of [-3,0,3])for(const race of [false,true]){
+    const s=createMiniSection('sledswitchbacks',4350,new T.Vector3(0,4,z),20,seededRandom(42),true,race);
+    const summit=s.frames[Math.round(s.resolution*2/9)].position.z-s.origin.z;
+    for(const path of penguinRoutes(s).paths)assert.ok(path.getPoint(1).z>summit);
+  }
+});
+
 test('sled switchbacks have tangent joins, inward bank, broad turns and separate swept corridors',()=>{
   for(const seed of [1,18,42,73])for(const race of [false,true]){
     const s=createMiniSection('sledswitchbacks',4350,new T.Vector3(10,4,0),20,seededRandom(seed),true,race);
