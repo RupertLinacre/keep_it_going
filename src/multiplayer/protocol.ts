@@ -4,8 +4,8 @@ import { normalizeTables } from "../questions";
 import { isRacePower, type RacePowerState } from "../games/ride-powerups";
 import type { HeightState } from "../games/height-track";
 
-// Christmas courses start with both winter worlds on each rider’s device.
-export const PROTOCOL = 14;
+// Both riders must use the same ribbon loop geometry and course distances.
+export const PROTOCOL = 15;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_LENGTH = 4;
 export type Vec = [number, number, number];

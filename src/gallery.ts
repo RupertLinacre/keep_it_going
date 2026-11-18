@@ -29,7 +29,7 @@ const descriptions: Record<MiniKind, string> = {
   chimneyhouse: "Santa visits a cosy Lapland home, pauses to deliver presents, then bursts from its chimney in a magical leap. More entry speed means a higher flight. Play it at christmas.html?piece=chimneyhouse.",
   startree: "Three narrowing spirals climb a giant Christmas tree. Passing coaches wake its golden stars before sweeping down outside the branches.",
   snowmanscarf: "Climb a snowman’s striped scarf, duck beneath the hat, then return through the tunnel in its bottom snowball.",
-  ribbonreel: "Ride the two actual rail loops of a giant Christmas bow above an elf wrapping workshop, setting its ribbon reels spinning.",
+  ribbonreel: "Pull gold-edged ribbon from the elves’ reel as you ride two loops above a giant Christmas present, tying its bow as you come back down.",
   snowglobe: "Circle inside a glass snow globe, sweep outside, then return through its snowy village. Your train stirs a cloud of twinkling snow.",
   honeyfactory: "Busy delivery bees fill jars of honey beneath a giant turning sunflower.",
   pancakemill: "A giant smiling chef flips pancakes as the train loops past the pans.",
@@ -105,7 +105,7 @@ const shownKinds = () => {
   return world ? [...(world.pieces.length ? world.pieces : world.challenges)] : kinds;
 };
 const title = (kind: MiniKind) =>
-  ELEMENT_NAMES[kind].toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  ELEMENT_NAMES[kind].toLowerCase().replace(/(^|[ -])\w/g, (word) => word.toUpperCase());
 const initial = new URLSearchParams(location.search).get("element") as MiniKind;
 let kind: MiniKind = kinds.includes(initial) ? initial : "nestedloop";
 if (!shownKinds().includes(kind)) kind=shownKinds()[0];
@@ -199,7 +199,7 @@ const sleds = ['#e9c66c','#a7c779','#b4a1d9','#79b9c8','#eeaa80'].map((color,i)=
   scene.add(car);return car;
 });
 let bounds = new THREE.Box3();
-let view = ["startree","snowmanscarf","snowglobe","frozenwaterfall"].includes(kind)?"attraction":"perspective";
+let view = ["startree","snowmanscarf","ribbonreel","snowglobe","frozenwaterfall"].includes(kind)?"attraction":"perspective";
 function fit() {
   let framing=bounds;
   const focus=isChristmasKind(kind)&&view==='attraction';
