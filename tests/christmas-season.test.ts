@@ -57,20 +57,22 @@ test('ordinary rides repeat four worlds, put the tower after 4200m, and never ge
  }
 });
 
-test('Christmas rides start with both winter worlds and retain the 6600m adventure finale',()=>{
+test('Christmas rides separate the winter worlds and retain the 6600m adventure finale',()=>{
  const t=new MiniTrack(42,{generative:true,christmas:true});t.ensure(0,7300);
  assert.equal(t.worldLap,6600);assert.equal(t.worlds.length,6);
  assert.ok(t.sections.some(s=>s.kind==='frozenwaterfall'));
  assert.ok(t.sections.some(s=>s.kind==='sledswitchbacks'));
  assert.ok(t.sections.find(s=>s.kind==='strengthtower')!.start>=6600);
- assert.deepEqual(t.worlds.map(w=>w.id),['lapland','winterfair','meadow','mountain','night','halloween']);
- assert.deepEqual(t.worlds.map(w=>[w.start,w.end]),[[0,1200],[1200,2400],[2400,3300],[3300,4300],[4300,5400],[5400,6600]]);
+ assert.deepEqual(t.worlds.map(w=>w.id),['lapland','meadow','mountain','winterfair','night','halloween']);
+ assert.deepEqual(t.worlds.map(w=>[w.start,w.end]),[[0,1200],[1200,2100],[2100,3100],[3100,4300],[4300,5400],[5400,6600]]);
  assert.equal(adventureAt(0,t.worlds).world.id,'lapland');
- assert.equal(adventureAt(1200,t.worlds).world.id,'winterfair');
- assert.equal(adventureAt(2400,t.worlds).world.id,'meadow');
+ assert.equal(adventureAt(1200,t.worlds).world.id,'meadow');
+ assert.equal(adventureAt(2100,t.worlds).world.id,'mountain');
+ assert.equal(adventureAt(3100,t.worlds).world.id,'winterfair');
  assert.equal(christmasTrainAt(t,t.startDistance),true);
- assert.equal(christmasTrainAt(t,1500),true);
+ assert.equal(christmasTrainAt(t,1500),false);
  assert.equal(christmasTrainAt(t,3000),false);
+ assert.equal(christmasTrainAt(t,3200),true);
  assert.equal(adventureAt(6600,t.worlds).world.id,'lapland');
  for(const world of CHRISTMAS_WORLDS){
   const original=WORLDS.find(w=>w.id===world.id)!;
